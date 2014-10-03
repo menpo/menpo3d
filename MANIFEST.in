@@ -1,0 +1,2 @@
+include versioneer.py
+include menpo3d/_version.py

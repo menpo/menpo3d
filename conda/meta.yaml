@@ -1,0 +1,30 @@
+package:
+  name: menpo3d
+  version: {{ environ['CONDACI_VERSION'] }}
+
+requirements:
+  build:
+    - python
+    - setuptools
+
+  run:
+    - python
+    - numpy 1.9.0
+    - scipy 0.14.0
+    - menpo 0.4.0
+    - cyrasterize 0.2.0
+    - hdf5able 0.3.3
+
+test:
+  requires:
+  - coverage
+
+  imports:
+  - menpo
+
+  commands:
+  - python -c "import nose; nose.main()" -s menpo
+
+about:
+  home: https://github.com/menpo/menpo3d/
+  license: BSD
