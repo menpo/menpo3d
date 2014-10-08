@@ -21,5 +21,6 @@ setup(name=project_name,
       install_requires=['numpy==1.9.0',
                         'scipy==0.14.0',
                         'menpo==0.3.0',
+                        'cyassimp==0.2.0',
                         'cyrasterize==0.2.0',
                         'hdf5able==0.3.3'])
