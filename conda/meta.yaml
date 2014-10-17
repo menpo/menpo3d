@@ -9,21 +9,21 @@ requirements:
 
   run:
     - python
-    - numpy 1.9.0
-    - scipy 0.14.0
     - menpo 0.4.0
+    - cyassimp 0.2.0
     - cyrasterize 0.2.0
-    - hdf5able 0.3.3
-
+    - menpo-pyvrml97 2.3.0a4  # [py27]
+    - mayavi 4.3.1  # [py27]
 test:
   requires:
-  - coverage
+  - nose
+  - mock
 
   imports:
-  - menpo
+  - menpo3d
 
   commands:
-  - python -c "import nose; nose.main()" -s menpo
+  - python -c "import nose; nose.main()" -s menpo3d
 
 about:
   home: https://github.com/menpo/menpo3d/

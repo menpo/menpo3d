@@ -1,4 +1,5 @@
 from setuptools import setup, find_packages
+import sys
 import versioneer
 
 project_name = 'menpo3d'
@@ -11,16 +12,21 @@ versioneer.versionfile_build = '{}/_version.py'.format(project_name)
 versioneer.tag_prefix = 'v'  # tags are like v1.2.0
 versioneer.parentdir_prefix = project_name + '-'  # dirname like 'menpo-v1.2.0'
 
+install_requires = ['menpo==0.4.0',
+                    'cyassimp==0.2.0',
+                    'cyrasterize==0.2.0']
+
+# These dependencies currently don't work on Python 3
+if sys.version_info.major == 2:
+    install_requires.append('mayavi==4.3.1')
+    install_requires.append('menpo-pyvrml97==2.3.0a4')
+
 setup(name=project_name,
       version=versioneer.get_version(),
       cmdclass=versioneer.get_cmdclass(),
-      description='MenpoKit providing tools for 3D CV research',
+      description='MenpoKit providing tools for 3D Computer Vision research',
       author='James Booth',
       author_email='james.booth08@imperial.ac.uk',
       packages=find_packages(),
-      install_requires=['numpy==1.9.0',
-                        'scipy==0.14.0',
-                        'menpo==0.3.0',
-                        'cyassimp==0.2.0',
-                        'cyrasterize==0.2.0',
-                        'hdf5able==0.3.3'])
+      install_requires=install_requires
+)
