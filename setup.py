@@ -28,5 +28,7 @@ setup(name=project_name,
       author='James Booth',
       author_email='james.booth08@imperial.ac.uk',
       packages=find_packages(),
-      install_requires=install_requires
+      package_data={'menpo3d': ['data/*']},
+      install_requires=install_requires,
+      tests_require=['nose==1.3.4', 'mock==1.0.1']
 )
