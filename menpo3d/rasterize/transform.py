@@ -75,7 +75,7 @@ def model_to_clip_transform(points, xy_scale=0.9, z_scale=0.3):
         The affine transform that creates this mapping
     """
     # 1. Centre the points on the origin
-    center = Translation(points.centre_of_bounds).pseudoinverse
+    center = Translation(points.centre_of_bounds()).pseudoinverse()
     # 2. Scale the points to exactly fit the boundaries
     scale = Scale(points.range() / 2.0)
     # 3. Apply the relaxations requested - note the flip in the z axis!!
@@ -84,7 +84,7 @@ def model_to_clip_transform(points, xy_scale=0.9, z_scale=0.3):
     # all dims) but we must invert the z axis so depth buffering is correctly
     # applied.
     b_scale = NonUniformScale([xy_scale, xy_scale, -z_scale])
-    return center.compose_before(scale.pseudoinverse).compose_before(b_scale)
+    return center.compose_before(scale.pseudoinverse()).compose_before(b_scale)
 
 
 def clip_to_image_transform(width, height):
