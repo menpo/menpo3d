@@ -52,3 +52,6 @@ docs/_build/
 
 # PyBuilder
 target/
+
+# Intellij
+menpo3d.iml
