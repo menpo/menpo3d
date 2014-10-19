@@ -22,5 +22,4 @@ setup(name=project_name,
                         'scipy==0.14.0',
                         'menpo==0.3.0',
                         'cyassimp==0.2.0',
-                        'cyrasterize==0.2.0',
-                        'hdf5able==0.3.3'])
+                        'cyrasterize==0.2.0'])
