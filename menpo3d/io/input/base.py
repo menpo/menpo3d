@@ -86,7 +86,8 @@ def _import_builtin_asset(asset_name):
 
     """
     asset_path = data_path_to(asset_name)
-    return _import(asset_path, mesh_types, has_landmarks=True)
+    return _import(asset_path, mesh_types,
+                   landmark_ext_map=mesh_landmark_types)
 
 
 def import_mesh(filepath, landmark_resolver=same_name, texture=True):
