@@ -86,7 +86,8 @@ def _import_builtin_asset(asset_name):
 
     """
     asset_path = data_path_to(asset_name)
-    return _import(asset_path, mesh_types, has_landmarks=True)
+    return _import(asset_path, mesh_types,
+                   landmark_ext_map=mesh_landmark_types)
 
 
 def import_mesh(filepath, landmark_resolver=same_name, texture=True):
@@ -120,8 +121,10 @@ def import_mesh(filepath, landmark_resolver=same_name, texture=True):
 
     """
     kwargs = {'texture': texture}
-    return _import(filepath, mesh_types, has_landmarks=True,
-                   landmark_resolver=landmark_resolver, importer_kwargs=kwargs)
+    return _import(filepath, mesh_types,
+                   landmark_resolver=landmark_resolver,
+                   landmark_ext_map=mesh_landmark_types,
+                   importer_kwargs=kwargs)
 
 
 def import_meshes(pattern, max_meshes=None, landmark_resolver=same_name,
@@ -173,8 +176,8 @@ def import_meshes(pattern, max_meshes=None, landmark_resolver=same_name,
     kwargs = {'texture': textures}
     for asset in _import_glob_generator(pattern, mesh_types,
                                         max_assets=max_meshes,
-                                        has_landmarks=True,
                                         landmark_resolver=landmark_resolver,
+                                        landmark_ext_map=mesh_landmark_types,
                                         importer_kwargs=kwargs,
                                         verbose=verbose):
         yield asset
@@ -197,7 +200,7 @@ def import_landmark_file(filepath, landmark_resolver=same_name):
         The :map:`LandmarkGroup` that the file format represents.
 
     """
-    return _import(filepath, mesh_landmark_types, has_landmarks=False,
+    return _import(filepath, mesh_landmark_types,
                    landmark_resolver=landmark_resolver)
 
 
@@ -231,7 +234,6 @@ def import_landmark_files(pattern, max_landmarks=None, verbose=False):
     """
     for asset in _import_glob_generator(pattern, mesh_landmark_types,
                                         max_assets=max_landmarks,
-                                        has_landmarks=False,
                                         verbose=verbose):
         yield asset
 

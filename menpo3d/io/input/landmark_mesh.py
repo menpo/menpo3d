@@ -167,27 +167,6 @@ class BNDImporter(LandmarkImporter):
     def __init__(self, filepath):
         super(BNDImporter, self).__init__(filepath)
 
-    def _indices_to_mask(n_points, indices):
-        """
-        Helper function to turn an array of indices in to a boolean mask.
-
-        Parameters
-        ----------
-        n_points : int
-            The total number of points for the mask
-        indices : ndarray of ints
-            An array of integers representing the `True` indices.
-
-        Returns
-        -------
-        boolean_mask : ndarray of bools
-            The mask for the set of landmarks where each index from indices is set
-            to `True` and the rest are `False`
-        """
-        mask = np.zeros(n_points, dtype=np.bool)
-        mask[indices] = True
-        return mask
-
     def _parse_format(self, asset=None):
         with open(self.filepath, 'r') as f:
             landmarks = f.read()
@@ -205,13 +184,35 @@ class BNDImporter(LandmarkImporter):
 
         self.pointcloud = PointCloud(landmarks)
         self.labels_to_masks = OrderedDict([
-            ('left_eye', self._indices_to_mask(n_points, np.arange(8))),
-            ('right_eye', self._indices_to_mask(n_points, np.arange(8, 16))),
-            ('left_eyebrow', self._indices_to_mask(n_points,
+            ('left_eye', _indices_to_mask(n_points, np.arange(8))),
+            ('right_eye', _indices_to_mask(n_points, np.arange(8, 16))),
+            ('left_eyebrow', _indices_to_mask(n_points,
                                                    np.arange(16, 26))),
-            ('right_eyebrow', self._indices_to_mask(n_points,
+            ('right_eyebrow', _indices_to_mask(n_points,
                                                     np.arange(26, 36))),
-            ('nose', self._indices_to_mask(n_points, np.arange(36, 48))),
-            ('mouth', self._indices_to_mask(n_points, np.arange(48, 68))),
-            ('chin', self._indices_to_mask(n_points, np.arange(68, 83)))
+            ('nose', _indices_to_mask(n_points, np.arange(36, 48))),
+            ('mouth', _indices_to_mask(n_points, np.arange(48, 68))),
+            ('chin', _indices_to_mask(n_points, np.arange(68, 83)))
         ])
+
+
+def _indices_to_mask(n_points, indices):
+    """
+    Helper function to turn an array of indices in to a boolean mask.
+
+    Parameters
+    ----------
+    n_points : int
+        The total number of points for the mask
+    indices : ndarray of ints
+        An array of integers representing the `True` indices.
+
+    Returns
+    -------
+    boolean_mask : ndarray of bools
+        The mask for the set of landmarks where each index from indices is set
+        to `True` and the rest are `False`
+    """
+    mask = np.zeros(n_points, dtype=np.bool)
+    mask[indices] = True
+    return mask
