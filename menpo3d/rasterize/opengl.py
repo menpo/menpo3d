@@ -4,7 +4,6 @@ from cyrasterize.base import CyRasterizerBase
 from menpo.image import MaskedImage
 from menpo.transform import Homogeneous
 
-from .base import TextureRasterInfo
 from .transform import clip_to_image_transform
 
 
@@ -57,8 +56,7 @@ class GLRasterizer(CyRasterizerBase):
         return self.model_to_clip_transform.compose_before(
             self.clip_to_image_transform)
 
-    def rasterize_mesh_with_f3v_interpolant(self, rasterizable,
-                                            per_vertex_f3v=None):
+    def rasterize_mesh_with_f3v_interpolant(self, m, per_vertex_f3v=None):
         r"""
         Rasterize the object to an image and generate an interpolated
         3-float image from a per vertex float 3 vector.
@@ -89,40 +87,44 @@ class GLRasterizer(CyRasterizerBase):
             visible primitives.
 
         """
-        if rasterizable._rasterize_type_texture:
-            # request the textured info for rasterizing
-            r = rasterizable._rasterize_generate_textured_mesh()
+        if not (hasattr(m, 'points') and
+                hasattr(m, 'trilist')):
+            raise ValueError('Rasterizable types have to have points and '
+                             'trilist properties.')
+        if hasattr(m, 'tcoords'):
             images = self._rasterize_texture_with_interp(
-                r, per_vertex_f3v=per_vertex_f3v)
-        elif rasterizable._rasterize_type_colour:
+                m.points, m.trilist, m.texture.pixels, m.tcoords.points,
+                per_vertex_f3v=per_vertex_f3v)
+        else:
             #TODO: This should use a different shader!
             # TODO This should actually use the colour provided.
             # But I'm hacking it here to work quickly.
-            colour_r = rasterizable._rasterize_generate_color_mesh()
-
+            if hasattr(m, 'colours'):
+                colours = m.colours
+            else:
+                # just make a grey colour
+                colours = np.ones((m.n_points, 3)) * 0.5
             # Fake some texture coordinates and a texture as required by the
             # shader
-            fake_tcoords = np.random.randn(colour_r.points.shape[0], 2)
+            fake_tcoords = np.random.randn(m.n_points, 2)
             fake_texture = np.zeros([2, 2, 3])
-            r = TextureRasterInfo(colour_r.points, colour_r.trilist,
-                                  fake_tcoords, fake_texture)
 
             # The RGB image is going to be broken due to the fake texture
             # information we passed in
             _, rgb_image = self._rasterize_texture_with_interp(
-                r, per_vertex_f3v=colour_r.colours)
+                m.points, m.trilist, fake_texture, fake_tcoords,
+                per_vertex_f3v=colours)
             _, f3v_image = self._rasterize_texture_with_interp(
-                r, per_vertex_f3v=per_vertex_f3v)
+                m.points, m.trilist, fake_texture, fake_tcoords,
+                per_vertex_f3v=per_vertex_f3v)
 
             images = rgb_image, f3v_image
-        else:
-            raise ValueError("Cannot rasterize {}".format(rasterizable))
 
         from menpo.landmark import Landmarkable
-        if isinstance(rasterizable, Landmarkable):
+        if isinstance(m, Landmarkable):
             # Transform all landmarks and set them on the image
             image_lms = self.model_to_image_transform.apply(
-                rasterizable.landmarks)
+                m.landmarks)
             for image in images:
                 image.landmarks = image_lms
         return images
@@ -185,7 +187,8 @@ class GLRasterizer(CyRasterizerBase):
         """
         return self.rasterize_mesh_with_shape_image(rasterizable)[0]
 
-    def _rasterize_texture_with_interp(self, r, per_vertex_f3v=None):
+    def _rasterize_texture_with_interp(self, points, trilist, texture, tcoords,
+                                       per_vertex_f3v=None):
         r"""Rasterizes a textured mesh along with it's interpolant data
         through OpenGL.
 
@@ -223,7 +226,6 @@ class GLRasterizer(CyRasterizerBase):
         """
         # make a call out to the CyRasterizer _rasterize method
         rgb_pixels, f3v_pixels, mask = self._rasterize(
-            r.points, r.trilist, r.texture, r.tcoords,
-            per_vertex_f3v=per_vertex_f3v)
+            points, trilist, texture, tcoords, per_vertex_f3v=per_vertex_f3v)
         return (MaskedImage(np.array(rgb_pixels, dtype=np.float), mask=mask),
                 MaskedImage(np.array(f3v_pixels, dtype=np.float), mask=mask))
