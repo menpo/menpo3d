@@ -2,6 +2,7 @@ import abc
 from collections import namedtuple
 import os.path as path
 import json
+from pathlib import Path
 
 import numpy as np
 from menpo.io.input.base import Importer, import_image
@@ -58,7 +59,7 @@ def filter_extensions(filepaths, extensions_map):
         A list of basenames
     """
     extensions = extensions_map.keys()
-    return [f.stem for f in filepaths if f.suffix in extensions]
+    return [f.name for f in filepaths if f.suffix in extensions]
 
 
 def find_alternative_files(filepath, extensions_map):
@@ -87,6 +88,7 @@ def find_alternative_files(filepath, extensions_map):
     ImportError
         If no alternative file is found
     """
+    filepath = Path(filepath)
     try:
         all_paths = files_with_matching_stem(filepath)
         base_names = filter_extensions(all_paths, extensions_map)
