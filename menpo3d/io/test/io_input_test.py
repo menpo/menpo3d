@@ -112,7 +112,7 @@ def test_ls_builtin_assets():
 
 
 def test_mesh_paths():
-    ls = mio.mesh_paths(os.path.join(mio.data_dir_path(), '*'))
+    ls = mio.mesh_paths(mio.data_dir_path())
     assert(len(list(ls)) == 2)
 
 

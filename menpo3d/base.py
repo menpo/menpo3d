@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 
 def menpo3d_src_dir_path():
@@ -11,4 +12,4 @@ def menpo3d_src_dir_path():
     path : str
         The full path to the top of the Menpo3d package
     """
-    return os.path.split(os.path.abspath(__file__))[0]
+    return Path(os.path.abspath(__file__)).parent
