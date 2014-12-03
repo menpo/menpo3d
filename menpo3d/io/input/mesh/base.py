@@ -61,7 +61,7 @@ def filter_extensions(filepaths, extensions_map):
     return [f.stem for f in filepaths if f.suffix in extensions]
 
 
-def find_alternative_files(file_type, filepath, extensions_map):
+def find_alternative_files(filepath, extensions_map):
     r"""
     Given a filepath, search for files with the same basename that match
     a given extension type, eg images. If more than one file is found, an error
@@ -69,8 +69,6 @@ def find_alternative_files(file_type, filepath, extensions_map):
 
     Parameters
     ----------
-    file_type : string
-        The type of file being found. Used for the error outputs.
     filepath : string
         An absolute filepath
     extensions_map : dictionary (String, :class:`menpo.io.base.Importer`)
@@ -93,14 +91,12 @@ def find_alternative_files(file_type, filepath, extensions_map):
         all_paths = files_with_matching_stem(filepath)
         base_names = filter_extensions(all_paths, extensions_map)
         if len(base_names) > 1:
-            print("Warning: More than one {0} was found: "
-                  "{1}. Taking the first by default".format(
-                file_type, base_names))
+            print("Warning: More than one file was found: "
+                  "{}. Taking the first by default".format(base_names))
         return base_names[0]
     except Exception as e:
-        raise ImportError("Failed to find a {0} for {1} from types {2}. "
-                          "Reason: {3}".format(file_type, filepath,
-                                               extensions_map, e))
+        raise ImportError("Failed to find a file for {} from types {}. "
+                          "Reason: {}".format(filepath, extensions_map, e))
 
 
 class MeshImporter(Importer):
@@ -144,8 +140,7 @@ class MeshImporter(Importer):
         # This import is here to avoid circular dependencies
         from menpo.io.input.extensions import image_types
         try:
-            return find_alternative_files('texture', self.filepath,
-                                          image_types)
+            return find_alternative_files(self.filepath, image_types)
         except ImportError:
             return None
 
