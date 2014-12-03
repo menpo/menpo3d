@@ -1,7 +1,7 @@
 from menpo.shape.mesh import TexturedTriMesh
 
 
-def OBJExporter(file_handle, mesh):
+def OBJExporter(mesh, file_handle):
     r"""
     Given a file handle to write in to (which should act like a Python `file`
     object), write out the mesh data. No value is returned..

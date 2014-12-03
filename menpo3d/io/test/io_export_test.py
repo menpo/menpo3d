@@ -13,7 +13,7 @@ def test_export_mesh_obj(mock_open, exists):
     fake_path = '/fake/fake.obj'
     with open(fake_path) as f:
         type(f).name = PropertyMock(return_value=fake_path)
-        mio.export_mesh(f, test_obj, extension='obj')
+        mio.export_mesh(test_obj, f, extension='obj')
 
 
 @patch('menpo.image.base.PILImage')
@@ -23,7 +23,7 @@ def test_export_mesh_obj_textured(mock_open, exists, PILImage):
     exists.return_value = False
     mock_open.return_value = MagicMock()
     fake_path = '/fake/fake.obj'
-    mio.export_textured_mesh(fake_path, test_obj, extension='obj')
+    mio.export_textured_mesh(test_obj, fake_path, extension='obj')
     PILImage.save.assert_called_once()
 
 
@@ -35,5 +35,5 @@ def test_export_landmark_ljson(mock_open, exists, json_dump):
     fake_path = '/fake/fake.ljson'
     with open(fake_path) as f:
         type(f).name = PropertyMock(return_value=fake_path)
-        mio.export_landmark_file(f, test_lg, extension='ljson')
+        mio.export_landmark_file(test_lg, f, extension='ljson')
     json_dump.assert_called_once()

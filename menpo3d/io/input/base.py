@@ -21,11 +21,11 @@ def data_dir_path():
 
     Returns
     -------
-    string
+    `pathlib.Path`
         The path to the local Menpo3d ./data folder
 
     """
-    return os.path.join(menpo3d_src_dir_path(), 'data')
+    return menpo3d_src_dir_path() / 'data'
 
 
 def ls_builtin_assets():
@@ -37,21 +37,22 @@ def ls_builtin_assets():
         Filenames of all assets in the data directory shipped with Menpo3d
 
     """
-    return os.listdir(data_dir_path())
+    return [p.name for p in data_dir_path().glob('*')]
 
 
 def data_path_to(asset_filename):
-    r"""The path to a builtin asset in the ./data folder on this machine.
+    r"""
+    The path to a builtin asset in the ./data folder on this machine.
 
     Parameters
     ----------
     asset_filename : `str`
-        The filename (with extension) of a file builtin to Menpo3d. The full
+        The filename (with extension) of a file builtin to Menpo. The full
         set of allowed names is given by :func:`ls_builtin_assets()`
 
     Returns
     -------
-    data_path : `str`
+    data_path : `pathlib.Path`
         The path to a given asset in the ./data folder
 
     Raises
@@ -60,8 +61,8 @@ def data_path_to(asset_filename):
         If the asset_filename doesn't exist in the `data` folder.
 
     """
-    asset_path = os.path.join(data_dir_path(), asset_filename)
-    if not os.path.isfile(asset_path):
+    asset_path = data_dir_path() / asset_filename
+    if not asset_path.is_file():
         raise ValueError("{} is not a builtin asset: {}".format(
             asset_filename, ls_builtin_assets()))
     return asset_path

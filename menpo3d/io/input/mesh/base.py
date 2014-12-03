@@ -4,7 +4,7 @@ import os.path as path
 import json
 
 import numpy as np
-from menpo.io.input.base import Importer, find_alternative_files, import_image
+from menpo.io.input.base import Importer, import_image
 from menpo.io.exceptions import MeshImportError
 from menpo.shape.mesh import ColouredTriMesh, TexturedTriMesh, TriMesh
 
@@ -15,6 +15,88 @@ from menpo.shape.mesh import ColouredTriMesh, TexturedTriMesh, TriMesh
 # Assimp type, and at some point they should become the same object
 MeshInfo = namedtuple('MeshInfo', ['points', 'trilist', 'tcoords',
                                    'colour_per_vertex'])
+
+
+def files_with_matching_stem(filepath):
+    r"""
+    Given a filepath, find all the files that share the same stem.
+
+    Can be used to find all landmark files for a given image for instance.
+
+    Parameters
+    ----------
+    filepath : `pathlib.Path`
+        The filepath to be matched against
+
+    Yields
+    ------
+    path : `pathlib.Path`
+        A list of absolute filepaths to files that share the same stem
+        as filepath.
+
+    """
+    return filepath.parent.glob('{}.*'.format(filepath.stem))
+
+
+def filter_extensions(filepaths, extensions_map):
+    r"""
+    Given a set of filepaths, filter the files who's extensions are in the
+    given map. This is used to find images and landmarks from a given basename.
+
+    Parameters
+    ----------
+    filepaths : list of strings
+        A list of absolute filepaths
+    extensions_map : dictionary (String, :class:`menpo.io.base.Importer`)
+        A map from extensions to importers. The importers are expected to be
+        non-instantiated classes. The extensions are expected to
+        contain the leading period eg. `.obj`.
+
+    Returns
+    -------
+    basenames : list of strings
+        A list of basenames
+    """
+    extensions = extensions_map.keys()
+    return [f.stem for f in filepaths if f.suffix in extensions]
+
+
+def find_alternative_files(filepath, extensions_map):
+    r"""
+    Given a filepath, search for files with the same basename that match
+    a given extension type, eg images. If more than one file is found, an error
+    is printed and the first such basename is returned.
+
+    Parameters
+    ----------
+    filepath : string
+        An absolute filepath
+    extensions_map : dictionary (String, :class:`menpo.io.base.Importer`)
+        A map from extensions to importers. The importers are expected to be
+        non-instantiated classes. The extensions are expected to
+        contain the leading period eg. `.obj`.
+
+    Returns
+    -------
+    base_name : string
+        The basename of the file that was found eg `mesh.bmp`. Only **one**
+        file is ever returned. If more than one is found, the first is taken.
+
+    Raises
+    ------
+    ImportError
+        If no alternative file is found
+    """
+    try:
+        all_paths = files_with_matching_stem(filepath)
+        base_names = filter_extensions(all_paths, extensions_map)
+        if len(base_names) > 1:
+            print("Warning: More than one file was found: "
+                  "{}. Taking the first by default".format(base_names))
+        return base_names[0]
+    except Exception as e:
+        raise ImportError("Failed to find a file for {} from types {}. "
+                          "Reason: {}".format(filepath, extensions_map, e))
 
 
 class MeshImporter(Importer):
@@ -58,8 +140,7 @@ class MeshImporter(Importer):
         # This import is here to avoid circular dependencies
         from menpo.io.input.extensions import image_types
         try:
-            return find_alternative_files('texture', self.filepath,
-                                          image_types)
+            return find_alternative_files(self.filepath, image_types)
         except ImportError:
             return None
 
