@@ -12,7 +12,7 @@ versioneer.versionfile_build = '{}/_version.py'.format(project_name)
 versioneer.tag_prefix = 'v'  # tags are like v1.2.0
 versioneer.parentdir_prefix = project_name + '-'  # dirname like 'menpo-v1.2.0'
 
-install_requires = ['menpo==0.4.0',
+install_requires = ['menpo==0.4.0a3',
                     'cyassimp==0.2.0',
                     'cyrasterize==0.2.0']
 
