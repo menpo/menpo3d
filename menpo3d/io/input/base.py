@@ -12,8 +12,7 @@ def same_name(asset):
     # pattern finding all landmarks with the same stem
     pattern = asset.path.with_suffix('.*')
     # find all the landmarks we can with this name. Key is ext (without '.')
-    return {os.path.splitext(p)[-1][1:].upper(): p
-            for p in landmark_file_paths(pattern)}
+    return {p.suffix[1:].upper(): p for p in landmark_file_paths(pattern)}
 
 
 def data_dir_path():
