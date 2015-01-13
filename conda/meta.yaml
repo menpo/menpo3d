@@ -11,7 +11,7 @@ requirements:
     - python
     - menpo 0.4.0a3
     - cyassimp 0.2.0
-    - cyrasterize 0.2.1
+    - cyrasterize 0.2.2
     - menpo-pyvrml97 2.3.0a4  # [py27]
     - mayavi 4.3.1  # [py27]
 test:

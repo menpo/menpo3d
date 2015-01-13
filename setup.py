@@ -14,7 +14,7 @@ versioneer.parentdir_prefix = project_name + '-'  # dirname like 'menpo-v1.2.0'
 
 install_requires = ['menpo==0.4.0a3',
                     'cyassimp==0.2.0',
-                    'cyrasterize==0.2.0']
+                    'cyrasterize==0.2.2']
 
 # These dependencies currently don't work on Python 3
 if sys.version_info.major == 2:
