@@ -12,7 +12,7 @@ versioneer.versionfile_build = '{}/_version.py'.format(project_name)
 versioneer.tag_prefix = 'v'  # tags are like v1.2.0
 versioneer.parentdir_prefix = project_name + '-'  # dirname like 'menpo-v1.2.0'
 
-install_requires = ['menpo==0.4.0a3',
+install_requires = ['menpo>=0.4.0,<0.5',
                     'cyassimp==0.2.0',
                     'cyrasterize==0.2.2']
 
@@ -30,5 +30,5 @@ setup(name=project_name,
       packages=find_packages(),
       package_data={'menpo3d': ['data/*']},
       install_requires=install_requires,
-      tests_require=['nose==1.3.4', 'mock==1.0.1']
+      tests_require=['nose', 'mock']
 )
