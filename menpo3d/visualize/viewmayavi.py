@@ -246,7 +246,7 @@ class MayaviTriMeshViewer3d(MayaviViewer):
     def render(self, normals=None, **kwargs):
         if normals is not None:
             MayaviVectorViewer3d(self.figure_id, False,
-                                 self.points, normals)._render(**kwargs)
+                                 self.points, normals).render(**kwargs)
         self._render_mesh()
         return self
 
