@@ -224,6 +224,9 @@ class MayaviLandmarkViewer3d(MayaviViewer):
                       os[:, 0], os[:, 1], os[:, 2], figure=self.figure)
         self.figure.scene.disable_render = False
 
+        # Ensure everything fits inside the camera viewport
+        mlab.get_engine().current_scene.scene.reset_zoom()
+
         return self
 
 
