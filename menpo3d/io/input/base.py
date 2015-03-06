@@ -68,7 +68,7 @@ def data_path_to(asset_filename):
 
 
 def _import_builtin_asset(asset_name):
-    r"""Single builtin asset (mesh or image) importer.
+    r"""Single builtin asset (mesh or landmark) importer.
 
     Imports the relevant builtin asset from the ./data directory that
     ships with Menpo3d.
@@ -82,12 +82,16 @@ def _import_builtin_asset(asset_name):
     Returns
     -------
     asset
-        An instantiated :map:`Image` or :map:`TriMesh` asset.
-
+        An instantiated :map:`LandmarkGroup` or :map:`TriMesh` asset.
     """
     asset_path = data_path_to(asset_name)
-    return _import(asset_path, mesh_types,
-                   landmark_ext_map=mesh_landmark_types)
+    # Import could be either a mesh or a set of landmarks, so we try
+    # importing them both separately.
+    try:
+        return _import(asset_path, mesh_types,
+                       landmark_ext_map=mesh_landmark_types)
+    except ValueError:
+        return _import(asset_path, mesh_landmark_types)
 
 
 def import_mesh(filepath, landmark_resolver=same_name, texture=True):

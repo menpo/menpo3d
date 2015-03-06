@@ -224,6 +224,9 @@ class MayaviLandmarkViewer3d(MayaviViewer):
                       os[:, 0], os[:, 1], os[:, 2], figure=self.figure)
         self.figure.scene.disable_render = False
 
+        # Ensure everything fits inside the camera viewport
+        mlab.get_engine().current_scene.scene.reset_zoom()
+
         return self
 
 
@@ -246,7 +249,7 @@ class MayaviTriMeshViewer3d(MayaviViewer):
     def render(self, normals=None, **kwargs):
         if normals is not None:
             MayaviVectorViewer3d(self.figure_id, False,
-                                 self.points, normals)._render(**kwargs)
+                                 self.points, normals).render(**kwargs)
         self._render_mesh()
         return self
 
@@ -272,11 +275,11 @@ class MayaviTexturedTriMeshViewer3d(MayaviTriMeshViewer3d):
         actor = tvtk.Actor(mapper=mapper)
         # Get the pixels from our image class which are [0, 1] and scale
         # back to valid pixels. Then convert to tvtk ImageData.
-        image_data = np.flipud(self.texture.pixels * 255).flatten().reshape(
-            [-1, 3]).astype(np.uint8)
+        image_data = np.flipud(np.array(self.texture.as_PILImage())).ravel()
+        image_data = image_data.reshape([-1, 3])
         image = tvtk.ImageData()
         image.point_data.scalars = image_data
-        image.dimensions = self.texture.shape[1], self.texture.shape[0], 1
+        image.dimensions = self.texture.width, self.texture.height, 1
         texture = tvtk.Texture(input=image)
         actor.texture = texture
         self.figure.scene.add_actors(actor)
