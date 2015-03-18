@@ -78,7 +78,7 @@ class GLRasterizer(CyRasterizerBase):
 
         Returns
         -------
-        rgb_image : 3 channel MaskedImage of shape (width, height)
+        rgb_image : 3-channel MaskedImage of shape (width, height)
             The result of the rasterization. Mask is true iff the pixel was
             rendered to by OpenGL.
 
@@ -225,7 +225,10 @@ class GLRasterizer(CyRasterizerBase):
 
         """
         # make a call out to the CyRasterizer _rasterize method
+        # first, roll the axes to get things to the way OpenGL expects them
+        texture = np.rollaxis(texture, 0, len(texture.shape))
         rgb_pixels, f3v_pixels, mask = self._rasterize(
             points, trilist, texture, tcoords, per_vertex_f3v=per_vertex_f3v)
-        return (MaskedImage(np.array(rgb_pixels, dtype=np.float), mask=mask),
-                MaskedImage(np.array(f3v_pixels, dtype=np.float), mask=mask))
+        # roll back the results so things are as Menpo expects
+        return (MaskedImage(np.array(np.rollaxis(rgb_pixels, -1), dtype=np.float), mask=mask),
+                MaskedImage(np.array(np.rollaxis(f3v_pixels, -1), dtype=np.float), mask=mask))
