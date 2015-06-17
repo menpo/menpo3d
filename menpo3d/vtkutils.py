@@ -18,7 +18,15 @@ def trimesh_to_vtk(trimesh):
     -------
     `vtk_mesh` : `vtkPolyData`
         A VTK mesh representation of the Menpo :map:`TriMesh` data
+
+    Raises
+    ------
+    ValueError:
+        If the input trimesh is not 3D.
     """
+    if trimesh.n_dims != 3:
+        raise ValueError('trimesh_to_vtk() only works on 3D TriMesh instances')
+
     mesh = vtk.vtkPolyData()
     points = vtk.vtkPoints()
     points.SetData(numpy_to_vtk(trimesh.points, deep=1))
