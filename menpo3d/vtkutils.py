@@ -84,7 +84,31 @@ class VTKClosestPointLocator(object):
         self._sub_id = vtk.mutable(0)
         self._distance = vtk.mutable(0.0)
 
-    def __call__(self, point):
+    def __call__(self, points):
+        r"""Return the nearest points on the mesh and the index of the nearest
+        triangle for a collection of points. This is a lower-level algorithm
+        and operates directly on a numpy array rather than an pointcloud.
+
+        Parameters
+        ----------
+        points : ``(n_points, 3)`` `ndarray`
+            Query points
+
+        Returns
+        -------
+        `nearest_points`, `tri_indices` : ``(n_points, 3)`` `ndarray`, ``(n_points,)`` `ndarray`
+            A tuple of the nearest points on the `vtkPolyData` and the triangle
+            indices of the triangles that the nearest point is located inside of.
+        """
+        snapped_points, indices = [], []
+        for p in points:
+            snapped, index = self._find_single_closest_point(p)
+            snapped_points.append(snapped)
+            indices.append(index)
+
+        return np.array(snapped_points), np.array(indices)
+
+    def _find_single_closest_point(self, point):
         r"""Return the nearest point on the mesh and the index of the nearest
         triangle
 
