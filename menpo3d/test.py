@@ -18,3 +18,12 @@ def test_trimesh_to_vtk_fails_on_2d_mesh():
     points = np.random.random((5, 2))
     test_mesh = TriMesh(points)
     trimesh_to_vtk(test_mesh)
+
+
+def test_barycentric_rebuild_returns_same_as_snapped_points():
+    mesh = menpo3d.io.import_builtin_asset.bunny_obj()
+    lms = mesh.landmarks[None].lms
+    bc = mesh.barycentric_coordinates_of_pointcloud(lms)
+    recon_lms = mesh.project_barycentric_coordinates(*bc)
+    direct_recon_lms = mesh.snap_pointcloud_to_surface(lms)[0]
+    assert_allclose(recon_lms.points, direct_recon_lms.points)
