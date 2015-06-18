@@ -41,13 +41,8 @@ def snap_pointcloud_to_surface(self, pointcloud):
     """
     vtk_mesh = trimesh_to_vtk(self)
     locator = VTKClosestPointLocator(vtk_mesh)
-    snapped_points, indices = [], []
-    for p in pointcloud.points:
-        snapped, index = locator(p)
-        snapped_points.append(snapped)
-        indices.append(index)
-
-    return PointCloud(np.array(snapped_points), copy=False), np.array(indices)
+    snapped_points, indices = locator(pointcloud.points)
+    return PointCloud(snapped_points, copy=False), indices
 
 
 def barycentric_coordinates_of_pointcloud(self, pointcloud):
