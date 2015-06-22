@@ -33,10 +33,16 @@ def trimesh_to_vtk(trimesh):
     mesh.SetPoints(points)
 
     cells = vtk.vtkCellArray()
+
+    # Seemingly, VTK may be compiled as 32 bit or 64 bit.
+    # We need to make sure that we convert the trilist to the correct dtype
+    # based on this. See numpy_to_vtkIdTypeArray() for details.
+    isize = vtk.vtkIdTypeArray().GetDataTypeSize()
+    req_dtype = np.int32 if isize == 4 else np.int64
     cells.SetCells(trimesh.n_tris,
                    numpy_to_vtkIdTypeArray(
                        np.hstack((np.ones(trimesh.n_tris)[:, None] * 3,
-                                  trimesh.trilist)).astype(np.int64).ravel(),
+                                  trimesh.trilist)).astype(req_dtype).ravel(),
                        deep=1))
     mesh.SetPolys(cells)
     return mesh
