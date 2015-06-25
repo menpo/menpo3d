@@ -9,11 +9,11 @@ requirements:
 
   run:
     - python
-    - menpo # 0.5.0 on release
-    - cyassimp 0.2.1
-    - cyrasterize 0.2.3
+    - menpo 0.5.*
+    - cyassimp 0.2.*
+    - cyrasterize 0.2.*
     - menpo-pyvrml97 2.3.0a4  # [py2k]
-    - mayavi 4.3.1  # [py2k]
+    - mayavi 4.4.*  # [py2k]
 
 test:
   requires:

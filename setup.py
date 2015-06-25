@@ -13,12 +13,12 @@ versioneer.tag_prefix = 'v'  # tags are like v1.2.0
 versioneer.parentdir_prefix = project_name + '-'  # dirname like 'menpo-v1.2.0'
 
 install_requires = ['menpo>=0.4.0,<0.5',
-                    'cyassimp==0.2.1',
-                    'cyrasterize==0.2.3']
+                    'cyassimp>=0.2,<0.3',
+                    'cyrasterize>=0.2,<0.3']
 
 # These dependencies currently don't work on Python 3
 if sys.version_info.major == 2:
-    install_requires.append('mayavi==4.3.1')
+    install_requires.append('mayavi>=4.4,<4.5')
     install_requires.append('menpo-pyvrml97==2.3.0a4')
 
 setup(name=project_name,
