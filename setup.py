@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 import sys
 import versioneer
 
-install_requires = ['menpo>=0.4.0,<0.5',
+install_requires = ['menpo>=0.5.0,<0.6',
                     'cyassimp>=0.2,<0.3',
                     'cyrasterize>=0.2,<0.3']
 
