@@ -1,7 +1,4 @@
 import numpy as np
-import vtk
-from vtk.util.numpy_support import (numpy_to_vtk, numpy_to_vtkIdTypeArray,
-                                    vtk_to_numpy)
 from menpo.shape import TriMesh
 
 
@@ -24,6 +21,8 @@ def trimesh_to_vtk(trimesh):
     ValueError:
         If the input trimesh is not 3D.
     """
+    import vtk
+    from vtk.util.numpy_support import numpy_to_vtk, numpy_to_vtkIdTypeArray
     if trimesh.n_dims != 3:
         raise ValueError('trimesh_to_vtk() only works on 3D TriMesh instances')
 
@@ -62,6 +61,7 @@ def trimesh_from_vtk(vtk_mesh):
     trimesh : :map:`TriMesh`
         A menpo :map:`TriMesh` representation of the VTK mesh data
     """
+    from vtk.util.numpy_support import vtk_to_numpy
     points = vtk_to_numpy(vtk_mesh.GetPoints().GetData())
     trilist = vtk_to_numpy(vtk_mesh.GetPolys().GetData())
     return TriMesh(points, trilist=trilist.reshape([-1, 4])[:, 1:])
@@ -79,6 +79,7 @@ class VTKClosestPointLocator(object):
         efficient future lookups.
     """
     def __init__(self, vtk_mesh):
+        import vtk
         cell_locator = vtk.vtkCellLocator()
         cell_locator.SetDataSet(vtk_mesh)
         cell_locator.BuildLocator()
