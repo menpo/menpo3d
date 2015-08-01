@@ -20,5 +20,5 @@ setup(name='menpo3d',
       packages=find_packages(),
       package_data={'menpo3d': ['data/*']},
       install_requires=install_requires,
-      tests_require=['nose', 'mock']
+      tests_require=['nose', 'mock==1.0.1']
 )
