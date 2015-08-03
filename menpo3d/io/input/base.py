@@ -1,4 +1,3 @@
-import os
 from menpo.io.input.base import (glob_with_suffix, _import_glob_generator,
                                  _import)
 from menpo3d.base import menpo3d_src_dir_path
@@ -131,8 +130,8 @@ def import_mesh(filepath, landmark_resolver=same_name, texture=True):
                    importer_kwargs=kwargs)
 
 
-def import_meshes(pattern, max_meshes=None, landmark_resolver=same_name,
-                  textures=True, verbose=False):
+def import_meshes(pattern, max_meshes=None, shuffle=False,
+                  landmark_resolver=same_name, textures=True, verbose=False):
     r"""Multiple mesh import generator.
 
     Makes it's best effort to import and attach relevant related
@@ -150,20 +149,20 @@ def import_meshes(pattern, max_meshes=None, landmark_resolver=same_name,
     ----------
     pattern : `str`
         The glob path pattern to search for textures and meshes.
-
     max_meshes : positive `int`, optional
         If not ``None``, only import the first ``max_meshes`` meshes found.
         Else, import all.
-
+    shuffle : `bool`, optional
+        If ``True``, the order of the returned meshes will be randomised. If
+        ``False``, the order of the returned meshes will be alphanumerically
+        ordered.
     landmark_resolver : `function`, optional
         This function will be used to find landmarks for the
         mesh. The function should take one argument (the mesh itself) and
         return a dictionary of the form ``{'group_name': 'landmark_filepath'}``
         Default finds landmarks with the same name as the mesh file.
-
     texture : `bool`, optional
         If ``False``, don't search for textures.
-
     verbose : `bool`, optional
         If ``True`` progress of the importing will be dynamically reported.
 
@@ -179,7 +178,7 @@ def import_meshes(pattern, max_meshes=None, landmark_resolver=same_name,
     """
     kwargs = {'texture': textures}
     for asset in _import_glob_generator(pattern, mesh_types,
-                                        max_assets=max_meshes,
+                                        max_assets=max_meshes, shuffle=shuffle,
                                         landmark_resolver=landmark_resolver,
                                         landmark_ext_map=mesh_landmark_types,
                                         importer_kwargs=kwargs,
@@ -208,7 +207,8 @@ def import_landmark_file(filepath, landmark_resolver=same_name):
                    landmark_resolver=landmark_resolver)
 
 
-def import_landmark_files(pattern, max_landmarks=None, verbose=False):
+def import_landmark_files(pattern, max_landmarks=None, shuffle=False,
+                          verbose=False):
     r"""Multiple landmark file import generator.
 
     Note that this is a generator function.
@@ -217,11 +217,13 @@ def import_landmark_files(pattern, max_landmarks=None, verbose=False):
     ----------
     pattern : `str`
         The glob path pattern to search for images.
-
     max_landmark_files : positive `int`, optional
         If not ``None``, only import the first ``max_landmark_files`` found.
         Else, import all.
-
+    shuffle : `bool`, optional
+        If ``True``, the order of the returned landmark files will be
+        randomised. If ``False``, the order of the returned landmark files will
+        be alphanumerically ordered.
     verbose : `bool`, optional
         If ``True`` progress of the importing will be dynamically reported.
 
@@ -238,7 +240,7 @@ def import_landmark_files(pattern, max_landmarks=None, verbose=False):
     """
     for asset in _import_glob_generator(pattern, mesh_landmark_types,
                                         max_assets=max_landmarks,
-                                        verbose=verbose):
+                                        shuffle=shuffle, verbose=verbose):
         yield asset
 
 
