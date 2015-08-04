@@ -9,7 +9,7 @@ requirements:
 
   run:
     - python
-    - menpo 0.5.*
+    - menpo >=0.5.2,<0.6
     - cyassimp 0.2.*
     - cyrasterize 0.2.*
     - menpo-pyvrml97 2.3.0a4  # [py2k]
