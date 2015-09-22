@@ -34,7 +34,7 @@ IPython magic command to set up QT for rendering (you do this instead of
 `%matplotlib inline` which is what is needed for using the usual Menpo
 Widgets). As a complete example, to view a mesh in IPython you
 would run something like:
-```Python
+```python
 import menpo3d
 mesh = menpo3d.io.import_builtin_asset('james.obj')
 ```
@@ -52,3 +52,14 @@ export QT_API=pyqt
 export ETS_TOOLKIT=qt4
 ```
 Open a new terminal and re-run IPython notebook in here, this should fix the issue.
+
+If you are running Windows and recieve this error, try:
+```cmd
+set QT_API=pyqt
+set ETS_TOOLKIT=qt4
+```
+Alternatively, try installing wxPython:
+```cmd
+conda install wxpython
+```
+and using `%matplotlib wx`.
