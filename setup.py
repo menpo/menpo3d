@@ -3,7 +3,7 @@ import sys
 import versioneer
 
 install_requires = ['menpo>=0.5.2,<0.6',
-                    'cyassimp>=0.2,<0.3',
+                    'cyassimp>=1.0.0,<2.0.0',
                     'cyrasterize>=0.2,<0.3']
 
 # These dependencies currently don't work on Python 3
