@@ -3,7 +3,7 @@ import sys
 import versioneer
 
 install_requires = ['menpo>=0.6,<0.7',
-                    'cyassimp>=1.0,<2.0',
+                    'cyassimp>=1.0.1,<2',
                     'cyrasterize>=0.2.4,<0.3']
 
 # These dependencies currently don't work on Python 3
@@ -14,7 +14,7 @@ if sys.version_info.major == 2:
 setup(name='menpo3d',
       version=versioneer.get_version(),
       cmdclass=versioneer.get_cmdclass(),
-      description='MenpoKit providing tools for 3D Computer Vision research',
+      description='Menpo library providing tools for 3D Computer Vision research',
       author='James Booth',
       author_email='james.booth08@imperial.ac.uk',
       packages=find_packages(),
@@ -22,3 +22,4 @@ setup(name='menpo3d',
       install_requires=install_requires,
       tests_require=['nose', 'mock==1.0.1']
 )
+
