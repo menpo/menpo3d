@@ -93,8 +93,7 @@ def _import_builtin_asset(asset_name):
         return _import(asset_path, mesh_landmark_types)
 
 
-def import_mesh(filepath, landmark_resolver=same_name, texture=True,
-                preprocess=False):
+def import_mesh(filepath, landmark_resolver=same_name, texture=True):
     r"""Single mesh (and associated landmarks and texture) importer.
 
     Iff an mesh file is found at `filepath`, returns a :map:`TriMesh`
@@ -105,19 +104,18 @@ def import_mesh(filepath, landmark_resolver=same_name, texture=True,
     Parameters
     ----------
     filepath : `str`
-        A relative or absolute filepath to a mesh file.
+        A relative or absolute filepath to an image file.
+
     landmark_resolver : `function`, optional
         This function will be used to find landmarks for the
         mesh. The function should take one argument (the mesh itself) and
         return a dictionary of the form ``{'group_name': 'landmark_filepath'}``
         Default finds landmarks with the same name as the mesh file.
+
     texture : `bool`, optional
         If False, don't search for textures.
+
         Default: ``True``
-    preprocess : `bool`, optional
-        If ``True``, perform basic mesh cleanup such as merging duplicate
-        vertices on the mesh.
-        Default: ``False``
 
     Returns
     -------
@@ -125,7 +123,7 @@ def import_mesh(filepath, landmark_resolver=same_name, texture=True,
         An instantiated :map:`TriMesh` (or subclass thereof)
 
     """
-    kwargs = {'texture': texture, 'preprocess': preprocess}
+    kwargs = {'texture': texture}
     return _import(filepath, mesh_types,
                    landmark_resolver=landmark_resolver,
                    landmark_ext_map=mesh_landmark_types,
@@ -133,8 +131,7 @@ def import_mesh(filepath, landmark_resolver=same_name, texture=True,
 
 
 def import_meshes(pattern, max_meshes=None, shuffle=False,
-                  landmark_resolver=same_name, textures=True, preprocess=False,
-                  verbose=False):
+                  landmark_resolver=same_name, textures=True, verbose=False):
     r"""Multiple mesh import generator.
 
     Makes it's best effort to import and attach relevant related
@@ -166,10 +163,6 @@ def import_meshes(pattern, max_meshes=None, shuffle=False,
         Default finds landmarks with the same name as the mesh file.
     texture : `bool`, optional
         If ``False``, don't search for textures.
-    preprocess : `bool`, optional
-        If ``True``, perform basic mesh cleanup such as merging duplicate
-        vertices on the mesh.
-        Default: ``False``
     verbose : `bool`, optional
         If ``True`` progress of the importing will be dynamically reported.
 
@@ -183,7 +176,7 @@ def import_meshes(pattern, max_meshes=None, shuffle=False,
     ValueError
         If no meshes are found at the provided glob.
     """
-    kwargs = {'texture': textures, 'preprocess': preprocess}
+    kwargs = {'texture': textures}
     for asset in _import_glob_generator(pattern, mesh_types,
                                         max_assets=max_meshes, shuffle=shuffle,
                                         landmark_resolver=landmark_resolver,

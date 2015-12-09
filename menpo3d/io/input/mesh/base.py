@@ -250,10 +250,10 @@ class AssimpImporter(MeshImporter):
     filepath : string
         Absolute filepath of the mesh.
     """
-    def __init__(self, filepath, texture=True, preprocess=False):
+    def __init__(self, filepath, texture=True):
         from cyassimp import AIImporter  # expensive import
         MeshImporter.__init__(self, filepath, texture=texture)
-        self.ai_importer = AIImporter(filepath,  preprocess=preprocess)
+        self.ai_importer = AIImporter(filepath)
 
     def _parse_format(self):
         r"""
