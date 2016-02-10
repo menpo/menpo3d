@@ -1,4 +1,4 @@
-from menpo.io.input.base import (glob_with_suffix, _import_glob_generator,
+from menpo.io.input.base import (glob_with_suffix, _import_glob_lazy_list,
                                  _import)
 from menpo3d.base import menpo3d_src_dir_path
 
@@ -45,7 +45,7 @@ def data_path_to(asset_filename):
     Parameters
     ----------
     asset_filename : `str`
-        The filename (with extension) of a file builtin to Menpo. The full
+        The filename (with extension) of a file builtin to Menpo3d. The full
         set of allowed names is given by :func:`ls_builtin_assets()`
 
     Returns
@@ -57,7 +57,6 @@ def data_path_to(asset_filename):
     ------
     ValueError
         If the asset_filename doesn't exist in the `data` folder.
-
     """
     asset_path = data_dir_path() / asset_filename
     if not asset_path.is_file():
@@ -105,23 +104,18 @@ def import_mesh(filepath, landmark_resolver=same_name, texture=True):
     ----------
     filepath : `str`
         A relative or absolute filepath to an image file.
-
     landmark_resolver : `function`, optional
         This function will be used to find landmarks for the
         mesh. The function should take one argument (the mesh itself) and
         return a dictionary of the form ``{'group_name': 'landmark_filepath'}``
         Default finds landmarks with the same name as the mesh file.
-
     texture : `bool`, optional
-        If False, don't search for textures.
-
-        Default: ``True``
+        If ``False``, don't search for textures.
 
     Returns
     -------
-    :map:`TriMesh`
+    trimesh : :map:`TriMesh`
         An instantiated :map:`TriMesh` (or subclass thereof)
-
     """
     kwargs = {'texture': texture}
     return _import(filepath, mesh_types,
@@ -131,8 +125,9 @@ def import_mesh(filepath, landmark_resolver=same_name, texture=True):
 
 
 def import_meshes(pattern, max_meshes=None, shuffle=False,
-                  landmark_resolver=same_name, textures=True, verbose=False):
-    r"""Multiple mesh import generator.
+                  landmark_resolver=same_name, textures=True,
+                  as_generator=False, verbose=False):
+    r"""Multiple mesh importer.
 
     Makes it's best effort to import and attach relevant related
     information such as landmarks. It searches the directory for files that
@@ -141,9 +136,10 @@ def import_meshes(pattern, max_meshes=None, shuffle=False,
     If texture coordinates and a suitable texture are found the object
     returned will be a :map:`TexturedTriMesh`.
 
-    Note that this is a generator function. This allows for pre-processing
-    of data to take place as data is imported (e.g. cleaning meshes
-    as they are imported for memory efficiency).
+    Note that this is a function returns a :map:`LazyList`. Therefore, the
+    function will return immediately and indexing into the returned list
+    will load the landmarks at run time. If all meshes should be loaded, then
+    simply wrap the returned :map:`LazyList` in a Python `list`.
 
     Parameters
     ----------
@@ -161,15 +157,19 @@ def import_meshes(pattern, max_meshes=None, shuffle=False,
         mesh. The function should take one argument (the mesh itself) and
         return a dictionary of the form ``{'group_name': 'landmark_filepath'}``
         Default finds landmarks with the same name as the mesh file.
-    texture : `bool`, optional
+    textures : `bool`, optional
         If ``False``, don't search for textures.
+    as_generator : `bool`, optional
+        If ``True``, the function returns a generator and assets will be yielded
+        one after another when the generator is iterated over.
     verbose : `bool`, optional
         If ``True`` progress of the importing will be dynamically reported.
 
-    Yields
-    ------
-    :map:`TriMesh` or :map:`TexturedTriMesh`
-        Meshes found to match the glob pattern provided.
+    Returns
+    -------
+    lazy_list : :map:`LazyList` or generator of Python objects
+        A :map:`LazyList` or generator yielding Python objects inside the
+        pickle files found to match the glob pattern provided.
 
     Raises
     ------
@@ -177,13 +177,13 @@ def import_meshes(pattern, max_meshes=None, shuffle=False,
         If no meshes are found at the provided glob.
     """
     kwargs = {'texture': textures}
-    for asset in _import_glob_generator(pattern, mesh_types,
-                                        max_assets=max_meshes, shuffle=shuffle,
-                                        landmark_resolver=landmark_resolver,
-                                        landmark_ext_map=mesh_landmark_types,
-                                        importer_kwargs=kwargs,
-                                        verbose=verbose):
-        yield asset
+    return _import_glob_lazy_list(pattern, mesh_types,
+                                  max_assets=max_meshes, shuffle=shuffle,
+                                  landmark_resolver=landmark_resolver,
+                                  landmark_ext_map=mesh_landmark_types,
+                                  importer_kwargs=kwargs,
+                                  as_generator=as_generator,
+                                  verbose=verbose)
 
 
 def import_landmark_file(filepath, landmark_resolver=same_name):
@@ -208,29 +208,36 @@ def import_landmark_file(filepath, landmark_resolver=same_name):
 
 
 def import_landmark_files(pattern, max_landmarks=None, shuffle=False,
-                          verbose=False):
-    r"""Multiple landmark file import generator.
+                          as_generator=False, verbose=False):
+    r"""Multiple landmark file importer.
 
-    Note that this is a generator function.
+    Note that this is a function returns a :map:`LazyList`. Therefore, the
+    function will return immediately and indexing into the returned list
+    will load the landmarks at run time. If all landmarks should be loaded, then
+    simply wrap the returned :map:`LazyList` in a Python `list`.
 
     Parameters
     ----------
     pattern : `str`
-        The glob path pattern to search for images.
-    max_landmark_files : positive `int`, optional
-        If not ``None``, only import the first ``max_landmark_files`` found.
+        The glob path pattern to search for landmarks.
+    max_landmarks : positive `int`, optional
+        If not ``None``, only import the first ``max_landmarks`` found.
         Else, import all.
     shuffle : `bool`, optional
         If ``True``, the order of the returned landmark files will be
         randomised. If ``False``, the order of the returned landmark files will
         be alphanumerically ordered.
+    as_generator : `bool`, optional
+        If ``True``, the function returns a generator and assets will be yielded
+        one after another when the generator is iterated over.
     verbose : `bool`, optional
         If ``True`` progress of the importing will be dynamically reported.
 
-    Yields
+    Returns
     ------
-    :map:`LandmarkGroup`
-        Landmark found to match the glob pattern provided.
+    lazy_list : :map:`LazyList` or generator of Python objects
+        A :map:`LazyList` or generator yielding Python objects inside the
+        pickle files found to match the glob pattern provided.
 
     Raises
     ------
@@ -238,10 +245,10 @@ def import_landmark_files(pattern, max_landmarks=None, shuffle=False,
         If no landmarks are found at the provided glob.
 
     """
-    for asset in _import_glob_generator(pattern, mesh_landmark_types,
-                                        max_assets=max_landmarks,
-                                        shuffle=shuffle, verbose=verbose):
-        yield asset
+    return _import_glob_lazy_list(pattern, mesh_landmark_types,
+                                  max_assets=max_landmarks,
+                                  shuffle=shuffle, as_generator=as_generator,
+                                  verbose=verbose)
 
 
 def mesh_paths(pattern):
