@@ -1,15 +1,15 @@
 from menpo.io.input.base import (glob_with_suffix, _import_glob_lazy_list,
-                                 _import)
+                                 _import, _import_object_attach_landmarks)
 from menpo3d.base import menpo3d_src_dir_path
 
 
-def same_name(asset):
+def same_name(path):
     r"""
     Menpo3d's default landmark resolver. Returns all landmarks found to have
     the same stem as the asset.
     """
     # pattern finding all landmarks with the same stem
-    pattern = asset.path.with_suffix('.*')
+    pattern = path.with_suffix('.*')
     # find all the landmarks we can with this name. Key is ext (without '.')
     return {p.suffix[1:].upper(): p for p in landmark_file_paths(pattern)}
 
@@ -65,7 +65,7 @@ def data_path_to(asset_filename):
     return asset_path
 
 
-def _import_builtin_asset(asset_name):
+def _import_builtin_asset(asset_name, **kwargs):
     r"""Single builtin asset (mesh or landmark) importer.
 
     Imports the relevant builtin asset from the ./data directory that
@@ -87,9 +87,12 @@ def _import_builtin_asset(asset_name):
     # importing them both separately.
     try:
         return _import(asset_path, mesh_types,
-                       landmark_ext_map=mesh_landmark_types)
+                       landmark_ext_map=mesh_landmark_types,
+                       landmark_attach_func=_import_object_attach_landmarks,
+                       importer_kwargs=kwargs)
     except ValueError:
-        return _import(asset_path, mesh_landmark_types)
+        return _import(asset_path, mesh_landmark_types,
+                       importer_kwargs=kwargs)
 
 
 def import_mesh(filepath, landmark_resolver=same_name, texture=True):
@@ -121,6 +124,7 @@ def import_mesh(filepath, landmark_resolver=same_name, texture=True):
     return _import(filepath, mesh_types,
                    landmark_resolver=landmark_resolver,
                    landmark_ext_map=mesh_landmark_types,
+                   landmark_attach_func=_import_object_attach_landmarks,
                    importer_kwargs=kwargs)
 
 
@@ -177,13 +181,12 @@ def import_meshes(pattern, max_meshes=None, shuffle=False,
         If no meshes are found at the provided glob.
     """
     kwargs = {'texture': textures}
-    return _import_glob_lazy_list(pattern, mesh_types,
-                                  max_assets=max_meshes, shuffle=shuffle,
-                                  landmark_resolver=landmark_resolver,
-                                  landmark_ext_map=mesh_landmark_types,
-                                  importer_kwargs=kwargs,
-                                  as_generator=as_generator,
-                                  verbose=verbose)
+    return _import_glob_lazy_list(
+        pattern, mesh_types, max_assets=max_meshes, shuffle=shuffle,
+        landmark_resolver=landmark_resolver,
+        landmark_ext_map=mesh_landmark_types,
+        importer_kwargs=kwargs, as_generator=as_generator,
+        landmark_attach_func=_import_object_attach_landmarks, verbose=verbose)
 
 
 def import_landmark_file(filepath, landmark_resolver=same_name):
