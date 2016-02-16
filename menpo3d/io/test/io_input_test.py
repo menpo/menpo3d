@@ -63,10 +63,10 @@ def test_json_landmarks_bunny():
 
 
 def test_custom_landmark_logic_bunny():
-    def f(mesh):
+    def f(path):
         return {
-            'no_nose': mesh.path.with_name('bunny_no_nose.ljson'),
-            'full_set': mesh.path.with_name('bunny.ljson')
+            'no_nose': path.with_name('bunny_no_nose.ljson'),
+            'full_set': path.with_name('bunny.ljson')
         }
     mesh = mio.import_mesh(mio.data_path_to('bunny.obj'), landmark_resolver=f)
     assert('no_nose' in mesh.landmarks.group_labels)
