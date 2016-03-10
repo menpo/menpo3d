@@ -1,4 +1,5 @@
 import abc
+import warnings
 from collections import namedtuple
 import os.path as path
 import json
@@ -8,7 +9,6 @@ import numpy as np
 from menpo.io.input.base import Importer, import_image
 from menpo.io.exceptions import MeshImportError
 from menpo.shape.mesh import ColouredTriMesh, TexturedTriMesh, TriMesh
-
 
 
 # This formalises the return type of a mesh importer (before building)
@@ -265,16 +265,10 @@ class AssimpImporter(MeshImporter):
 
 
 class WRLImporter(MeshImporter):
-    """
-    Allows importing VRML meshes.
-    Uses a fork of PyVRML97 to do (hopefully) more robust parsing of VRML
-    files. It should be noted that, unfortunately, this is a lot slower than
-    the C++-based assimp importer.
+    """Allows importing VRML 2.0 meshes.
 
-    VRML allows non-triangular polygons, whilst our importer pipeline doesn't.
-    Therefore, any non-triangular polygons are dropped. VRML also allows
-    separate texture coordinate indices, which we do not support. To have
-    a better formed mesh, try exporting the WRL as OBJ from Meshlab.
+    Uses VTK and assumes that the first actor in the scene is the one
+    that we want.
 
     Parameters
     ----------
@@ -288,104 +282,82 @@ class WRLImporter(MeshImporter):
 
     def _parse_format(self):
         r"""
-        Use pyVRML to parse the file and build a mesh object. A single mesh per
-        file is assumed.
+        Use VTK to parse the file and build a mesh object. A single shape per
+        scene is assumed.
 
         Raises
         ------
         MeshImportError
             If no transform or shape is found in the scenegraph
         """
-        # inlined expensive imports
-        from vrml.vrml97.parser import buildParser as buildVRML97Parser
-        import vrml.vrml97.basenodes as basenodes
-        from vrml.node import NullNode
-        with open(self.filepath) as f:
-            self.text = f.read()
+        import vtk
+        from vtk.util.numpy_support import vtk_to_numpy
 
-        parser = buildVRML97Parser()
-        vrml_tuple = parser.parse(self.text)
+        vrml_importer = vtk.vtkVRMLImporter()
+        vrml_importer.SetFileName(self.filepath)
+        vrml_importer.Update()
 
-        # I assume these tuples are always built in this order
-        scenegraph = vrml_tuple[1][1]
-        shape_container = None
+        # Get the first actor.
+        actors = vrml_importer.GetRenderer().GetActors()
+        actors.InitTraversal()
+        mapper = actors.GetNextActor().GetMapper()
+        mapper_dataset = mapper.GetInput()
 
-        # Let's check if
-        for child in scenegraph.children:
-            if type(child) in [basenodes.Transform, basenodes.Group]:
-                # Only fetch the first container (unknown what do do with more
-                # than one container at this time)
-                shape_container = child
-                break
+        if actors.GetNextActor():
+            # There was more than one actor!
+            warnings.warn('More than one actor was detected in the scene. Only '
+                          'single scene actors are currently supported.')
 
-        if shape_container is None:
-            raise MeshImportError('Unable to find shape container in '
-                                  'scenegraph')
+        # Get the Data
+        polydata = vtk.vtkPolyData.SafeDownCast(mapper_dataset)
+        polydata.Update()
 
-        shape = None
-        for child in shape_container.children:
-            if type(child) is basenodes.Shape:
-                # Only fetch the first shape (unknown what do do with more
-                # than one shape at this time)
-                shape = child
-                break
+        # We must have point data!
+        points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float)
 
-        if shape is None:
-            raise MeshImportError('Unable to find shape in container')
+        # We may have connectivity data. And this connectivity data may
+        # need coercing into pure triangles (since we only support triangular
+        # meshes at the moment
+        try:
+            trilist = vtk_to_numpy(polydata.GetPolys().GetData())
 
-        mesh_points = shape.geometry.coord.point
-        mesh_trilist = self._filter_non_triangular_polygons(
-                    shape.geometry.coordIndex)
+            # 5 is the triangle type - if we have another type we need to
+            # use a vtkTriangleFilter
+            if polydata.GetNumberOfTypes() != 1 or polydata.GetCellType(0) != 5:
+                warnings.warn('Non-triangular mesh connectivity was detected - '
+                              'this is currently unsupported and thus the '
+                              'connectivity is being coerced into a triangular '
+                              'mesh. This may have unintended consequences.')
+                t_filter = vtk.vtkTriangleFilter()
+                t_filter.SetInput(polydata)
+                t_filter.Update()
+                trilist = vtk_to_numpy(t_filter.GetOutput().GetPolys().GetData())
+        except Exception as e:
+            pass
 
-        if type(shape.geometry.texCoord) is NullNode:  # Colour per-vertex
-            mesh_colour_per_vertex = shape.geometry.color.color
-            mesh_tcoords = None
-        else:  # Texture coordinates
-            mesh_colour_per_vertex = None
-            mesh_tcoords = shape.geometry.texCoord.point
+        # Three different outcomes - either we have a textured mesh, a coloured
+        # mesh or just a plain mesh. Let's try each in turn.
+        tcoords, colour_per_vertex = None, None
+        # Textured
+        try:
+            tcoords = vtk_to_numpy(polydata.GetPointData().GetTCoords())
+        except Exception as e:
+            pass
 
-            # See if we have a separate texture index, if not just create an
-            # empty array
+        # Color-per-vertex
+        if tcoords is None:
             try:
-                tex_trilist = self._filter_non_triangular_polygons(
-                    shape.geometry.texCoordIndex)
-            except AttributeError:
-                tex_trilist = np.array([-1])
-
-            # Fix texture coordinates - we can only have one index so we choose
-            # to use the triangle index
-            if np.max(tex_trilist) > np.max(mesh_trilist):
-                new_tcoords = np.zeros([mesh_points.shape[0], 2])
-                new_tcoords[mesh_trilist] = mesh_tcoords[tex_trilist]
-                mesh_tcoords = new_tcoords
-
-            # Get the texture path - it's fine not to have one defined
-            try:
-                self.relative_texture_path = shape.appearance.texture.url[0]
-            except (AttributeError, IndexError):
-                self.relative_texture_path = None
+                colour_per_vertex = vtk_to_numpy(
+                    mapper.GetLookupTable().GetTable()) / 255.
+            except Exception as e:
+                pass
 
         # Assumes a single mesh per file
-        self.mesh = MeshInfo(mesh_points, mesh_trilist, mesh_tcoords,
-                             mesh_colour_per_vertex)
+        self.mesh = MeshInfo(points,
+                             trilist.reshape([-1, 4])[:, 1:],
+                             tcoords,
+                             colour_per_vertex)
         self.meshes = [self.mesh]
-
-    def _filter_non_triangular_polygons(self, coord_list):
-        # VRML allows arbitrary polygon coordinates, whilst we only support
-        # triangles. They are delimited by -1, so we split on them and filter
-        # out non-triangle polygons
-        index_list = coord_list
-        index_list = np.split(index_list, np.where(index_list == -1)[0])
-        # The first polygon is missing the -1 at the beginning
-        # Have to cast to int32 because that's the default, but on 64bit
-        # machines a single number defaults to int64
-        np.insert(index_list[0], 0, np.array([-1], dtype=np.int32))
-        # Filter out those coordinates that are not triangles
-        index_list = [i for i in index_list if len(i[1:]) == 3]
-        # Convert to 2D array
-        index_list = np.array(index_list)
-        # Slice of -1 delimiters
-        return index_list[:, 1:]
 
 
 class MJSONImporter(MeshImporter):

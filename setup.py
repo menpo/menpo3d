@@ -9,7 +9,6 @@ install_requires = ['menpo>=0.6,<0.7',
 # These dependencies currently don't work on Python 3
 if sys.version_info.major == 2:
     install_requires.append('mayavi>=4.4,<4.5')
-    install_requires.append('menpo-pyvrml97==2.3.0a4')
 
 setup(name='menpo3d',
       version=versioneer.get_version(),
