@@ -135,7 +135,7 @@ def export_textured_mesh(mesh, filepath, extension=None,
     # Put the image next to the mesh
     image_output_path = Path(filepath).with_suffix(
         _normalise_extension(texture_extension))
-    _export(mesh.texture, str(image_output_path),
+    _export(mesh.texture, image_output_path,
             image_types, texture_extension, overwrite)
 
 
