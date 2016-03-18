@@ -100,6 +100,34 @@ def find_alternative_files(filepath, extensions_map):
                           "Reason: {}".format(filepath, extensions_map, e))
 
 
+def vtk_ensure_trilist(polydata):
+    try:
+        import vtk
+        from vtk.util.numpy_support import vtk_to_numpy
+
+        trilist = vtk_to_numpy(polydata.GetPolys().GetData())
+
+        # 5 is the triangle type - if we have another type we need to
+        # use a vtkTriangleFilter
+        c = vtk.vtkCellTypes()
+        polydata.GetCellTypes(c)
+
+        if c.GetNumberOfTypes() != 1 or polydata.GetCellType(0) != 5:
+            warnings.warn('Non-triangular mesh connectivity was detected - '
+                          'this is currently unsupported and thus the '
+                          'connectivity is being coerced into a triangular '
+                          'mesh. This may have unintended consequences.')
+            t_filter = vtk.vtkTriangleFilter()
+            t_filter.SetInput(polydata)
+            t_filter.Update()
+            trilist = vtk_to_numpy(t_filter.GetOutput().GetPolys().GetData())
+
+        return trilist.reshape([-1, 4])[:, 1:]
+    except Exception as e:
+        print(e)
+        return None
+
+
 class MeshImporter(Importer):
     r"""
     Abstract base class for importing meshes. Searches in the directory
@@ -280,11 +308,6 @@ class WRLImporter(MeshImporter):
         r"""
         Use VTK to parse the file and build a mesh object. A single shape per
         scene is assumed.
-
-        Raises
-        ------
-        MeshImportError
-            If no transform or shape is found in the scenegraph
         """
         import vtk
         from vtk.util.numpy_support import vtk_to_numpy
@@ -311,25 +334,7 @@ class WRLImporter(MeshImporter):
         # We must have point data!
         points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float)
 
-        # We may have connectivity data. And this connectivity data may
-        # need coercing into pure triangles (since we only support triangular
-        # meshes at the moment
-        try:
-            trilist = vtk_to_numpy(polydata.GetPolys().GetData())
-
-            # 5 is the triangle type - if we have another type we need to
-            # use a vtkTriangleFilter
-            if polydata.GetNumberOfTypes() != 1 or polydata.GetCellType(0) != 5:
-                warnings.warn('Non-triangular mesh connectivity was detected - '
-                              'this is currently unsupported and thus the '
-                              'connectivity is being coerced into a triangular '
-                              'mesh. This may have unintended consequences.')
-                t_filter = vtk.vtkTriangleFilter()
-                t_filter.SetInput(polydata)
-                t_filter.Update()
-                trilist = vtk_to_numpy(t_filter.GetOutput().GetPolys().GetData())
-        except Exception as e:
-            pass
+        trilist = vtk_ensure_trilist(polydata)
 
         # Three different outcomes - either we have a textured mesh, a coloured
         # mesh or just a plain mesh. Let's try each in turn.
