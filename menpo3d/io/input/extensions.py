@@ -1,12 +1,12 @@
 from menpo.io.input.landmark import LJSONImporter
-from .mesh import AssimpImporter, WRLImporter, MJSONImporter
+from .mesh import AssimpImporter, WRLImporter, MJSONImporter, OBJImporter
 from .landmark_mesh import (BNDImporter, LANImporter, LM3Importer,
                             MeshPTSImporter)
 
 mesh_types = {'.dae': AssimpImporter,
               '.3ds': AssimpImporter,
               '.ase': AssimpImporter,
-              '.obj': AssimpImporter,
+              '.obj': OBJImporter,
               '.ifc': AssimpImporter,
               '.xgl': AssimpImporter,
               '.zgl': AssimpImporter,

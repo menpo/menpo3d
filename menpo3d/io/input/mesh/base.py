@@ -6,8 +6,7 @@ from pathlib import Path
 
 import numpy as np
 from menpo.io.input.base import Importer, import_image
-from menpo.io.exceptions import MeshImportError
-from menpo.shape.mesh import ColouredTriMesh, TexturedTriMesh, TriMesh
+from menpo.shape import ColouredTriMesh, TexturedTriMesh, TriMesh, PointCloud
 
 
 # This formalises the return type of a mesh importer (before building)
@@ -353,11 +352,70 @@ class WRLImporter(MeshImporter):
             except Exception as e:
                 pass
 
+        if isinstance(colour_per_vertex, np.ndarray) and colour_per_vertex.size == 0:
+            colour_per_vertex = None
+        if isinstance(tcoords, np.ndarray) and tcoords.size == 0:
+            tcoords = None
+
         # Assumes a single mesh per file
         self.mesh = MeshInfo(points,
-                             trilist.reshape([-1, 4])[:, 1:],
+                             trilist,
                              tcoords,
                              colour_per_vertex)
+        self.meshes = [self.mesh]
+
+
+class OBJImporter(MeshImporter):
+    """Allows importing Wavefront (OBJ) files.
+
+    Uses VTK.
+
+    Parameters
+    ----------
+    filepath : string
+        Absolute filepath of the mesh.
+    """
+
+    def __init__(self, filepath, texture=True):
+        # Setup class before super class call
+        super(OBJImporter, self).__init__(filepath, texture=texture)
+
+    def _parse_format(self):
+        r"""
+        Use VTK to parse the file and build a mesh object.
+        """
+        import vtk
+        from vtk.util.numpy_support import vtk_to_numpy
+
+        obj_importer = vtk.vtkOBJReader()
+        obj_importer.SetFileName(self.filepath)
+        obj_importer.Update()
+
+        # Get the output
+        polydata = obj_importer.GetOutput()
+
+        # We must have point data!
+        points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float)
+
+        trilist = vtk_ensure_trilist(polydata)
+
+        # Two different outcomes - either we have a textured mesh
+        # or just a plain mesh. Let's try each in turn.
+        tcoords = None
+        # Textured
+        try:
+            tcoords = vtk_to_numpy(polydata.GetPointData().GetTCoords())
+        except Exception as e:
+            pass
+
+        if isinstance(tcoords, np.ndarray) and tcoords.size == 0:
+            tcoords = None
+
+        # Assumes a single mesh per file
+        self.mesh = MeshInfo(points,
+                             trilist,
+                             tcoords,
+                             None)  # Colour-per-vertex not supported
         self.meshes = [self.mesh]
 
 
