@@ -1,4 +1,3 @@
-import abc
 import warnings
 from collections import namedtuple
 import os.path as path
@@ -119,8 +118,6 @@ class MeshImporter(Importer):
         produced.
     """
 
-    __metaclass__ = abc.ABCMeta
-
     def __init__(self, filepath, texture=True):
         super(MeshImporter, self).__init__(filepath)
         self.meshes = []
@@ -174,7 +171,6 @@ class MeshImporter(Importer):
             texture_path = None
         return texture_path
 
-    @abc.abstractmethod
     def _parse_format(self):
         r"""
         Abstract method that handles actually building a mesh. This involves
