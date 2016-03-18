@@ -254,8 +254,10 @@ class MeshImporter(Importer):
                 new_mesh = ColouredTriMesh(mesh.points,
                                            colours=mesh.colour_per_vertex,
                                            trilist=mesh.trilist)
-            else:
+            elif mesh.trilist is not None:
                 new_mesh = TriMesh(mesh.points, trilist=mesh.trilist)
+            else:
+                new_mesh = PointCloud(mesh.points)
 
             meshes.append(new_mesh)
         if len(meshes) == 1:
