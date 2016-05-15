@@ -1,11 +1,11 @@
-from menpo.io.output.extensions import LJSONExporter
-from .mesh import OBJExporter
+from menpo.io.output.extensions import ljson_exporter
+from .mesh import obj_exporter
 
 
 landmark_types = {
-    '.ljson': LJSONExporter
+    '.ljson': ljson_exporter
 }
 
 mesh_types = {
-    '.obj': OBJExporter
+    '.obj': obj_exporter
 }

@@ -1,7 +1,7 @@
 from menpo.shape.mesh import TexturedTriMesh
 
 
-def OBJExporter(mesh, file_handle, **kwargs):
+def obj_exporter(mesh, file_handle, **kwargs):
     r"""
     Given a file handle to write in to (which should act like a Python `file`
     object), write out the mesh data. No value is returned..
@@ -11,16 +11,13 @@ def OBJExporter(mesh, file_handle, **kwargs):
 
     Parameters
     ----------
-
     file_handle : `str`
         The full path where the obj will be saved out.
-
-    mesh : instance of :map:`TriMesh`
+    mesh : :map:`TriMesh`
         Any subclass of :map:`TriMesh`. If :map:`TexturedTriMesh` texture
         coordinates will be saved out. Note that :map:`ColouredTriMesh`
         will only have shape data saved out, as .OBJ doesn't robustly support
         per-vertex colour information.
-
     """
     for v in mesh.points:
         file_handle.write('v {} {} {}\n'.format(*v))
