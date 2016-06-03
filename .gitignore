@@ -55,3 +55,6 @@ target/
 
 # Intellij
 menpo3d.iml
+
+# Data 
+*.mat
