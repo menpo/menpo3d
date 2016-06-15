@@ -1,12 +1,44 @@
 import numpy as np
 import menpo.io as mio
+from menpo.image import Image
+from menpofit.fitter import MultiScaleParametricFitter
+from lk import SimultaneousForwardAdditive
 
 
-class Fitter:
+class MMFitter(MultiScaleParametricFitter):
+    r"""
+    Abstract class for defining an 3DMM fitter.
+
+    """
+    def __init__(self, mm, algorithms):
+        self._model = mm
+        # Call superclass
+        super(MMFitter, self).__init__(
+            scales=mm.scales, reference_shape=mm.reference_shape,
+            holistic_features=mm.holistic_features, algorithms=algorithms)
+
+    @property
+    def mm(self):
+        r"""
+        The trained 3DMM model.
+
+        """
+        return self._model
+
+    def _fitter_result(self, image, algorithm_results, affine_transforms,
+                       scale_transforms, gt_shape=None):
+        r"""
+        Function the creates the multi-scale fitting result object.
+        """
+        return 0
+
+
+class LucasKanadeMMFitter(MMFitter):
 
     # The fitter does not take the image in the constructor as it is supposed
     # to run fit using an input image on an object constructed without the information about the image
     def __init__(self, model):
+        # Assign attributes
         self.model = model
         self.rot = {
             'rot_phi': [],
@@ -80,7 +112,7 @@ class Fitter:
                                              -1, 10 ** -3, 1, 1, 1, 1, 1)
         self.run_lucas_kanade(image, std_fit_params, fit_params, ctrl_params)
 
-    def pre_calculations(self):
+    def precompute(self):
         [vi_dx, vi_dy, s_pc, t_pc] = [0]*4
         return [vi_dx, vi_dy, s_pc, t_pc]
 
@@ -168,7 +200,20 @@ class Fitter:
         return 0
 
     # TODO
-    def warp(self, shape):
+    def warp(self, image):
+        r"""
+            Warps an image into the template's mask.
+
+            Parameters
+            ----------
+            image : `menpo.image.Image` or subclass
+                The input image to be warped.
+
+            Returns
+            -------
+            warped_image : `menpo.image.Image` or subclass
+                The warped image.
+        """
         return 0
 
     # TODO
@@ -204,9 +249,9 @@ class Fitter:
         return [sd_anchor, h_anchor, sd_error_product_anchor]
 
     # TODO
-    def run_lucas_kanade(self, image, std_fit_params, fit_params, ctrl_params):
+    def run(self, image, std_fit_params, fit_params, ctrl_params):
 
-        [vi_dx, vi_dy, s_pc, t_pc] = self.pre_calculations()
+        [vi_dx, vi_dy, s_pc, t_pc] = self.precompute()
 
         # Simultaneous Forwards Additive Algorithm
         for i in xrange(fit_params['max_iters']):
