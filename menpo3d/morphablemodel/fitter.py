@@ -5,306 +5,107 @@ from menpofit.fitter import MultiScaleParametricFitter
 from lk import SimultaneousForwardAdditive
 
 
-class MMFitter(MultiScaleParametricFitter):
+class MorphableModelFitter(object):
     r"""
     Abstract class for defining an 3DMM fitter.
 
     """
-    def __init__(self, mm, algorithms):
+    def __init__(self, mm):
         self._model = mm
-        # Call superclass
-        super(MMFitter, self).__init__(
-            scales=mm.scales, reference_shape=mm.reference_shape,
-            holistic_features=mm.holistic_features, algorithms=algorithms)
 
     @property
     def mm(self):
         r"""
-        The trained 3DMM model.
+        The 3DMM model.
 
         """
         return self._model
 
-    def _fitter_result(self, image, algorithm_results, affine_transforms,
-                       scale_transforms, gt_shape=None):
-        r"""
-        Function the creates the multi-scale fitting result object.
-        """
-        return 0
-
-
-class LucasKanadeMMFitter(MMFitter):
-
-    # The fitter does not take the image in the constructor as it is supposed
-    # to run fit using an input image on an object constructed without the information about the image
-    def __init__(self, model):
-        # Assign attributes
-        self.model = model
-        self.rot = {
-            'rot_phi': [],
-            'rot_theta': [],
-            'rot_varphi': [],
-            'rot_total': []
-        }
-        self.view_matrix = []
-        self.projection_matrix = []
-
-    @staticmethod
-    def control_parameters(pt=0, vb=False, vl=0):
-        ctrl_params = {
-            'projection_type': pt,  # 0: weak perspective, 1: perspective
-            'verbose': vb,  # Console information: False:  off, True: on
-            'visualize': vl  # Visualize fitting: 0: off, 1: on, 3: renders all visible points
-        }
-        return ctrl_params
-
-    @staticmethod
-    def fitting_parameters(max_iters, n_points, img_cost_func,
-                           anchor_cost_func, prior_alpha_cost_func, prior_beta_cost_func,
-                           texture_cost_func, n_alphas, n_rhos, n_betas, n_iotas,
-                           cvg_thresh, w_img, w_anchor, w_alpha, w_beta, w_texture):
-
-        # FITTING 1 - Alignment
-        fit_params = {
-            'max_iters': max_iters,  # number of iteration: -1 : until convergence
-            'n_points': n_points,  # number of points
-            # Cost function activation
-            'img_cost_func': img_cost_func,
-            'anchor_cost_func': anchor_cost_func,
-            'prior_alpha_cost_func': prior_alpha_cost_func,
-            'prior_beta_cost_func': prior_beta_cost_func,
-            'texture_cost_func': texture_cost_func,
-            # parameters
-            'n_alphas': n_alphas,
-            'n_rhos': n_rhos,
-            'n_betas': n_betas,
-            'n_iotas': n_iotas,
-            'cvg_thresh': cvg_thresh,
-            # weights
-            'w_img': w_img,
-            'w_anchor': w_anchor,
-            'w_alpha': w_alpha,
-            'w_beta': w_beta,
-            'w_texture': w_texture
-        }
-        return fit_params
-
-    def basic_alignment_fitting(self, image, ctrl_params, std_fit_params):
-        fit_params = self.fitting_parameters(20, -1, False, True, False, False, False, -1, [1, 2, 5, 6], -1,
-                                             -1, 10 ** -3, 1, 1, 1, 1, 1)
-        self.run_lucas_kanade(image, std_fit_params, fit_params, ctrl_params)
+    def _precompute(self):
+        return homogenize(self._model.shape_pc)
 
     # TODO
-    def basic_shape_fitting(self, image, ctrl_params, std_fit_params):
-        fit_params = self.fitting_parameters(20, -1, False, True, False, False, False, -1, [1, 2, 5, 6], -1,
-                                             -1, 10 ** -3, 1, 1, 1, 1, 1)
-        self.run_lucas_kanade(image, std_fit_params, fit_params, ctrl_params)
+    def fit(self, image, anchors):
 
-    # TODO
-    def lighting_fitting(self, image, ctrl_params, std_fit_params):
-        fit_params = self.fitting_parameters(20, -1, False, True, False, False, False, -1, [1, 2, 5, 6], -1,
-                                             -1, 10 ** -3, 1, 1, 1, 1, 1)
-        self.run_lucas_kanade(image, std_fit_params, fit_params, ctrl_params)
+        # Define control parameters
+        ctrl_params = control_parameters(pt=1, vb=True)
 
-    # TODO
-    def texture_fitting(self, image, ctrl_params, std_fit_params):
-        fit_params = self.fitting_parameters(20, -1, False, True, False, False, False, -1, [1, 2, 5, 6], -1,
-                                             -1, 10 ** -3, 1, 1, 1, 1, 1)
-        self.run_lucas_kanade(image, std_fit_params, fit_params, ctrl_params)
+        # Define standard fitting parameters
+        std_fit_params = standard_fitting_parameters(ctrl_params)
 
-    def precompute(self):
-        [vi_dx, vi_dy, s_pc, t_pc] = [0]*4
-        return [vi_dx, vi_dy, s_pc, t_pc]
+        # Define fitting parameters
+        fit_params = fitting_parameters(20, -1, -1, [1, 2, 5, 6], -1, -1, 10 ** -3)
 
-    # TODO: model2object
-    def compute_shape(self):
-        shape = []
-        return shape
+        alpha_c = std_fit_params['alpha_array']
+        beta_c = std_fit_params['beta_array']
+        rho_c = std_fit_params['rho_array']
+        iota_c = std_fit_params['iota_array']
 
-    # TODO: model2object
-    def compute_texture(self):
-        texture = []
-        return texture
+        n_alphas = fit_params['n_alphas']
+        n_betas = fit_params['n_betas']
+        n_rhos = fit_params['n_rhos']
+        n_iotas = fit_params['n_iotas']
 
-    # TODO
-    def compute_warp_and_projection_matrices(self):
-        self.rot = {}
-        self.view_matrix = []
-        self.projection_matrix = []
+        n_params = n_alphas + n_betas + n_iotas + n_rhos
 
-    # TODO
-    def visualize(self):
-        print self.view_matrix
-
-    # TODO
-    def update_parameters(self):
-        self.view_matrix = []
-        delta_sigma = 0
-        return delta_sigma
-
-    # TODO
-    def save_final_params(self):
-        self.view_matrix = []
-
-    # TODO
-    def img_cost_func(self):
-        print "image cost function"
-
-    # TODO
-    def compute_anchor_points_projection(self, anchor_array, projection):
-        [uv_anchor, yx_anchor] = [0]*2
-        return [uv_anchor, yx_anchor]
-
-    # TODO
-    def compute_anchor_points_error(self, yx_anchor):
-        return 0
-
-    # TODO
-    def sample_object_at_uv(self, shape, anchor_array, uv_anchor):
-        return 0
-
-    # TODO
-    def compute_ortho_proj_derivatives_shape_params(self):
-        return 0
-
-    # TODO
-    def compute_pers_proj_derivatives_shape_params(self):
-        return 0
-
-    # TODO
-    def compute_ortho_warp_derivatives_shape_params(self):
-        return 0
-
-    # TODO
-    def compute_pers_warp_derivatives_shape_params(self):
-        return 0
-
-    # TODO
-    def compute_projection_derivatives_shape_parameters(self, ctrl_params):
-        if ctrl_params['projection_type'] == 0:
-            dp_dgamma = self.compute_ortho_proj_derivatives_shape_params()
-        else:
-            dp_dgamma = self.compute_pers_proj_derivatives_shape_params()
-        return dp_dgamma
-
-    # TODO
-    def compute_projection_derivatives_warp_parameters(self, ctrl_params):
-        if ctrl_params['projection_type'] == 0:
-            dp_dgamma = self.compute_ortho_warp_derivatives_shape_params()
-        else:
-            dp_dgamma = self.compute_pers_warp_derivatives_shape_params()
-        return dp_dgamma
-
-    # TODO
-    def compute_sd_error_product(self, sd_anchor, error_uv):
-        return 0
-
-    # TODO
-    def warp(self, image):
-        r"""
-            Warps an image into the template's mask.
-
-            Parameters
-            ----------
-            image : `menpo.image.Image` or subclass
-                The input image to be warped.
-
-            Returns
-            -------
-            warped_image : `menpo.image.Image` or subclass
-                The warped image.
-        """
-        return 0
-
-    # TODO
-    def project(self, warp):
-        return 0
-
-    # TODO
-    def anchor_cost_func(self, shape, s_pc, ctrl_params):
-        # Compute anchor points projection
-        anchor_array = self.model.triangle_array
-        warp = self.warp(shape)
-        projection = self.project(warp)
-        [uv_anchor, yx_anchor] = self.compute_anchor_points_projection(anchor_array, projection)
-
-        # Compute anchor points error
-        anchor_error_pixel = self.compute_anchor_points_error(yx_anchor)
-
-        # Compute the derivatives
-        s_uv_anchor = self.sample_object_at_uv(shape, anchor_array, uv_anchor)
-        w_uv_anchor = self.sample_object_at_uv(warp, anchor_array, uv_anchor)
-        s_pc_uv_anchor = self.sample_object_at_uv(s_pc, anchor_array, uv_anchor)
-
-        dp_alpha = self.compute_projection_derivatives_shape_parameters(ctrl_params)
-        dp_rho = self.compute_projection_derivatives_warp_parameters(ctrl_params)
-        dp_beta = []
-        dp_iota = []
-
-        # Compute steepest descent matrix and hessian
-        sd_anchor = []
-        h_anchor = hessian(sd_anchor)
-        sd_error_product_anchor = self.compute_sd_error_product(sd_anchor, anchor_error_pixel)
-
-        return [sd_anchor, h_anchor, sd_error_product_anchor]
-
-    # TODO
-    def run(self, image, std_fit_params, fit_params, ctrl_params):
-
-        [vi_dx, vi_dy, s_pc, t_pc] = self.precompute()
-
+        s_pc = self._precompute()
         # Simultaneous Forwards Additive Algorithm
         for i in xrange(fit_params['max_iters']):
+            # Alignment on anchor points only
+
             # Compute shape and texture
-            shape = self.compute_shape()
-            texture = self.compute_texture()
+            shape = compute_shape()
 
             # Compute warp and projection matrices
-            self.compute_warp_and_projection_matrices()
+            [rot, view_matrix, projection_matrix] = compute_warp_and_projection_matrices()
 
-            if fit_params['img_cost_func']:
-                pass
-            if fit_params['anchor_cost_func']:
-                self.anchor_cost_func(shape, s_pc, ctrl_params)
-            if fit_params['prior_alpha_cost_func']:
-                pass
-            if fit_params['prior_beta_cost_func']:
-                pass
-            if fit_params['texture_cost_func']:
-                pass
+            # Compute anchor points projection
+            anchor_array = self._model.triangle_array
+            warped = warp(shape, view_matrix)
+            projection = project(warped, projection_matrix)
+            [uv_anchor, yx_anchor] = compute_anchor_points_projection(anchor_array, projection)
 
-            if ctrl_params['visualize'] > 0:
-                self.visualize()
+            # Compute anchor points error
+            anchor_error_pixel = compute_anchor_points_error(yx_anchor)
+
+            # Compute the derivatives
+            s_uv_anchor = sample_object_at_uv(shape, anchor_array, uv_anchor)
+            w_uv_anchor = sample_object_at_uv(warp, anchor_array, uv_anchor)
+            s_pc_uv_anchor = sample_object_at_uv(s_pc, anchor_array, uv_anchor)
+
+            dp_dalpha = []
+            dp_dbeta = []
+            dp_diota = []
+            dp_drho = []
+
+            if n_alphas > 0:
+                dp_dalpha = compute_projection_derivatives_shape_parameters(s_uv_anchor, w_uv_anchor, rot,
+                                                                            s_pc_uv_anchor, ctrl_params)
+            if n_rhos > 0:
+                dp_drho = compute_projection_derivatives_warp_parameters(s_uv_anchor, w_uv_anchor, rot,
+                                                                         s_pc_uv_anchor, ctrl_params)
+
+            # Compute steepest descent matrix and hessian
+            sd_anchor = np.hstack((-dp_dalpha, -dp_drho, dp_dbeta, dp_diota))
+            h_anchor = hessian(sd_anchor)
+            sd_error_product_anchor = compute_sd_error_product(sd_anchor, anchor_error_pixel)
+
+            # Visualize
+            visualize(image, anchors, yx_anchor)
 
             # Update parameters
-            delta_sigma = self.update_parameters()
+            delta_sigma = update_parameters(h_anchor, sd_error_product_anchor)
+            [alpha_c, beta_c, rho_c, iota_c] = update(delta_sigma, fit_params)
 
             # Check for convergence
             if np.linalg.norm(delta_sigma) < fit_params['cvg_thresh']:
                 break
 
-        self.save_final_params()
-
-    # TODO
-    def fit(self, image):
-
-        # Define common fitting and control parameters
-        ctrl_params = self.control_parameters(pt=1, vb=True, vl=3)
-
-        # Initialize fitting parameters
-        std_fit_params = standard_fitting_parameters(ctrl_params)
-
-        # Basic alignment fitting
-        self.basic_alignment_fitting(image, ctrl_params, std_fit_params)
-
-        # Basic shape fitting
-        self.basic_shape_fitting(image, ctrl_params, std_fit_params)
-
-        # Lighting fitting
-        self.lighting_fitting(image, ctrl_params, std_fit_params)
-
-        # Texture fitting
-        self.texture_fitting(image, ctrl_params, std_fit_params)
+        # Save final parameters
+        fit_params['n_alphas'] = alpha_c
+        fit_params['n_betas'] = beta_c
+        fit_params['n_rhos'] = rho_c
+        fit_params['n_iotas'] = iota_c
 
 
 def hessian(sd):
@@ -351,3 +152,151 @@ def standard_fitting_parameters(params):
         'beta_array': beta_array
     }
     return std_fit_params
+
+
+def fitting_parameters(max_iters, n_points, n_alphas, n_rhos, n_betas, n_iotas,
+                       cvg_thresh):
+    fit_params = {
+        'max_iters': max_iters,  # number of iteration: -1 : until convergence
+        'n_points': n_points,  # number of points
+        # parameters
+        'n_alphas': n_alphas,
+        'n_rhos': n_rhos,
+        'n_betas': n_betas,
+        'n_iotas': n_iotas,
+        'cvg_thresh': cvg_thresh,
+    }
+    return fit_params
+
+
+def control_parameters(pt=0, vb=False):
+    ctrl_params = {
+        'projection_type': pt,  # 0: weak perspective, 1: perspective
+        'verbose': vb,  # Console information: False:  off, True: on
+    }
+    return ctrl_params
+
+
+def compute_warp_and_projection_matrices():
+    rot = {}
+    view_matrix = []
+    projection_matrix = []
+    return [rot, view_matrix, projection_matrix]
+
+
+def compute_anchor_points_projection(self, anchor_array, projection):
+    [uv_anchor, yx_anchor] = [0] * 2
+    return [uv_anchor, yx_anchor]
+
+
+def compute_anchor_points_error(yx_anchor):
+    return 0
+
+
+# TODO
+def sample_object_at_uv(shape, anchor_array, uv_anchor):
+    return 0
+
+
+# TODO
+def compute_ortho_proj_derivatives_shape_params():
+    return 0
+
+
+# TODO
+def compute_pers_proj_derivatives_shape_params():
+    return 0
+
+
+# TODO
+def compute_ortho_warp_derivatives_shape_params():
+    return 0
+
+
+# TODO
+def compute_pers_warp_derivatives_shape_params():
+    return 0
+
+
+# TODO
+def compute_projection_derivatives_shape_parameters(s_uv_anchor, w_uv_anchor, rot,
+                                                    s_pc_uv_anchor, ctrl_params):
+    if ctrl_params['projection_type'] == 0:
+        dp_dgamma = compute_ortho_proj_derivatives_shape_params()
+    else:
+        dp_dgamma = compute_pers_proj_derivatives_shape_params()
+    return dp_dgamma
+
+
+# TODO
+def compute_projection_derivatives_warp_parameters(s_uv_anchor, w_uv_anchor, rot,
+                                                   s_pc_uv_anchor, ctrl_params):
+    if ctrl_params['projection_type'] == 0:
+        dp_dgamma = compute_ortho_warp_derivatives_shape_params()
+    else:
+        dp_dgamma = compute_pers_warp_derivatives_shape_params()
+    return dp_dgamma
+
+
+# TODO
+def compute_sd_error_product(sd_anchor, error_uv):
+    return 0
+
+
+# TODO
+def warp(image, view_matrix):
+    r"""
+        Warps an image into the template's mask.
+
+        Parameters
+        ----------
+        image : `menpo.image.Image` or subclass
+            The input image to be warped.
+
+        Returns
+        -------
+        warped_image : `menpo.image.Image` or subclass
+            The warped image.
+    """
+    return 0
+
+
+# TODO
+def project(warp, projection_matrix):
+    return 0
+
+
+# TODO: model2object
+def compute_shape():
+    shape = []
+    return shape
+
+
+# TODO: model2object
+def compute_texture():
+    texture = []
+    return texture
+
+
+# TODO
+def homogenize(element):
+    return element
+
+
+# TODO
+def visualize(image, anchors, yx_anchor):
+    print "visualize"
+
+
+# TODO
+def update_parameters(h_anchor, sd_error_product_anchor):
+    delta_sigma = []
+    return delta_sigma
+
+
+def update(delta_sigma, fit_params):
+    [alpha_c, beta_c, rho_c, iota_c] = [0]*4
+    return [alpha_c, beta_c, rho_c, iota_c]
+
+
+
