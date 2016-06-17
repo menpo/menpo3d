@@ -12,7 +12,7 @@ requirements:
     - menpo 0.7.*
     - cyassimp 0.2.*
     - cyrasterize >=0.2.4,<0.3
-    - mayavi 4.4.*  # [py2k]
+    - mayavi 4.4.*
 
 test:
   requires:
