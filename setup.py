@@ -1,14 +1,10 @@
 from setuptools import setup, find_packages
-import sys
 import versioneer
 
-install_requires = ['menpo>=0.6,<0.7',
+install_requires = ['menpo>=0.7,<0.8',
                     'cyassimp>=0.2,<0.3',
-                    'cyrasterize>=0.2.4,<0.3']
-
-# These dependencies currently don't work on Python 3
-if sys.version_info.major == 2:
-    install_requires.append('mayavi>=4.4,<4.5')
+                    'cyrasterize>=0.2.4,<0.3',
+                    'mayavi>=4.4.4']
 
 setup(name='menpo3d',
       version=versioneer.get_version(),

@@ -9,7 +9,7 @@ requirements:
 
   run:
     - python
-    - menpo >=0.6,<0.7
+    - menpo 0.7.*
     - cyassimp 0.2.*
     - cyrasterize >=0.2.4,<0.3
     - mayavi 4.4.*  # [py2k]
