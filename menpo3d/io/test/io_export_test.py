@@ -16,10 +16,12 @@ def test_export_mesh_obj(mock_open, exists):
         mio.export_mesh(test_obj, f, extension='obj')
 
 
+@patch('PIL.Image.EXTENSION')
 @patch('menpo.image.base.PILImage')
 @patch('menpo3d.io.output.base.Path.exists')
 @patch('menpo.io.output.base.Path.open')
-def test_export_mesh_obj_textured(mock_open, exists, PILImage):
+def test_export_mesh_obj_textured(mock_open, exists, PILImage, PIL):
+    PIL.return_value.Image.EXTENSION = {'.jpg': None}
     exists.return_value = False
     mock_open.return_value = MagicMock()
     fake_path = '/fake/fake.obj'

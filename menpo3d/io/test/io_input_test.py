@@ -1,6 +1,5 @@
 from nose.tools import raises
 import numpy as np
-import os
 from numpy.testing import assert_allclose
 import menpo3d.io as mio
 from menpo.shape import TriMesh, TexturedTriMesh, PointCloud
@@ -44,6 +43,7 @@ def test_import_asset_james():
     assert(isinstance(mesh.texture, Image))
     assert(isinstance(mesh.tcoords, PointCloud))
     assert(mesh.tcoords.points.shape[1] == 2)
+
 
 @raises(ValueError)
 def test_import_incorrect_built_in():

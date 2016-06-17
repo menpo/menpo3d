@@ -12,7 +12,6 @@ requirements:
     - menpo >=0.6,<0.7
     - cyassimp 0.2.*
     - cyrasterize >=0.2.4,<0.3
-    - menpo-pyvrml97 2.3.0a4  # [py2k]
     - mayavi 4.4.*  # [py2k]
 
 test:
