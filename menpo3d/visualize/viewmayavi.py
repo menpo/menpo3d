@@ -275,7 +275,7 @@ class MayaviTexturedTriMeshViewer3d(MayaviTriMeshViewer3d):
         actor = tvtk.Actor(mapper=mapper)
         # Get the pixels from our image class which are [0, 1] and scale
         # back to valid pixels. Then convert to tvtk ImageData.
-        texture = self.texture.as_imageio()
+        texture = self.texture.pixels_with_channels_at_back()
         if self.texture.n_channels == 1:
             texture = np.stack([texture] * 3, axis=-1)
         image_data = np.flipud(texture).ravel()
