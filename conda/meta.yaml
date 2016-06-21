@@ -21,6 +21,9 @@ test:
   imports:
     - menpo3d
 
+  commands:
+    - nosetests menpo3d -v
+
 about:
   home: https://github.com/menpo/menpo3d/
   license: BSD
