@@ -2,7 +2,6 @@ from setuptools import setup, find_packages
 import versioneer
 
 install_requires = ['menpo>=0.7,<0.8',
-                    'cyassimp>=0.2,<0.3',
                     'cyrasterize>=0.2.4,<0.3',
                     'mayavi>=4.4.4']
 
@@ -15,5 +14,5 @@ setup(name='menpo3d',
       packages=find_packages(),
       package_data={'menpo3d': ['data/*']},
       install_requires=install_requires,
-      tests_require=['nose', 'mock>=1.3']
+      tests_require=['nose', 'mock']
 )

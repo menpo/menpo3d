@@ -10,17 +10,16 @@ requirements:
   run:
     - python
     - menpo 0.7.*
-    - cyassimp 0.2.*
     - cyrasterize >=0.2.4,<0.3
     - mayavi 4.4.*
 
 test:
   requires:
-  - nose
-  - mock 1.3.0
+    - nose
+    - mock
 
   imports:
-  - menpo3d
+    - menpo3d
 
 about:
   home: https://github.com/menpo/menpo3d/

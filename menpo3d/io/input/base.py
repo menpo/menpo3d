@@ -1,11 +1,13 @@
 import warnings
 from functools import partial
 
+from menpo.base import partial_doc
 from menpo.io.input.base import (glob_with_suffix, _import_glob_lazy_list,
                                  _import, _import_object_attach_landmarks,
                                  _data_dir_path, _data_path_to,
                                  _ls_builtin_assets, BuiltinAssets,
-                                 _import_builtin_asset)
+                                 _import_builtin_asset,
+                                 _register_importer)
 from menpo.io.input import same_name, image_paths
 from menpo3d.base import menpo3d_src_dir_path
 from .extensions import mesh_types, mesh_landmark_types
@@ -43,24 +45,25 @@ def same_name_texture(path, paths_callable=image_paths):
     return texture_paths[0]
 
 
-same_name_landmark = partial(same_name, paths_callable=landmark_file_paths)
+same_name_landmark = partial_doc(same_name, paths_callable=landmark_file_paths)
+
+menpo3d_data_dir_path = partial_doc(_data_dir_path, menpo3d_src_dir_path)
+
+menpo3d_ls_builtin_assets = partial_doc(_ls_builtin_assets, 
+                                        menpo3d_data_dir_path)
+
+menpo3d_data_path_to = partial_doc(_data_path_to, menpo3d_data_dir_path,
+                                   menpo3d_ls_builtin_assets)
+
+_menpo3d_import_builtin_asset = partial_doc(_import_builtin_asset,
+                                            menpo3d_data_path_to,
+                                            mesh_types, mesh_landmark_types,
+                                            texture_resolver=same_name_texture)
 
 
-menpo3d_data_dir_path = partial(_data_dir_path, menpo3d_src_dir_path)
-menpo3d_data_dir_path.__doc__ = _data_dir_path.__doc__
-
-menpo3d_ls_builtin_assets = partial(_ls_builtin_assets, menpo3d_data_dir_path)
-menpo3d_ls_builtin_assets.__doc__ = _ls_builtin_assets.__doc__
-
-menpo3d_data_path_to = partial(_data_path_to, menpo3d_data_dir_path,
-                               menpo3d_ls_builtin_assets)
-menpo3d_data_path_to.__doc__ = _data_path_to.__doc__
-
-_menpo3d_import_builtin_asset = partial(_import_builtin_asset,
-                                        menpo3d_data_path_to,
-                                        mesh_types, mesh_landmark_types,
-                                        texture_resolver=same_name_texture)
-_menpo3d_import_builtin_asset.__doc__ = _import_builtin_asset.__doc__
+register_mesh_importer = partial_doc(_register_importer, mesh_types)
+register_landmark_importer = partial_doc(_register_importer, 
+                                         mesh_landmark_types)
 
 
 def import_mesh(filepath, landmark_resolver=same_name_landmark,
