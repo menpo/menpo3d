@@ -3,6 +3,8 @@
   <br><br>
   <a href="https://github.com/menpo/menpo3d/blob/master/LICENSE.txt"><img src="http://img.shields.io/badge/License-BSD-green.svg" alt="BSD License"/></a>
   <img src="https://img.shields.io/badge/Python-2.7-green.svg" alt="Python 2.7 Support"/>
+  <img src="https://img.shields.io/badge/Python-3.4-green.svg" alt="Python 3.4 Support"/>
+  <img src="https://img.shields.io/badge/Python-3.5-green.svg" alt="Python 3.5 Support"/>
 </p>
 
 
@@ -34,8 +36,7 @@ menpo3d adds support for viewing 3D objects through
 One of the main reasons menpo3d is a seperate project to the menpo core
 library is to isolate the more complex dependencies that this brings to the
 project. 3D visualization is not yet supported in the browser, so we rely on
-platform-specific viewing mechanisms like QT or WX. It also limits menpo3d to
-be Python 2 only, as VTK does not yet support Python 3.
+platform-specific viewing mechanisms like QT or WX.
 
 In order to view 3D items you will need to first use the `%matplotlib qt`
 IPython magic command to set up QT for rendering (you do this instead of
