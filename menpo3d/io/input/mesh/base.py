@@ -84,49 +84,6 @@ def vtk_ensure_trilist(polydata):
         return None
 
 
-def assimp_importer(filepath, asset=None, texture_resolver=None, **kwargs):
-    """
-    Uses assimp to import meshes. The assimp importing is wrapped via cython,
-
-    Parameters
-    ----------
-    filepath : `Path`
-        Absolute filepath of the mesh.
-    asset : `object`, optional
-        An optional asset that may help with loading. This is unused for this
-        implementation.
-    texture_resolver : `callable`, optional
-        A callable that recieves the mesh filepath and returns a single
-        path to the texture to load.
-    \**kwargs : `dict`, optional
-        Any other keyword arguments.
-
-    Returns
-    -------
-    shape : :map:`PointCloud` or subclass
-        The correct shape for the given inputs.
-    """
-    from cyassimp import AIImporter
-
-    ai_importer = AIImporter(str(filepath))
-    ai_importer.build_scene()
-    texture_path = filepath.parent / ai_importer.assimp_texture_path
-    if not texture_path.exists():
-        texture_path = texture_resolver(filepath)
-
-    # TODO: Assumes single texture?
-    texture = None
-    if texture_resolver is not None:
-        if texture_path is None:
-            texture_path = texture_resolver(filepath)
-        if texture_path is not None and texture_path.exists():
-            texture = mio.import_image(texture_path)
-
-    return [_construct_shape_type(m.points, m.trilist, m.tcoords, texture,
-                                  m.colour_per_vertex)
-            for m in ai_importer.meshes]
-
-
 def wrl_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     """Allows importing VRML 2.0 meshes.
 
@@ -261,6 +218,45 @@ def obj_importer(filepath, asset=None, texture_resolver=None, **kwargs):
             tcoords = None
 
     colour_per_vertex = None
+    return _construct_shape_type(points, trilist, tcoords, texture,
+                                 colour_per_vertex)
+
+
+def stl_importer(filepath, asset=None, **kwargs):
+    """Allows importing Stereolithography CAD (STL) files.
+
+    Uses VTK.
+
+    Parameters
+    ----------
+    asset : `object`, optional
+        An optional asset that may help with loading. This is unused for this
+        implementation.
+    \**kwargs : `dict`, optional
+        Any other keyword arguments.
+
+    Returns
+    -------
+    shape : :map:`PointCloud` or subclass
+        The correct shape for the given inputs.
+    """
+    import vtk
+    from vtk.util.numpy_support import vtk_to_numpy
+
+    stl_importer = vtk.vtkSTLReader()
+    stl_importer.SetFileName(str(filepath))
+    stl_importer.Update()
+
+    # Get the output
+    polydata = stl_importer.GetOutput()
+
+    # We must have point data!
+    points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float)
+    trilist = np.require(vtk_ensure_trilist(polydata), requirements=['C'])
+
+    colour_per_vertex = None
+    tcoords = None
+    texture = None
     return _construct_shape_type(points, trilist, tcoords, texture,
                                  colour_per_vertex)
 
