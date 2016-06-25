@@ -271,11 +271,12 @@ class MayaviTexturedTriMeshViewer3d(MayaviTriMeshViewer3d):
         pd.points = self.points
         pd.polys = self.trilist
         pd.point_data.t_coords = self.tcoords_per_point
-        mapper = tvtk.PolyDataMapper(input=pd)
+        mapper = tvtk.PolyDataMapper()
+        mapper.set_input_data(pd)
         actor = tvtk.Actor(mapper=mapper)
         # Get the pixels from our image class which are [0, 1] and scale
         # back to valid pixels. Then convert to tvtk ImageData.
-        texture = self.texture.pixels_with_channels_at_back()
+        texture = self.texture.pixels_with_channels_at_back(out_dtype=np.uint8)
         if self.texture.n_channels == 1:
             texture = np.stack([texture] * 3, axis=-1)
         image_data = np.flipud(texture).ravel()
@@ -283,7 +284,8 @@ class MayaviTexturedTriMeshViewer3d(MayaviTriMeshViewer3d):
         image = tvtk.ImageData()
         image.point_data.scalars = image_data
         image.dimensions = self.texture.width, self.texture.height, 1
-        texture = tvtk.Texture(input=image)
+        texture = tvtk.Texture()
+        texture.set_input_data(image)
         actor.texture = texture
         self.figure.scene.add_actors(actor)
 
