@@ -106,9 +106,10 @@ class MayaviViewer(Renderer):
         r"""Retrieves the projection matrix for this scene.
         """
         scene = self.figure.scene
+        camera = scene.camera
         scene_size = tuple(scene.get_size())
         aspect_ratio = float(scene_size[0]) / float(scene_size[1])
-        p = scene.camera.get_perspective_transform_matrix(
+        p = camera.get_projection_transform_matrix(
             aspect_ratio, -1, 1).to_array().astype(np.float32)
         return p
 
