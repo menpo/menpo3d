@@ -1,4 +1,4 @@
-from scipy.io import loadmat
+import scipy.io as spio
 import numpy as np
 import menpo.io as mio
 
@@ -50,16 +50,16 @@ class Model:
     @classmethod
     def init_from_basel(cls, basel_pf):
         # Loading the model
-        data = loadmat(basel_pf)["model"]
+        data = spio.loadmat(basel_pf)["model"]
         # Shape
-        shape_mean = data["shapeMean"]  # mean
-        shape_pc = data["shapePC"]  # principal components
-        shape_ev = data["shapeEV"]  # eigenvalues
+        shape_mean = data["shapeMean"][0, 0]  # mean
+        shape_pc = data["shapePC"][0, 0]  # principal components
+        shape_ev = data["shapeEV"][0, 0]  # eigenvalues
 
         # Texture
-        texture_mean = data["textureMean"]  # mean
-        texture_pc = data["texturePC"]  # principal components
-        texture_ev = data["textureEV"]  # eigenvalues
+        texture_mean = data["textureMean"][0, 0]  # mean
+        texture_pc = data["texturePC"][0, 0]  # principal components
+        texture_ev = data["textureEV"][0, 0]  # eigenvalues
 
         # Triangle array
         triangle_array = np.transpose(data["triangleArray"])  # triangle array
