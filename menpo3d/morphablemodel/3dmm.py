@@ -7,10 +7,10 @@ from fitter import MorphableModelFitter
 
 class Menpo3DMM:
     # TODO
-    def __init__(self, image, model, fitting, anchors, epsilon):
+    def __init__(self, image, model, fitting, anchors_pf, epsilon):
         self.image = image
         self.model = model
-        self.anchors = anchors
+        self.anchors_pf = anchors_pf
         self.fitting = fitting
         self.epsilon = epsilon
 
@@ -21,10 +21,10 @@ class Menpo3DMM:
         # self.model = model.init_from_basel(model_pf)
 
         fitter = MorphableModelFitter(self.model)
-        fitter.fit(self.image, self.anchors)
+        fitter.fit(self.image, self.anchors_pf)
 
 if __name__ == '__main__':
-    menpo3d = Menpo3DMM(0, 0.1, 0, 0, 0)
+    menpo3d = Menpo3DMM(0, 0.1, 0, "bale.mat", 0)
     menpo3d.run()
 
 

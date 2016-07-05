@@ -5,6 +5,7 @@ from menpo.image import Image
 from menpofit.fitter import MultiScaleParametricFitter
 from lk import SimultaneousForwardAdditive
 from model import Model
+import scipy.io as spio
 
 
 class MorphableModelFitter(object):
@@ -32,10 +33,10 @@ class MorphableModelFitter(object):
         shape = homogenize(shape)
         s_m = np.matlib.repmat(np.mean(shape[0:3, :], 1), 1, np.size(shape, 1))
         shape[0:3, :, 0] -= s_m
-        return shape
+        return shape[:, :, 0]
 
     # TODO
-    def fit(self):
+    def fit(self, anchors_pf):
 
         # Define control parameters
         ctrl_params = control_parameters(pt=1, vb=True)
@@ -72,15 +73,22 @@ class MorphableModelFitter(object):
 
             # Compute shape and texture
             shape = self._compute_shape(alpha_c)
-            #return
-            # Compute warp and projection matrices
 
-            [rot, view_matrix, projection_matrix] = compute_warp_and_projection_matrices()
+            # Compute warp and projection matrices
+            [rot, view_matrix, projection_matrix] = \
+                compute_warp_and_projection_matrices(rho_c, ctrl_params['projection_type'])
+
+            # Import anchor points
+            [img, resolution, anchor_points, model_triangles] = import_anchor_points(anchors_pf)
 
             # Compute anchor points projection
-            anchor_array = self._model.triangle_array
-            warped = warp(shape, view_matrix)
-            projection = project(warped, projection_matrix)
+            anchor_array = self._model.triangle_array[:, model_triangles]
+
+            warped = np.dot(view_matrix, shape)
+            projection = project(warped, projection_matrix, ctrl_params['projection_type'])
+
+            return
+
             [uv_anchor, yx_anchor] = compute_anchor_points_projection(anchor_array, projection)
 
             # Compute anchor points error
@@ -196,11 +204,66 @@ def control_parameters(pt=0, vb=False, vis=False):
     return ctrl_params
 
 
-def compute_warp_and_projection_matrices():
-    rot = {}
-    view_matrix = []
-    projection_matrix = []
-    return [rot, view_matrix, projection_matrix]
+def compute_warp_and_projection_matrices(rho_array, projection_type):
+
+    # 3D Rotation
+    r_phi = np.eye(4)
+    r_phi[1:3, 1:3] = np.array([[np.cos(rho_array[1]), -np.sin(rho_array[1])],
+                                [np.sin(rho_array[1]), np.cos(rho_array[1])]])
+    r_theta = np.eye(4)
+    r_theta[0:3, 0:3] = np.array([[np.cos(rho_array[2]), 0, -np.sin(rho_array[2])],
+                                  [0, 1, 0],
+                                  [np.sin(rho_array[2]), 0, np.cos(rho_array[2])]])
+    r_varphi = np.eye(4)
+    r_varphi[0:2, 0:2] = np.array([[np.cos(rho_array[3]), -np.sin(rho_array[3])],
+                                   [np.sin(rho_array[3]), np.cos(rho_array[3])]])
+
+    rot_total = np.dot(np.dot(r_varphi, r_theta), r_phi)
+
+    # 3D Translation
+    if projection_type == 0:
+        tw = [rho_array[4], rho_array[5], 0, 1]
+    else:
+        tw = [rho_array[4], rho_array[5], rho_array[6], 1]
+
+    to = [0, 0, 0, 1]
+    tc = [0, 0, -20, 1]
+
+    translation_tw = np.eye(4)
+    translation_tw[:, 3] = np.dot(rot_total, to) + tw - tc
+
+    # View matrix and projection matrix calculations
+    view_matrix = np.dot(translation_tw, rot_total)
+
+    far = 50
+    near = rho_array[0]
+    u_max = 2
+    u_min = -2
+    v_max = 2
+    v_min = -2
+
+    m_persla = np.eye(4)
+    m_persla[0, 2] = (u_max + u_min) / (u_max - u_min)
+    m_persla[1, 2] = (v_max + v_min) / (v_max - v_min)
+
+    m_perslb = np.eye(4)
+    m_perslb[0, 0] = 2 * rho_array[0] / (u_max - u_min)
+    m_perslb[1, 1] = 2 * rho_array[0] / (v_max - v_min)
+
+    if projection_type == 0:
+        m_pers2 = np.eye(4)
+        m_pers2[2, 2] = 2 * rho_array[0] / (far - near)
+        m_pers2[2, 3] = -(far + near) / (far - near)
+    else:
+        m_pers2 = np.eye(4)
+        m_pers2[2, 2] = (far + near) / (far - near)
+        m_pers2[2, 3] = -2 * far * near / (far - near)
+        m_pers2[3, 2] = 1
+        m_pers2[3, 3] = 0
+
+    projection_matrix = np.dot(np.dot(m_pers2, m_perslb), m_persla)
+
+    return [rot_total, view_matrix, projection_matrix]
 
 
 def compute_anchor_points_projection(self, anchor_array, projection):
@@ -280,14 +343,20 @@ def warp(image, view_matrix):
     return 0
 
 
-# TODO
-def project(warp, projection_matrix):
-    return 0
+# TODO: doc + comments
+def project(w, projection_matrix, projection_type):
+    projected = np.dot(projection_matrix, w)
+
+    # Perspective projection type
+    if projection_type == 1:
+        projected = np.divide(projected, np.matlib.repmat(projected[3, :], 4, 1))
+    return projected
 
 
 # TODO: doc + comments
 def model_to_object(coeff, mean, pc, ev):
     # Maybe add these lines directly in the model import_from_basel
+    # as the loadmat imports a list of lists for a 1D array
     mean = np.ndarray.flatten(mean)
     ev = np.ndarray.flatten(ev)
     # Reconstruction
@@ -342,9 +411,25 @@ def update(delta_sigma, fit_params):
     return [alpha_c, beta_c, rho_c, iota_c]
 
 
+# TODO: doc + comments
+def import_anchor_points(anchors_pf):
+    # Loading the anchor points file
+    anchors = spio.loadmat(anchors_pf)["I_input"]
+
+    img = anchors["img"][0, 0]
+    resolution = anchors["resolution"][0, 0]
+    resolution = np.ndarray.flatten(resolution)
+    anchor_points = anchors["anchorPoints"][0, 0]
+    model_triangles = anchors["modelTriangles"][0, 0]
+    # Adapt Matlab indices to Python
+    model_triangles = [x-1 for x in np.ndarray.flatten(model_triangles)]
+
+    return [img, resolution, anchor_points, model_triangles]
+
+
 if __name__ == "__main__":
     model = Model()
     mm = model.init_from_basel("model.mat")
     mmf = MorphableModelFitter(mm)
-    mmf.fit()
+    mmf.fit("bale.mat")
 

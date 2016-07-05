@@ -62,7 +62,8 @@ class Model:
         texture_ev = data["textureEV"][0, 0]  # eigenvalues
 
         # Triangle array
-        triangle_array = np.transpose(data["triangleArray"])  # triangle array
+        triangle_array = data["triangleArray"][0, 0]  # triangle array
+        triangle_array = triangle_array.transpose()
 
         # Segmentation
         seg_bin = data["segBin"]
