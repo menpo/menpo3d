@@ -33,7 +33,7 @@ class MorphableModelFitter(object):
         shape = homogenize(shape)
         s_m = np.matlib.repmat(np.mean(shape[0:3, :], 1), 1, np.size(shape, 1))
         shape[0:3, :, 0] -= s_m
-        return shape[:, :, 0]
+        return shape
 
     # TODO
     def fit(self, anchors_pf):
@@ -75,7 +75,7 @@ class MorphableModelFitter(object):
             shape = self._compute_shape(alpha_c)
 
             # Compute warp and projection matrices
-            [rot, view_matrix, projection_matrix] = \
+            [r_phi, r_theta, r_varphi, rot, view_matrix, projection_matrix] = \
                 compute_warp_and_projection_matrices(rho_c, ctrl_params['projection_type'])
 
             # Import anchor points
@@ -83,20 +83,30 @@ class MorphableModelFitter(object):
 
             # Compute anchor points projection
             anchor_array = self._model.triangle_array[:, model_triangles]
-
-            warped = np.dot(view_matrix, shape)
+            warped = np.dot(view_matrix, shape[:, :, 0])
             projection = project(warped, projection_matrix, ctrl_params['projection_type'])
 
-            return
-
-            [uv_anchor, yx_anchor] = compute_anchor_points_projection(anchor_array, projection)
+            # [uv_anchor, yx_anchor] = compute_anchor_points_projection(anchor_array, projection)
+            uv_anchor = np.vstack((map(int, np.arange(0, 10)), np.matlib.repmat(0.333, 3, 10)))
+            yx_anchor = np.array([[241, 243, 245, 241, 298, 372, 371, 223, 223, 462],
+                                  [181, 233, 299, 351, 268, 216, 315, 152, 378, 267],
+                                  [92401, 119027, 179441, 137002, 110452, 161139, 77535, 193247, 136654]])
 
             # Compute anchor points error
-            anchor_error_pixel = compute_anchor_points_error(yx_anchor)
+            a = np.array(yx_anchor[:2][:].tolist())
+            b = anchor_points[:2][:]
+            anchor_error_pixel = compute_anchor_points_error(b, a)
+            anchor_error = np.zeros(anchor_error_pixel.shape)
+
+            for j in xrange(2):
+                anchor_error[j] = ["{:.5f}".format(x*(2/resolution[j])) for x in anchor_error_pixel[j]]
 
             # Compute the derivatives
+            # Shape sampling
             s_uv_anchor = sample_object_at_uv(shape, anchor_array, uv_anchor)
-            w_uv_anchor = sample_object_at_uv(warp, anchor_array, uv_anchor)
+            # Warp sampling
+            w_uv_anchor = sample_object_at_uv(warped, anchor_array, uv_anchor)
+            # Shape principal components sampling
             s_pc_uv_anchor = sample_object_at_uv(s_pc, anchor_array, uv_anchor)
 
             dp_dalpha = []
@@ -104,12 +114,18 @@ class MorphableModelFitter(object):
             dp_diota = []
             dp_drho = []
 
+            # Progress point
+            return
+
             if n_alphas > 0:
-                dp_dalpha = compute_projection_derivatives_shape_parameters(s_uv_anchor, w_uv_anchor, rot,
-                                                                            s_pc_uv_anchor, ctrl_params)
+                dp_dalpha = compute_projection_derivatives_shape_parameters(s_uv_anchor, w_uv_anchor, rho_c,
+                                                                            rot, s_pc_uv_anchor, ctrl_params,
+                                                                            self._model.shape_ev)
+
             if n_rhos > 0:
-                dp_drho = compute_projection_derivatives_warp_parameters(s_uv_anchor, w_uv_anchor, rot,
-                                                                         s_pc_uv_anchor, ctrl_params)
+                dp_drho = compute_projection_derivatives_warp_parameters(s_uv_anchor, w_uv_anchor, rho_c,
+                                                                         rot, s_pc_uv_anchor, ctrl_params,
+                                                                         self._model.shape_ev)
 
             # Compute steepest descent matrix and hessian
             sd_anchor = np.hstack((-dp_dalpha, -dp_drho, dp_dbeta, dp_diota))
@@ -263,7 +279,7 @@ def compute_warp_and_projection_matrices(rho_array, projection_type):
 
     projection_matrix = np.dot(np.dot(m_pers2, m_perslb), m_persla)
 
-    return [rot_total, view_matrix, projection_matrix]
+    return [r_phi, r_theta, r_varphi, rot_total, view_matrix, projection_matrix]
 
 
 def compute_anchor_points_projection(self, anchor_array, projection):
@@ -271,13 +287,40 @@ def compute_anchor_points_projection(self, anchor_array, projection):
     return [uv_anchor, yx_anchor]
 
 
-def compute_anchor_points_error(yx_anchor):
-    return 0
+def compute_anchor_points_error(img_anchor_points, yx_model_anchor_points):
+    return img_anchor_points - yx_model_anchor_points
 
 
-# TODO
-def sample_object_at_uv(shape, anchor_array, uv_anchor):
-    return 0
+def sample_object_at_uv(obj, triangle_array, uv):
+    npoints = np.size(uv, 1)
+    uv_indices = map(int, uv[0, :])
+    triangle_ind = np.copy(triangle_array)
+    for i in xrange(3):
+        triangle_ind[i] = map(lambda x: x - 1, triangle_ind[i])
+
+    if obj.ndim < 3:
+        nobjects = 1
+        sample = np.vstack((obj[:3, triangle_ind[0, uv_indices]],
+                            obj[:3, triangle_ind[1, uv_indices]],
+                            obj[:3, triangle_ind[2, uv_indices]]))
+        sample = np.tile(sample[:, :, None], (1, 1, 1))
+    else:
+        nobjects = np.size(obj, 2)
+        sample = np.vstack((obj[:3, triangle_ind[0, uv_indices], :],
+                            obj[:3, triangle_ind[1, uv_indices], :],
+                            obj[:3, triangle_ind[2, uv_indices], :]))
+
+    if isinstance(obj[3, 0], float):
+        sampled = obj[3, 0] * np.ones([4, npoints, nobjects])
+    else:
+        sampled = obj[3, 0, 0] * np.ones([4, npoints, nobjects])
+
+    # The None is there to have the same behaviour of tile as repmat in matlab
+    sampled[0:3, :, :] = \
+        np.multiply(np.tile(uv[1, :, None], (3, 1, nobjects)), sample[:3]) \
+        + np.multiply(np.tile(uv[2, :, None], (3, 1, nobjects)), sample[3:6]) \
+        + np.multiply(np.tile(uv[3, :, None], (3, 1, nobjects)), sample[6:9])
+    return sampled
 
 
 # TODO
@@ -301,8 +344,8 @@ def compute_pers_warp_derivatives_shape_params():
 
 
 # TODO
-def compute_projection_derivatives_shape_parameters(s_uv_anchor, w_uv_anchor, rot,
-                                                    s_pc_uv_anchor, ctrl_params):
+def compute_projection_derivatives_shape_parameters(s_uv_anchor, w_uv_anchor, rho_c, rot,
+                                                    s_pc_uv_anchor, ctrl_params, model):
     if ctrl_params['projection_type'] == 0:
         dp_dgamma = compute_ortho_proj_derivatives_shape_params()
     else:
@@ -322,24 +365,6 @@ def compute_projection_derivatives_warp_parameters(s_uv_anchor, w_uv_anchor, rot
 
 # TODO
 def compute_sd_error_product(sd_anchor, error_uv):
-    return 0
-
-
-# TODO
-def warp(image, view_matrix):
-    r"""
-        Warps an image into the template's mask.
-
-        Parameters
-        ----------
-        image : `menpo.image.Image` or subclass
-            The input image to be warped.
-
-        Returns
-        -------
-        warped_image : `menpo.image.Image` or subclass
-            The warped image.
-    """
     return 0
 
 
@@ -403,7 +428,7 @@ def visualize(image, anchors, yx_anchor):
 
 # TODO
 def update_parameters(hess, sd_error_product):
-    return -np.linalg.inv(hess) * sd_error_product
+    return np.dot(-np.linalg.inv(hess), sd_error_product)
 
 
 def update(delta_sigma, fit_params):
