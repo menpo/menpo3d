@@ -31,6 +31,8 @@ class MorphableModelFitter(object):
         mm = self._model
         shape = model_to_object(alpha_c, mm.shape_mean, mm.shape_pc, mm.shape_ev)
         shape = homogenize(shape)
+        # Subtracting the mean from the shape matrix
+        # to express the shape as linear combination of principal components
         s_m = np.matlib.repmat(np.mean(shape[0:3, :], 1), 1, np.size(shape, 1))
         shape[0:3, :, 0] -= s_m
         return shape
@@ -47,10 +49,10 @@ class MorphableModelFitter(object):
         # Define fitting parameters
         fit_params = fitting_parameters(20, -1, -1, [0, 1, 4, 5], -1, -1, 10 ** -3)
 
-        alpha_c = std_fit_params['alpha_array']
-        beta_c = std_fit_params['beta_array']
-        rho_c = std_fit_params['rho_array']
-        iota_c = std_fit_params['iota_array']
+        alpha_c = std_fit_params['alpha_array']  # Shape parameters
+        beta_c = std_fit_params['beta_array']  # Texture parameters
+        rho_c = std_fit_params['rho_array']  # Shape transformation parameters
+        iota_c = std_fit_params['iota_array']  # Rendering parameters
 
         [n_alphas, n_betas, n_iotas, n_rhos] = [0]*4
         if fit_params['n_alphas'] != -1:
@@ -81,7 +83,7 @@ class MorphableModelFitter(object):
             # Import anchor points
             [img, resolution, anchor_points, model_triangles] = import_anchor_points(anchors_pf)
 
-            # Compute anchor points projection
+            # Compute anchor points warp and projection
             anchor_array = self._model.triangle_array[:, model_triangles]
             warped = np.dot(view_matrix, shape[:, :, 0])
             projection = project(warped, projection_matrix, ctrl_params['projection_type'])
@@ -115,7 +117,7 @@ class MorphableModelFitter(object):
             dp_drho = []
 
             # Progress point
-            return
+            # return
 
             if n_alphas > 0:
                 dp_dalpha = compute_projection_derivatives_shape_parameters(s_uv_anchor, w_uv_anchor, rho_c,
@@ -224,6 +226,7 @@ def compute_warp_and_projection_matrices(rho_array, projection_type):
 
     # 3D Rotation
     r_phi = np.eye(4)
+
     r_phi[1:3, 1:3] = np.array([[np.cos(rho_array[1]), -np.sin(rho_array[1])],
                                 [np.sin(rho_array[1]), np.cos(rho_array[1])]])
     r_theta = np.eye(4)
@@ -258,6 +261,7 @@ def compute_warp_and_projection_matrices(rho_array, projection_type):
     v_max = 2
     v_min = -2
 
+    # Projection matrix computation as in graphics course
     m_persla = np.eye(4)
     m_persla[0, 2] = (u_max + u_min) / (u_max - u_min)
     m_persla[1, 2] = (v_max + v_min) / (v_max - v_min)
@@ -323,14 +327,51 @@ def sample_object_at_uv(obj, triangle_array, uv):
     return sampled
 
 
-# TODO
-def compute_ortho_proj_derivatives_shape_params():
-    return 0
+def compute_ortho_projection_derivatives_shape_parameters(s_uv, s_pc_uv, rho, r_tot, shape_ev):
+    # Precomputations
+    nparams = np.size(s_pc_uv, 2)
+    npoints = np.size(s_uv, 1)
+    dp_dgamma = np.zeros([2, nparams, npoints])
+
+    u_max = 2
+    u_min = -2
+    v_max = 2
+    v_min = -2
+
+    const_x = (2 * rho[0]) / (u_max - u_min)
+    const_y = (2 * rho[0]) / (v_max - v_min)
+    const_term = [const_x, const_y]
+
+    for k in xrange(nparams):
+        dw_dalpha_k_uv = np.dot(r_tot, np.dot(s_pc_uv[:, :, k], shape_ev[k]))
+        dp_dalpha_k_uv = [dw_dalpha_k_uv[0, :], dw_dalpha_k_uv[1, :]]
+        dp_dgamma[:, k, :] = np.multiply(np.linalg.repmat(const_term, 1, npoints), dp_dalpha_k_uv)
+
+    return dp_dgamma
 
 
-# TODO
-def compute_pers_proj_derivatives_shape_params():
-    return 0
+def compute_pers_projection_derivatives_shape_parameters(s_uv, w_uv, s_pc_uv, rho, r_tot, shape_ev):
+    # Precomputations
+    nparams = np.size(s_pc_uv, 2)
+    npoints = np.size(s_uv, 1)
+    dp_dgamma = np.zeros([2, nparams, npoints])
+
+    u_max = 2
+    u_min = -2
+    v_max = 2
+    v_min = -2
+
+    const_x = np.divide((2 * rho[0]) / (u_max - u_min), np.power(w_uv[2, :], 2))
+    const_y = np.divide((2 * rho[0]) / (v_max - v_min), np.power(w_uv[2, :], 2))
+    const_term = [const_x, const_y]
+
+    for k in xrange(nparams):
+        dw_dalpha_k_uv = np.dot(r_tot, np.dot(s_pc_uv[:, :, k], shape_ev[k]))
+        dp_dalpha_k_uv = [np.multiply(dw_dalpha_k_uv[0, :], w_uv[2, :]) - np.multiply(w_uv[0, :], dw_dalpha_k_uv[2, :]),
+                          np.multiply(dw_dalpha_k_uv[1, :], w_uv[2, :]) - np.multiply(w_uv[1, :], dw_dalpha_k_uv[2, :])]
+        dp_dgamma[:, k, :] = np.multiply(const_term, dp_dalpha_k_uv)
+
+    return dp_dgamma
 
 
 # TODO
@@ -347,9 +388,12 @@ def compute_pers_warp_derivatives_shape_params():
 def compute_projection_derivatives_shape_parameters(s_uv_anchor, w_uv_anchor, rho_c, rot,
                                                     s_pc_uv_anchor, ctrl_params, model):
     if ctrl_params['projection_type'] == 0:
-        dp_dgamma = compute_ortho_proj_derivatives_shape_params()
+        dp_dgamma = compute_ortho_projection_derivatives_shape_parameters(s_uv_anchor, s_pc_uv_anchor,
+                                                                          rho_c, rot, model.shape_ev)
     else:
-        dp_dgamma = compute_pers_proj_derivatives_shape_params()
+        dp_dgamma = compute_pers_projection_derivatives_shape_parameters(s_uv_anchor, w_uv_anchor,
+                                                                         s_pc_uv_anchor, rho_c, rot,
+                                                                         model.shape_ev)
     return dp_dgamma
 
 
