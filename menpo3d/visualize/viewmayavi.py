@@ -307,7 +307,8 @@ class MayaviColouredTriMeshViewer3d(MayaviTriMeshViewer3d):
         pd.points = self.points
         pd.polys = self.trilist
         pd.point_data.scalars = (self.colour_per_point * 255.).astype(np.uint8)
-        mapper = tvtk.PolyDataMapper(input=pd)
+        mapper = tvtk.PolyDataMapper()
+        mapper.set_input_data(pd)
         actor = tvtk.Actor(mapper=mapper)
         self.figure.scene.add_actors(actor)
 
