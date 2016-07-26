@@ -1197,18 +1197,32 @@ def import_anchor_points(anchors_pf):
 
 
 # TODO
-def compute_derivatives(n_alphas, n_rhos, n_betas, n_iotas):
+def compute_derivatives(n_alphas, n_rhos, n_betas, n_iotas,
+                        s_uv, w_uv, rho, rot, s_pc_uv, ctrl, shape_ev,
+                        s_pc, T, shadow_index, triangle_array, s, uv, N, light_vector, iota, V, R, M, L_dir, L_spec,
+                        r_phi, r_theta, r_varphi, N_obj, t_pc, texture_ev, L_amb, diffuse_dot, specular_term,
+                        diffuse_term, C, I, G):
+    # Function that takes all the parameters and computes all the derivatives within the color cost function
     dp_dalpha, dt_dalpha, dp_drho, dt_drho, dt_dbeta, dt_diota = ([],)*6
     if n_alphas > 0:
-        dp_dalpha = compute_projection_derivatives_shape_parameters()
-        dt_dalpha = compute_texture_derivatives_shape_parameters()
+        dp_dalpha = compute_projection_derivatives_shape_parameters(s_uv, w_uv, rho, rot, s_pc_uv, ctrl,
+                                                                    shape_ev)
+        dt_dalpha = compute_texture_derivatives_shape_parameters(s_pc, T, shadow_index, w_uv, triangle_array,
+                                                                 s, uv, N, light_vector, shape_ev, rot, s_pc_uv,
+                                                                 iota, V, R, M, L_dir, L_spec)
     if n_rhos > 0:
-        dp_drho = compute_projection_derivatives_warp_parameters()
-        dt_drho = compute_texture_derivatives_warp_parameters()
+        dp_drho = compute_projection_derivatives_warp_parameters(s_uv, w_uv, rho,
+                                                                 r_phi, r_theta, r_varphi, ctrl)
+        dt_drho = compute_texture_derivatives_warp_parameters(rho, T, shadow_index, w_uv, light_vector, R, V,
+                                                              r_theta, r_phi, r_varphi, N_obj, N, s, iota, M,
+                                                              L_dir, L_spec)
     if n_betas > 0:
-        dt_dbeta = compute_texture_derivatives_texture_parameters()
+        dt_dbeta = compute_texture_derivatives_texture_parameters(t_pc, shadow_index, texture_ev, M,
+                                                                  L_amb, L_dir, diffuse_dot, specular_term)
     if n_iotas > 0:
-        dt_diota = compute_texture_derivatives_illumination_parameters()
+        dt_diota = compute_texture_derivatives_illumination_parameters(iota, T, shadow_index, N, light_vector, R, V,
+                                                                       C, I, G, M, diffuse_term, specular_term, L_dir,
+                                                                       L_spec)
 
     return dp_dalpha, dt_dalpha, dp_drho, dt_drho, dt_dbeta, dt_diota
 
