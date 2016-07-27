@@ -28,6 +28,17 @@ class MorphableModelFitter(object):
         return homogenize(self._model.shape_pc)
 
     def _compute_shape(self, alpha_c):
+
+        r"""
+
+        Parameters
+        ----------
+        alpha_c
+
+        Returns
+        -------
+
+        """
         mm = self._model
         shape = model_to_object(alpha_c, mm.shape_mean, mm.shape_pc, mm.shape_ev)
         shape = homogenize(shape)
@@ -39,6 +50,17 @@ class MorphableModelFitter(object):
 
     # TODO
     def fit(self, anchors_pf):
+
+        r"""
+
+        Parameters
+        ----------
+        anchors_pf
+
+        Returns
+        -------
+
+        """
 
         # Define control parameters
         ctrl_params = control_parameters(pt=1, vb=True)
@@ -163,7 +185,61 @@ def hessian(sd):
     return h
 
 
+def rho_from_view_projection_matrices(proj_t, view_t):
+
+    r"""
+
+    Function which computes the rho array from the projection and view matrices
+
+    Parameters
+    ----------
+    proj_t : projection matrix
+    view_t : view matrix
+
+    Returns
+    -------
+    rho : array of rendering parameters
+
+    """
+
+    rho = np.zeros(6)
+
+    # PROJECTION MATRIX PARAMETERS
+    # The focal length is the first diagonal element of the projection matrix
+    # At the moment this is not optimised
+    rho[0] = proj_t[0, 0]
+
+    # VIEW MATRIX PARAMETERS
+    # Euler angles
+    # For the case of cos(theta) != 0, we have two triplets of Euler angles
+    # we will only give one of the two solutions
+    if view_t[2, 0] != 0:
+        theta = -np.arcsin(view_t[1, 0])
+        phi = np.arctan2(view_t[1, 1], view_t[1, 1])
+        varphi = np.arctan2(view_t[1, 0], view_t[0, 0])
+        rho[1] = phi
+        rho[2] = theta
+        rho[3] = varphi
+
+    # Translations
+    rho[4] = -view_t[0, 3]  # tw x
+    rho[5] = -view_t[1, 3]  # tw y
+
+    return rho
+
+
 def standard_fitting_parameters(params):
+
+    r"""
+
+    Parameters
+    ----------
+    params
+
+    Returns
+    -------
+
+    """
 
     if params['projection_type'] == 0:
         # Define projection parameters
@@ -262,8 +338,8 @@ def compute_warp_and_projection_matrices(rho_array, projection_type):
 
     # Projection matrix computation as in graphics course
     m_persla = np.eye(4)
-    m_persla[0, 2] = (u_max + u_min) / (u_max - u_min)
-    m_persla[1, 2] = (v_max + v_min) / (v_max - v_min)
+    # m_persla[0, 2] = (u_max + u_min) / (u_max - u_min)
+    # m_persla[1, 2] = (v_max + v_min) / (v_max - v_min)
 
     m_perslb = np.eye(4)
     m_perslb[0, 0] = 2 * rho_array[0] / (u_max - u_min)
@@ -1180,6 +1256,7 @@ def compute_texture_derivatives_texture_parameters(t_pc, shadow_index, texture_e
 
     return dt_dbeta
 
+
 # TODO: doc + comments
 def import_anchor_points(anchors_pf):
     # Loading the anchor points file
@@ -1199,22 +1276,69 @@ def import_anchor_points(anchors_pf):
 # TODO
 def compute_derivatives(n_alphas, n_rhos, n_betas, n_iotas,
                         s_uv, w_uv, rho, rot, s_pc_uv, ctrl, shape_ev,
-                        s_pc, T, shadow_index, triangle_array, s, uv, N, light_vector, iota, V, R, M, L_dir, L_spec,
+                        s_pc, T, shadow_index, triangle_array, S, uv, N_uv, light_vector, iota, V, R, M, L_dir, L_spec,
                         r_phi, r_theta, r_varphi, N_obj, t_pc, texture_ev, L_amb, diffuse_dot, specular_term,
                         diffuse_term, C, I, G):
+    r"""
+
+    Parameters
+    ----------
+    n_alphas: number of shape parameters we want to update
+    n_rhos: number of camera parameters we want to update
+    n_betas: number of texture parameters we want to update
+    n_iotas: number of rendering parameters we want to update
+    s_uv: The sampling of the shape matrix using the selected uv triangles
+    w_uv: The sampling of the warp matrix using the selected uv triangles
+    rho: the camera parameters array
+    rot: the total rotation matrix
+    s_pc_uv: The sampling of the principal components of the shape matrix using the selected uv triangles
+    ctrl: control parameters
+    shape_ev: the shape eigenvalues
+    s_pc: the shape principal components
+    T: the texture matrix
+    shadow_index: The points in shadow matrix
+    triangle_array: The triangle list of the shape
+    S: the shape matrix
+    uv: The selected triangles from the projected vertices
+    N: The shape normals matrix
+    light_vector: The light vector
+    iota: the rendering parameters array
+    V: The viewing vector
+    R: The reflection vector
+    M: The color transformation matrix G*C
+    L_dir: The directional light matrix
+    L_spec: The specular light matrix
+    r_phi: The phi rotation matrix
+    r_theta: The theta rotation matrix
+    r_varphi: the varphi rotation matrix
+    N_uv: The selected uv normals
+    t_pc: The texture principal components
+    texture_ev: The eigenvalues of texture
+    L_amb: The ambient light matrix
+    diffuse_dot: The normals multiplied by the light vector ??
+    specular_term: The specular term
+    diffuse_term: The diffuse term
+    C: Color contrast matrix
+    I: Color intensity matrix
+    G: Gamma matrix
+
+    Returns
+    -------
+
+    """
     # Function that takes all the parameters and computes all the derivatives within the color cost function
     dp_dalpha, dt_dalpha, dp_drho, dt_drho, dt_dbeta, dt_diota = ([],)*6
     if n_alphas > 0:
         dp_dalpha = compute_projection_derivatives_shape_parameters(s_uv, w_uv, rho, rot, s_pc_uv, ctrl,
                                                                     shape_ev)
         dt_dalpha = compute_texture_derivatives_shape_parameters(s_pc, T, shadow_index, w_uv, triangle_array,
-                                                                 s, uv, N, light_vector, shape_ev, rot, s_pc_uv,
+                                                                 S, uv, N, light_vector, shape_ev, rot, s_pc_uv,
                                                                  iota, V, R, M, L_dir, L_spec)
     if n_rhos > 0:
         dp_drho = compute_projection_derivatives_warp_parameters(s_uv, w_uv, rho,
                                                                  r_phi, r_theta, r_varphi, ctrl)
         dt_drho = compute_texture_derivatives_warp_parameters(rho, T, shadow_index, w_uv, light_vector, R, V,
-                                                              r_theta, r_phi, r_varphi, N_obj, N, s, iota, M,
+                                                              r_theta, r_phi, r_varphi, N_uv, N, S, iota, M,
                                                               L_dir, L_spec)
     if n_betas > 0:
         dt_dbeta = compute_texture_derivatives_texture_parameters(t_pc, shadow_index, texture_ev, M,
