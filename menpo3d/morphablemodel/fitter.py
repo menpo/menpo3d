@@ -809,7 +809,7 @@ def compute_texture_derivatives_shape_parameters(s_pc, T, shadow_index, W, trian
 
 
 def compute_texture_derivatives_warp_parameters(rho, T, shadow_index, W, light_vector, R, V, r_theta, r_phi, r_varphi,
-                                    N_obj, N, S, iota, M, L_dir, L_spec):
+                                                N_uv, S, iota, M, L_dir, L_spec):
 
     # Pre-computations
     n_parameters = np.size(rho, 0)
@@ -827,7 +827,7 @@ def compute_texture_derivatives_warp_parameters(rho, T, shadow_index, W, light_v
     W_norm_vec[:3, :] = np.tile(W_norm, (3, 1))
 
     # Compute the dot product of the surface normal and the light direction
-    n_dot_d = np.sum(np.multiply(np.transpose(N[:, illuminated]), np.tile(light_vector, (n_illuminated, 1))), axis=1)
+    n_dot_d = np.sum(np.multiply(np.transpose(N_uv[:, illuminated]), np.tile(light_vector, (n_illuminated, 1))), axis=1)
     n_dot_d = np.transpose(n_dot_d)
     # Clamping
     n_dot_d[n_dot_d < 0] = 0
@@ -849,7 +849,7 @@ def compute_texture_derivatives_warp_parameters(rho, T, shadow_index, W, light_v
                   [np.cos(rho[1]), -np.sin(rho[1])]])
 
     # Compute the derivative of the normal wrt phi
-    dn_dphi = np.dot(dr_phi_dphi, np.dot(r_theta, np.dot(r_varphi, N_obj[:, illuminated])))
+    dn_dphi = np.dot(dr_phi_dphi, np.dot(r_theta, np.dot(r_varphi, N_uv[:, illuminated])))
 
     # Compute the derivative of the dot product of the normal and the direction of the light wrt phi
     dn_dot_d_dphi = np.zeros([4, n_illuminated])
@@ -859,7 +859,7 @@ def compute_texture_derivatives_warp_parameters(rho, T, shadow_index, W, light_v
     dn_dot_d_dphi[:3, :] = np.tile(dot_prod, (3, 1))
 
     # Compute the derivative of the reflection wrt phi
-    dr_dphi = 2 * (np.multiply(dn_dot_d_dphi, N[:, illuminated]) + np.multiply(n_dot_d_vec, dn_dphi))
+    dr_dphi = 2 * (np.multiply(dn_dot_d_dphi, N_uv[:, illuminated]) + np.multiply(n_dot_d_vec, dn_dphi))
 
     # Compute the derivative of the warp wrt phi
     dW_dphi = np.dot(dr_phi_dphi, np.dot(r_theta, np.dot(r_varphi, S[:, illuminated])))
@@ -897,7 +897,7 @@ def compute_texture_derivatives_warp_parameters(rho, T, shadow_index, W, light_v
                     [np.cos(rho[2]), 0, -np.sin(rho[2])]])
 
     # Compute the derivative of the normal wrt theta
-    dn_dtheta = np.dot(r_phi, np.dot(dr_theta_dtheta, np.dot(r_varphi, N_obj[:, illuminated])))
+    dn_dtheta = np.dot(r_phi, np.dot(dr_theta_dtheta, np.dot(r_varphi, N_uv[:, illuminated])))
 
     # Compute the derivative of the dot product of the normal and the direction of the light wrt theta
     dn_dot_d_dtheta = np.zeros([4, n_illuminated])
@@ -907,7 +907,7 @@ def compute_texture_derivatives_warp_parameters(rho, T, shadow_index, W, light_v
     dn_dot_d_dtheta[:3, :] = np.tile(dot_prod, (3, 1))
 
     # Compute the derivative of the reflection wrt theta
-    dr_dtheta = 2 * (np.multiply(dn_dot_d_dtheta, N[:, illuminated]) + np.multiply(n_dot_d_vec, dn_dtheta))
+    dr_dtheta = 2 * (np.multiply(dn_dot_d_dtheta, N_uv[:, illuminated]) + np.multiply(n_dot_d_vec, dn_dtheta))
 
     # Compute the derivative of the warp (W) and its euclidean norm wrt theta
     dW_dtheta = np.dot(r_phi, np.dot(dr_theta_dtheta, np.dot(r_varphi, S[:, illuminated])))
@@ -944,7 +944,7 @@ def compute_texture_derivatives_warp_parameters(rho, T, shadow_index, W, light_v
                                           [np.cos(rho[3]), -np.sin(rho[3])]])
 
     # Compute the derivative of the normal wrt varphi
-    dn_dvarphi = np.dot(r_phi, np.dot(r_theta, np.dot(dr_varphi_dvarphi, N_obj[:, illuminated])))
+    dn_dvarphi = np.dot(r_phi, np.dot(r_theta, np.dot(dr_varphi_dvarphi, N_uv[:, illuminated])))
 
     # Compute the derivative of the dot product of the normal and the direction of the light wrt varphi
     dn_dot_d_dvarphi = np.zeros([4, n_illuminated])
@@ -1276,55 +1276,102 @@ def import_anchor_points(anchors_pf):
 # TODO
 def compute_derivatives(n_alphas, n_rhos, n_betas, n_iotas,
                         s_uv, w_uv, rho, rot, s_pc_uv, ctrl, shape_ev,
-                        s_pc, T, shadow_index, triangle_array, S, uv, N_uv, light_vector, iota, V, R, M, L_dir, L_spec,
-                        r_phi, r_theta, r_varphi, N_obj, t_pc, texture_ev, L_amb, diffuse_dot, specular_term,
+                        s_pc, T_uv, shadow_index, triangle_array, S, uv, light_vector, iota, V, R, M, L_dir, L_spec,
+                        r_phi, r_theta, r_varphi, N_uv, t_pc, texture_ev, L_amb, diffuse_dot, specular_term,
                         diffuse_term, C, I, G):
     r"""
 
     Parameters
     ----------
-    n_alphas: number of shape parameters we want to update
-    n_rhos: number of camera parameters we want to update
-    n_betas: number of texture parameters we want to update
-    n_iotas: number of rendering parameters we want to update
-    s_uv: The sampling of the shape matrix using the selected uv triangles
-    w_uv: The sampling of the warp matrix using the selected uv triangles
-    rho: the camera parameters array
-    rot: the total rotation matrix
-    s_pc_uv: The sampling of the principal components of the shape matrix using the selected uv triangles
-    ctrl: control parameters
-    shape_ev: the shape eigenvalues
-    s_pc: the shape principal components
-    T: the texture matrix
-    shadow_index: The points in shadow matrix
-    triangle_array: The triangle list of the shape
-    S: the shape matrix
-    uv: The selected triangles from the projected vertices
-    N: The shape normals matrix
-    light_vector: The light vector
-    iota: the rendering parameters array
-    V: The viewing vector
-    R: The reflection vector
-    M: The color transformation matrix G*C
-    L_dir: The directional light matrix
-    L_spec: The specular light matrix
-    r_phi: The phi rotation matrix
-    r_theta: The theta rotation matrix
-    r_varphi: the varphi rotation matrix
-    N_uv: The selected uv normals
-    t_pc: The texture principal components
-    texture_ev: The eigenvalues of texture
-    L_amb: The ambient light matrix
-    diffuse_dot: The normals multiplied by the light vector ??
-    specular_term: The specular term
-    diffuse_term: The diffuse term
-    C: Color contrast matrix
-    I: Color intensity matrix
-    G: Gamma matrix
+    n_alphas : `int`
+        The number of shape parameters we want to update
+    n_rhos : `int`
+        The number of camera parameters we want to update
+    n_betas : `int`
+        The number of texture parameters we want to update
+    n_iotas : `int`
+        The number of rendering parameters we want to update
+    s_uv : ``(4, n_dims)`` `ndarray`
+        The sampling of the shape matrix using the selected uv triangles
+    w_uv : ``(4, n_dims)`` `ndarray`
+        The sampling of the warp matrix using the selected uv triangles
+    rho : ``(6,)`` `ndarray`
+        The camera parameters array
+    rot : ``(4, 4)`` `ndarray`
+        The total rotation matrix
+    s_pc_uv : ``(4, n_dims, n_ev)`` `ndarray`
+        The sampling of the principal components of the shape matrix using the selected uv triangles
+    ctrl : ``(3,)`` `ndarray`
+        The control parameters`
+    shape_ev : ``(n_ev,)`` `ndarray`
+        The shape eigenvalues
+    s_pc : ``(160470, n_ev)`` `ndarray`
+        The shape principal components
+    T_uv : ``(4, n_dims)`` `ndarray`
+        The uv sampling of the texture matrix
+    shadow_index : ``(n_dims,)`` `ndarray`
+        The points in shadow matrix
+    triangle_array : ``(3, n_triangles)`` `ndarray`
+        The triangle list of the shape
+    S :  ``(4, 53490)`` `ndarray`
+        The shape matrix
+    uv : ``(4, n_dims)`` `ndarray`
+        The selected triangles from the projected vertices
+    N_uv : ``(4, n_dims)`` `ndarray`
+        The selected uv normals
+    light_vector : ``(4,)`` `ndarray`
+        The light vector
+    iota : ``(17,)`` `ndarray`
+        The rendering parameters array
+    V : ``(4, n_dims)`` `ndarray`
+        The viewing vector
+    R : ``(4, n_dims)`` `ndarray`
+        The reflection vector
+    M : ``(4, 4)`` `ndarray`
+        The color transformation matrix G*C
+    L_dir : ``(4, 4)`` `ndarray`
+        The directional light matrix
+    L_spec : ``(4, 4)`` `ndarray`
+        The specular light matrix
+    r_phi : ``(4, 4)`` `ndarray`
+        The phi rotation matrix
+    r_theta : ``(4, 4)`` `ndarray`
+        The theta rotation matrix
+    r_varphi : ``(4, 4)`` `ndarray`
+        the varphi rotation matrix
+    t_pc : ``(160470, n_ev)`` `ndarray`
+        The texture principal components
+    texture_ev : ``(n_ev,)`` `ndarray`
+        The eigenvalues of texture
+    L_amb : ``(4, 4)`` `ndarray`
+        The ambient light matrix
+    diffuse_dot : ``(4, n_dims)`` `ndarray`
+        The dot product between the normals and the light vectors
+    specular_term : ``(4, n_dims)`` `ndarray`
+        The specular term
+    diffuse_term : ``(4, n_dims)`` `ndarray`
+        The diffuse term
+    C : ``(4, 4)`` `ndarray`
+        Color contrast matrix
+    I : ``(4, n_dims)`` `ndarray`
+       Color intensity matrix
+    G : ``(4, 4)`` `ndarray`
+        Gamma matrix
 
     Returns
     -------
-
+    dp_dalpha : `(2, n_parameters, n_points)`` `ndarray`
+        The derivative of the projection wrt the shape parameters
+    dt_dalpha : `(3, n_parameters, n_points)`` `ndarray`
+        The derivative of the texture wrt the shape parameters
+    dp_drho : `(2, n_parameters, n_points)`` `ndarray`
+        The derivative of the projection wrt the warp parameters
+    dt_drho : `(3, n_parameters, n_points)`` `ndarray`
+        The derivative of the texture wrt the warp parameters
+    dt_dbeta : `(3, n_parameters, n_points)`` `ndarray`
+        The derivative of the texture wrt the texture parameters
+    dt_diota : `(3, n_parameters, n_points)`` `ndarray`
+        The derivative of the texture wrt the illumination parameters
     """
     # Function that takes all the parameters and computes all the derivatives within the color cost function
     dp_dalpha, dt_dalpha, dp_drho, dt_drho, dt_dbeta, dt_diota = ([],)*6
@@ -1332,19 +1379,19 @@ def compute_derivatives(n_alphas, n_rhos, n_betas, n_iotas,
         dp_dalpha = compute_projection_derivatives_shape_parameters(s_uv, w_uv, rho, rot, s_pc_uv, ctrl,
                                                                     shape_ev)
         dt_dalpha = compute_texture_derivatives_shape_parameters(s_pc, T, shadow_index, w_uv, triangle_array,
-                                                                 S, uv, N, light_vector, shape_ev, rot, s_pc_uv,
+                                                                 S, uv, N_uv, light_vector, shape_ev, rot, s_pc_uv,
                                                                  iota, V, R, M, L_dir, L_spec)
     if n_rhos > 0:
         dp_drho = compute_projection_derivatives_warp_parameters(s_uv, w_uv, rho,
                                                                  r_phi, r_theta, r_varphi, ctrl)
         dt_drho = compute_texture_derivatives_warp_parameters(rho, T, shadow_index, w_uv, light_vector, R, V,
-                                                              r_theta, r_phi, r_varphi, N_uv, N, S, iota, M,
+                                                              r_theta, r_phi, r_varphi, N_uv, S, iota, M,
                                                               L_dir, L_spec)
     if n_betas > 0:
         dt_dbeta = compute_texture_derivatives_texture_parameters(t_pc, shadow_index, texture_ev, M,
                                                                   L_amb, L_dir, diffuse_dot, specular_term)
     if n_iotas > 0:
-        dt_diota = compute_texture_derivatives_illumination_parameters(iota, T, shadow_index, N, light_vector, R, V,
+        dt_diota = compute_texture_derivatives_illumination_parameters(iota, T, shadow_index, N_uv, light_vector, R, V,
                                                                        C, I, G, M, diffuse_term, specular_term, L_dir,
                                                                        L_spec)
 
