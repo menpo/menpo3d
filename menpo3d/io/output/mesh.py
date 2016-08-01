@@ -20,16 +20,16 @@ def obj_exporter(mesh, file_handle, **kwargs):
         per-vertex colour information.
     """
     for v in mesh.points:
-        file_handle.write('v {} {} {}\n'.format(*v))
-    file_handle.write('\n')
+        file_handle.write('v {} {} {}\n'.format(*v).encode('utf-8'))
+    file_handle.write(b'\n')
     if isinstance(mesh, TexturedTriMesh):
         for tc in mesh.tcoords.points:
-            file_handle.write('vt {} {}\n'.format(*tc))
-        file_handle.write('\n')
+            file_handle.write('vt {} {}\n'.format(*tc).encode('utf-8'))
+        file_handle.write(b'\n')
         # triangulation of points and tcoords is identical
         for t in (mesh.trilist + 1):
-            file_handle.write('f {0}/{0} {1}/{1} {2}/{2}\n'.format(*t))
+            file_handle.write('f {0}/{0} {1}/{1} {2}/{2}\n'.format(*t).encode('utf-8'))
     else:
         # no tcoords - so triangulation is straight forward
         for t in (mesh.trilist + 1):
-            file_handle.write('f {} {} {}\n'.format(*t))
+            file_handle.write('f {} {} {}\n'.format(*t).encode('utf-8'))
