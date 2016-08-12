@@ -89,7 +89,7 @@ class MorphableModelFitter(object):
         n_parameters = n_alphas + n_betas + n_iotas + n_rhos
 
         # Precomputations
-        s_pc = self._precompute()
+        s_pc = homogenize(self._model.shape_pc)
 
         # Simultaneous Forwards Additive Algorithm
         for i in xrange(fit_params['max_iters']):
@@ -297,6 +297,41 @@ def control_parameters(pt=0, vb=False, vis=False):
     return ctrl_params
 
 
+def compute_illumination_and_color_parameters(iota):
+
+    # Color gain and contrast
+    G = np.diag([iota[0], iota[1], iota[2], 1])
+    L = np.array([[0.3, 0.59, 0.11, 0],
+                  [0.3, 0.59, 0.11, 0],
+                  [0.3, 0.59, 0.11, 0],
+                  [0,      0,    0, 1]])
+
+    C = np.eye(4) + (1-iota[3])*L
+    M = np.dot(G, C)
+
+    # Color offset
+    Mo = np.array([[1, 0, 0, iota[4]],
+                  [0,  1, 0, iota[5]],
+                  [0,  0, 1, iota[6]],
+                  [0,  0, 0, 1]])
+
+    # Color correction matrix
+    Cc = np.dot(Mo, M)
+
+    # Ambient light matrix
+    L_amb = np.diag([iota[7], iota[8], iota[9], 1])
+
+    # Directed light matrix
+    L_dir = np.diag([iota[10], iota[11], iota[12], 1])
+
+    # Specular light matrix and parameters
+    L_spec = np.diag([1-iota[10], 1-iota[11], 1-iota[12], 1])
+    ks = iota[15]
+    v = iota[16]
+
+    return [G, L, C, M, Mo, Cc, L_amb, L_dir, L_spec, ks, v]
+
+
 def compute_warp_and_projection_matrices(rho_array, projection_type):
 
     # 3D Rotation
@@ -425,7 +460,6 @@ def compute_ortho_projection_derivatives_shape_parameters(s_uv, s_pc_uv, rho, r_
     return dp_dgamma
 
 
-# DONE
 def compute_pers_projection_derivatives_shape_parameters(s_uv, w_uv, s_pc_uv, rho, r_tot, shape_ev):
     # Precomputations
     n_parameters = np.size(s_pc_uv, 2)
@@ -437,7 +471,7 @@ def compute_pers_projection_derivatives_shape_parameters(s_uv, w_uv, s_pc_uv, rh
     v_max = 2
     v_min = -2
 
-    w = w_uv[2, :].transpose()
+    w = w_uv[2, :].T
 
     const_x = np.divide((2 * rho[0]) / (u_max - u_min), np.power(w, 2))
     const_y = np.divide((2 * rho[0]) / (v_max - v_min), np.power(w, 2))
@@ -446,14 +480,13 @@ def compute_pers_projection_derivatives_shape_parameters(s_uv, w_uv, s_pc_uv, rh
     for k in xrange(n_parameters):
         dw_dalpha_k_uv = np.dot(r_tot, shape_ev[k] * s_pc_uv[:, :, k])
         dp_dalpha_k_uv = np.vstack(
-            (np.multiply(dw_dalpha_k_uv[0, :], w) - np.multiply(w_uv[0, :].transpose(), dw_dalpha_k_uv[2, :]),
-             np.multiply(dw_dalpha_k_uv[1, :], w) - np.multiply(w_uv[1, :].transpose(), dw_dalpha_k_uv[2, :])))
+            (np.multiply(dw_dalpha_k_uv[0, :], w) - np.multiply(w_uv[0, :].T, dw_dalpha_k_uv[2, :]),
+             np.multiply(dw_dalpha_k_uv[1, :], w) - np.multiply(w_uv[1, :].T, dw_dalpha_k_uv[2, :])))
         dp_dgamma[:, k, :] = np.multiply(const_term, dp_dalpha_k_uv)
 
     return dp_dgamma
 
 
-# TODO
 def compute_projection_derivatives_shape_parameters(s_uv_anchor, w_uv_anchor, rho_c, rot,
                                                     s_pc_uv_anchor, ctrl_params, shape_ev):
     if ctrl_params['projection_type'] == 0:
@@ -466,7 +499,6 @@ def compute_projection_derivatives_shape_parameters(s_uv_anchor, w_uv_anchor, rh
     return dp_dgamma
 
 
-# TODO
 def compute_projection_derivatives_warp_parameters(s_uv, w_uv, rho_c,
                                                    r_phi, r_theta, r_varphi, ctrl_params):
     if ctrl_params['projection_type'] == 0:
@@ -561,15 +593,15 @@ def compute_pers_projection_derivatives_warp_parameters(s_uv, w_uv, rho, r_phi, 
     v_max = 2
     v_min = -2
 
-    w = w_uv[2, :].transpose()
+    w = w_uv[2, :].T
 
     const_x = np.divide((2 * rho[0]) / (u_max - u_min), np.power(w, 2))
     const_y = np.divide((2 * rho[0]) / (v_max - v_min), np.power(w, 2))
     const_term = np.vstack((const_x, const_y))
 
     # Compute the derivative of the perspective projection wrt focal length
-    dp_dgamma[:, 0, :] = np.vstack(([(2 / (u_max - u_min)) * np.divide(w_uv[0, :].transpose(), w),
-                                     (2 / (u_max - u_min)) * np.divide(w_uv[1, :].transpose(), w)]))
+    dp_dgamma[:, 0, :] = np.vstack(([(2 / (u_max - u_min)) * np.divide(w_uv[0, :].T, w),
+                                     (2 / (u_max - u_min)) * np.divide(w_uv[1, :].T, w)]))
 
     # Compute the derivative of the phi rotation matrix
     dr_phi_dphi = np.eye(4, 4)
@@ -581,8 +613,8 @@ def compute_pers_projection_derivatives_warp_parameters(s_uv, w_uv, rho, r_phi, 
 
     # Compute the derivative of the projection wrt phi
     dp_dphi_uv = np.vstack(
-    (np.multiply(dW_dphi_uv[0, :], w) - np.multiply(w_uv[0, :].transpose(), dW_dphi_uv[2, :]),
-     np.multiply(dW_dphi_uv[1, :], w) - np.multiply(w_uv[1, :].transpose(), dW_dphi_uv[2, :])))
+    (np.multiply(dW_dphi_uv[0, :], w) - np.multiply(w_uv[0, :].T, dW_dphi_uv[2, :]),
+     np.multiply(dW_dphi_uv[1, :], w) - np.multiply(w_uv[1, :].T, dW_dphi_uv[2, :])))
 
     dp_dgamma[:, 1, :] = np.multiply(const_term, dp_dphi_uv)
 
@@ -597,8 +629,8 @@ def compute_pers_projection_derivatives_warp_parameters(s_uv, w_uv, rho, r_phi, 
 
     # Compute the derivative of the projection wrt theta
     dp_dtheta_uv = np.vstack(
-        (np.multiply(dW_dtheta_uv[0, :], w) - np.multiply(w_uv[0, :].transpose(), dW_dtheta_uv[2, :]),
-         np.multiply(dW_dtheta_uv[1, :], w) - np.multiply(w_uv[1, :].transpose(), dW_dtheta_uv[2, :])))
+        (np.multiply(dW_dtheta_uv[0, :], w) - np.multiply(w_uv[0, :].T, dW_dtheta_uv[2, :]),
+         np.multiply(dW_dtheta_uv[1, :], w) - np.multiply(w_uv[1, :].T, dW_dtheta_uv[2, :])))
 
     dp_dgamma[:, 2, :] = np.multiply(const_term, dp_dtheta_uv)
 
@@ -612,13 +644,13 @@ def compute_pers_projection_derivatives_warp_parameters(s_uv, w_uv, rho, r_phi, 
 
     # Compute the derivative of the projection wrt varphi
     dp_dvarphi_uv = np.vstack(
-        (np.multiply(dW_dvarphi_uv[0, :], w) - np.multiply(w_uv[0, :].transpose(), dW_dvarphi_uv[2, :]),
-         np.multiply(dW_dvarphi_uv[1, :], w) - np.multiply(w_uv[1, :].transpose(), dW_dvarphi_uv[2, :])))
+        (np.multiply(dW_dvarphi_uv[0, :], w) - np.multiply(w_uv[0, :].T, dW_dvarphi_uv[2, :]),
+         np.multiply(dW_dvarphi_uv[1, :], w) - np.multiply(w_uv[1, :].T, dW_dvarphi_uv[2, :])))
 
     dp_dgamma[:, 3, :] = np.multiply(const_term, dp_dvarphi_uv)
 
     # Compute the derivative of the projection function wrt tx
-    dp_dtx_uv = np.vstack((w_uv[2, :].transpose(), np.zeros(n_points)))
+    dp_dtx_uv = np.vstack((w_uv[2, :].T, np.zeros(n_points)))
 
     dp_dgamma[:, 4, :] = np.multiply(const_term, dp_dtx_uv)
 
@@ -628,7 +660,7 @@ def compute_pers_projection_derivatives_warp_parameters(s_uv, w_uv, rho, r_phi, 
     dp_dgamma[:, 5, :] = np.multiply(const_term, dp_dty_uv)
 
     # Compute the derivative of the projection function wrt tz
-    dp_dtz_uv = np.vstack((-w_uv[0, :].transpose(), -w_uv[1, :].transpose()))
+    dp_dtz_uv = np.vstack((-w_uv[0, :].T, -w_uv[1, :].T))
 
     dp_dgamma[:, 5, :] = np.multiply(const_term, dp_dtz_uv)
 
@@ -652,8 +684,8 @@ def compute_ortho_projection_derivatives_warp_parameters(s_uv, w_uv, rho, r_phi,
     const_term = np.vstack((const_x, const_y))
 
     # Compute the derivative of the perspective projection wrt focal length
-    dp_dgamma[:, 0, :] = np.vstack(([(2 / (u_max - u_min)) * w_uv[0, :].transpose(),
-                                     (2 / (u_max - u_min)) * w_uv[1, :].transpose()]))
+    dp_dgamma[:, 0, :] = np.vstack(([(2 / (u_max - u_min)) * w_uv[0, :].T,
+                                     (2 / (u_max - u_min)) * w_uv[1, :].T]))
 
     # Compute the derivative of the phi rotation matrix
     dr_phi_dphi = np.eye(4, 4)
@@ -997,7 +1029,7 @@ def compute_texture_derivatives_illumination_parameters(iota, T, shadow_index, N
     shadow_degree = np.vstack((np.tile(shadow_index[illuminated], (3, 1)), np.zeros([1, n_illuminated])))
 
     # Compute the dot product of the surface normal and the light direction
-    n_dot_d = np.sum(np.multiply(N[:, illuminated], np.transpose(np.tile(light_vector, (n_illuminated, 1)))), axis=0)
+    n_dot_d = np.sum(np.multiply(N[:, illuminated], np.tile(light_vector, (n_illuminated, 1)).T), axis=0)
     # Clamping
     n_dot_d[n_dot_d < 0] = 0
 
@@ -1143,12 +1175,12 @@ def compute_texture_derivatives_illumination_parameters(iota, T, shadow_index, N
 
     # Compute the derivative of the dot product between the normal and the direction of the light wrt phi_l
     dn_dot_d_dphil = np.zeros([4, n_illuminated])
-    dot_prod = np.sum(np.multiply(N[:, illuminated], np.transpose(np.tile(dd_dphil, (n_illuminated, 1)))), axis=0)
+    dot_prod = np.sum(np.multiply(N[:, illuminated], np.tile(dd_dphil, (n_illuminated, 1)).T), axis=0)
     dot_prod[n_dot_d < 0] = 0
     dn_dot_d_dphil[:3, :] = np.tile(dot_prod, (3, 1))
 
     # Compute the derivative of the reflection of the light wrt phi l
-    dr_dphil = 2 * np.multiply(dn_dot_d_dphil, N[:, illuminated] - np.transpose(np.tile(dd_dphil, (n_illuminated, 1))))
+    dr_dphil = 2 * np.multiply(dn_dot_d_dphil, N[:, illuminated] - np.tile(dd_dphil, (n_illuminated, 1)).T)
 
     # Compute the derivative of the dot product of r and v wrt phi l
     dr_dot_v_dphil = np.zeros([4, n_illuminated])
@@ -1174,12 +1206,12 @@ def compute_texture_derivatives_illumination_parameters(iota, T, shadow_index, N
 
     # Compute the derivative of the dot product between the normal and the direction of the light wrt thetal
     dn_dot_d_dthetal = np.zeros([4, n_illuminated])
-    dot_prod = np.sum(np.multiply(N[:, illuminated], np.transpose(np.tile(dd_dthetal, (n_illuminated, 1)))), axis=0)
+    dot_prod = np.sum(np.multiply(N[:, illuminated], np.tile(dd_dthetal, (n_illuminated, 1)).T), axis=0)
     dot_prod[n_dot_d < 0] = 0
     dn_dot_d_dphil[:3, :] = np.tile(dot_prod, (3, 1))
 
     # Compute the derivative of the reflection of the light wrt thetal
-    dr_dthetal = 2 * np.multiply(dn_dot_d_dthetal, N[:, illuminated] - np.transpose(np.tile(dd_dthetal, (n_illuminated, 1))))
+    dr_dthetal = 2 * np.multiply(dn_dot_d_dthetal, N[:, illuminated] - np.tile(dd_dthetal, (n_illuminated, 1)).T)
 
     # Compute the derivative of the dot product of r and v wrt thetal
     dr_dot_v_dthetal = np.zeros([4, n_illuminated])
@@ -1446,22 +1478,29 @@ if __name__ == "__main__":
     diffuse_term = np.random.rand(4, 1000)
     specular_term = np.random.rand(4, 1000)
 
-    # res = compute_texture_derivatives_shape_parameters(s_pc, T, shadow_index, W_uv_rand, mm.triangle_array,
-    #                                                    s, uv, N, light_vector, mm.shape_ev, rot, s_pc_uv_rand,
-    #                                                    iota, V, R, M, L_dir, L_spec)
+    res = compute_texture_derivatives_shape_parameters(s_pc, T, shadow_index, W_uv_rand, mm.triangle_array,
+                                                        s, uv, N, light_vector, mm.shape_ev, rot, s_pc_uv_rand,
+                                                        iota, V, R, M, L_dir, L_spec)
     # res2 = compute_texture_derivatives_warp_parameters(rho, T, shadow_index, W_uv_rand, light_vector, R, V,
     #                                           r_theta, r_phi, r_varphi,
-    #                                           N, N, s, iota, M, L_dir, L_spec)
+    #                                           N, s, iota, M, L_dir, L_spec)
+
 
     # res3 = compute_texture_derivatives_illumination_parameters(iota, T, shadow_index, N, light_vector, R, V,
     #                                                           C, I, G, M, diffuse_term, specular_term, L_dir, L_spec)
 
     t_pc = np.random.rand(4, 61104, 199)
     diffuse_dot = np.random.rand(4, 1000)
-    res4 = compute_texture_derivatives_texture_parameters(t_pc, shadow_index, mm.texture_ev, M,
-                                                          L_amb, L_dir, diffuse_dot, specular_term)
+    # res4 = compute_texture_derivatives_texture_parameters(t_pc, shadow_index, mm.texture_ev, M,
+    #                                                      L_amb, L_dir, diffuse_dot, specular_term)
 
-    print(res4)
+    res5 = compute_derivatives(2, 2, 2, 2,
+                        S_uv_rand, W_uv_rand, rho, rot, s_pc_uv_rand, ctrl_params, mm.shape_ev,
+                        s_pc, T, shadow_index, mm.triangle_array, s, uv, light_vector, iota, V, R, M, L_dir, L_spec,
+                        r_phi, r_theta, r_varphi, N, t_pc, mm.texture_ev, L_amb, diffuse_dot, specular_term,
+                        diffuse_term, C, I, G)
+
+    print(res5)
 
 
 
