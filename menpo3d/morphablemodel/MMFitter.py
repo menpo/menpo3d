@@ -40,7 +40,7 @@ class MorphableModelFitter(object):
         return self.result
 
     # TODO
-    def fit(self, image_path, n_iters):
+    def fit(self, image_path, max_iters):
 
         # PRE-COMPUTATIONS
         # ----------------
@@ -94,9 +94,12 @@ class MorphableModelFitter(object):
         SD_beta_prior = np.concatenate((dbeta_prior_dalpha, dbeta_prior_drho, dbeta_prior_dbeta))
         H_beta_prior = np.diag(SD_beta_prior)
 
-        for i in xrange(n_iters):
+        for i in xrange(max_iters):
 
-            print(str(i + 1) + " out of " + str(n_iters) + " iterations...")
+            # Progress
+            progress = i*100/max_iters
+            sys.stdout.write("\r%d%%" % progress)
+            sys.stdout.flush()
 
             r_phi, r_theta, r_varphi = compute_rotation_matrices(rho_array)
 
@@ -181,8 +184,8 @@ class MorphableModelFitter(object):
             SD_error_beta_prior = np.multiply(SD_beta_prior, beta_prior_error)
 
             # Final hessian and SD error matrix
-            H = H_img + 10e-3 * H_alpha_prior + 10e4 * H_beta_prior
-            SD_error = SD_error_img + 10e-3 * SD_error_alpha_prior + 10e4 * SD_error_beta_prior
+            H = H_img + 0.05 * H_alpha_prior + 10e6 * H_beta_prior
+            SD_error = SD_error_img + 0.05 * SD_error_alpha_prior + 10e6 * SD_error_beta_prior
 
             # Compute update
             delta_sigma = -np.dot(np.linalg.inv(H), SD_error)
@@ -190,10 +193,10 @@ class MorphableModelFitter(object):
             # Update parameters
             alpha += delta_sigma[:len(alpha)]
             rho_array += delta_sigma[len(alpha):len(alpha) + len(rho_array)]
-            beta += 1e3 * delta_sigma[len(alpha) + len(rho_array):len(alpha) + len(rho_array) + len(beta)]
+            beta += delta_sigma[len(alpha) + len(rho_array):len(alpha) + len(rho_array) + len(beta)]
 
             # Generate the updated instance
-            instance = self._model.instance(tex_scale, alpha, 1.5*beta)
+            instance = self._model.instance(tex_scale, alpha, 5e2*beta)
 
             # Type conversion due to type constraints of vertex_normals()
             instance.points = instance.points.astype(np.float64)
@@ -207,7 +210,8 @@ class MorphableModelFitter(object):
             # Check convergence
             if np.linalg.norm(delta_sigma) < threshold:
                 break
-
+    
+        sys.stdout.write('\rSuccessfully fitted.')
         self.result = instance
 
     def visualize(self):
@@ -221,8 +225,6 @@ def sample_object(x, vertex_indices, b_coords):
 
 
 def sample_image(image, yx):
-    # how do we do this?
-    # [img_uv_rand] = sampleImageAtUV(img, yx_rand);
     image_uv = image.sample(yx)
     return image_uv
 
