@@ -37,11 +37,14 @@ def test_import_asset_james():
     mesh = mio.import_builtin_asset('james.obj')
     assert(isinstance(mesh, TexturedTriMesh))
     assert(isinstance(mesh.points, np.ndarray))
+    assert(mesh.points.shape[0] == 34913)
     assert(mesh.points.shape[1] == 3)
     assert(isinstance(mesh.trilist, np.ndarray))
+    assert(mesh.trilist.shape[0] == 68486)
     assert(mesh.trilist.shape[1] == 3)
     assert(isinstance(mesh.texture, Image))
     assert(isinstance(mesh.tcoords, PointCloud))
+    assert(mesh.tcoords.points.shape[0] == 34913)
     assert(mesh.tcoords.points.shape[1] == 2)
 
 
