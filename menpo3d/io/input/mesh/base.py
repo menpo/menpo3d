@@ -74,7 +74,7 @@ def vtk_ensure_trilist(polydata):
                           'connectivity is being coerced into a triangular '
                           'mesh. This may have unintended consequences.')
             t_filter = vtk.vtkTriangleFilter()
-            t_filter.SetInput(polydata)
+            t_filter.SetInputData(polydata)
             t_filter.Update()
             trilist = vtk_to_numpy(t_filter.GetOutput().GetPolys().GetData())
 
