@@ -32,16 +32,26 @@ def test_import_asset_bunny():
     assert(isinstance(mesh.trilist, np.ndarray))
     assert(mesh.trilist.shape[1] == 3)
 
-
 def test_import_asset_james():
     mesh = mio.import_builtin_asset('james.obj')
     assert(isinstance(mesh, TexturedTriMesh))
     assert(isinstance(mesh.points, np.ndarray))
     assert(mesh.points.shape[0] == 34913)
     assert(mesh.points.shape[1] == 3)
+    assert(np.sum(np.abs(mesh.points[0] - np.array([-26.118378, -28.308096, 22.519226]))) < 0.0001)
+    assert(np.sum(np.abs(mesh.points[10] - np.array([-20.797331, -118.940681, -38.822590]))) < 0.0001)
+
+    assert(np.sum(np.abs(mesh.points[-1] - np.array([95.002327, -141.065002, -169.500397]))) < 0.0001)
+    assert(np.sum(np.abs(mesh.points[-10] - np.array([104.967415, -174.204849, -131.351486]))) < 0.0001)
+
     assert(isinstance(mesh.trilist, np.ndarray))
     assert(mesh.trilist.shape[0] == 68486)
     assert(mesh.trilist.shape[1] == 3)
+    assert((mesh.trilist[0] == (np.array([1, 2, 3]) - 1)).all()) # -1 to correct for 0 indexing in Python
+    assert((mesh.trilist[10] == (np.array([21, 22, 23]) - 1)).all())
+
+    assert((mesh.trilist[-1] == (np.array([33867, 33866, 32605]) - 1)).all())
+    assert((mesh.trilist[-10] == (np.array([31365, 18442, 7867]) - 1)).all())
     assert(isinstance(mesh.texture, Image))
     assert(isinstance(mesh.tcoords, PointCloud))
     assert(mesh.tcoords.points.shape[0] == 34913)
