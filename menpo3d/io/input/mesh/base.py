@@ -221,6 +221,63 @@ def obj_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     return _construct_shape_type(points, trilist, tcoords, texture,
                                  colour_per_vertex)
 
+def ply_importer(filepath, asset=None, texture_resolver=None, **kwargs):
+    """Allows importing Wavefront (OBJ) files.
+
+    Uses VTK.
+
+    Parameters
+    ----------
+    asset : `object`, optional
+        An optional asset that may help with loading. This is unused for this
+        implementation.
+    texture_resolver : `callable`, optional
+        A callable that recieves the mesh filepath and returns a single
+        path to the texture to load.
+    \**kwargs : `dict`, optional
+        Any other keyword arguments.
+
+    Returns
+    -------
+    shape : :map:`PointCloud` or subclass
+        The correct shape for the given inputs.
+    """
+    import vtk
+    from vtk.util.numpy_support import vtk_to_numpy
+
+
+    ply_importer = vtk.vtkPLYReader()
+    ply_importer.SetFileName(str(filepath))
+
+    ply_importer.Update()
+
+    # Get the output
+    polydata = ply_importer.GetOutput()
+
+    # We must have point data!
+    points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float)
+
+    trilist = np.require(vtk_ensure_trilist(polydata), requirements=['C'])
+
+    texture = None
+    if texture_resolver is not None:
+        texture_path = texture_resolver(filepath)
+        if texture_path is not None and texture_path.exists():
+            texture = mio.import_image(texture_path)
+
+    tcoords = None
+    if texture is not None:
+        try:
+            tcoords = vtk_to_numpy(polydata.GetPointData().GetTCoords())
+        except Exception:
+            pass
+
+        if isinstance(tcoords, np.ndarray) and tcoords.size == 0:
+            tcoords = None
+
+    colour_per_vertex = None
+    return _construct_shape_type(points, trilist, tcoords, texture,
+                                 colour_per_vertex)
 
 def stl_importer(filepath, asset=None, **kwargs):
     """Allows importing Stereolithography CAD (STL) files.
