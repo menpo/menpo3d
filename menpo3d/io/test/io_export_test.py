@@ -15,6 +15,14 @@ def test_export_mesh_obj(mock_open, exists):
         type(f).name = PropertyMock(return_value=fake_path)
         mio.export_mesh(test_obj, f, extension='obj')
 
+@patch('menpo3d.io.output.base.Path.exists')
+@patch('{}.open'.format(__name__), create=True)
+def test_export_mesh_ply(mock_open, exists):
+    exists.return_value = False
+    fake_path = '/fake/fake.ply'
+    with open(fake_path) as f:
+        type(f).name = PropertyMock(return_value=fake_path)
+        mio.export_mesh(test_obj, f, extension='ply')
 
 @patch('PIL.Image.EXTENSION')
 @patch('menpo.image.base.PILImage')
@@ -28,6 +36,20 @@ def test_export_mesh_obj_textured(mock_open, exists, PILImage, PIL):
     mio.export_textured_mesh(test_obj, fake_path, extension='obj')
     assert PILImage.fromarray.called
 
+@patch('PIL.Image.EXTENSION')
+@patch('menpo.image.base.PILImage')
+@patch('menpo3d.io.output.base.Path.exists')
+@patch('menpo.io.output.base.Path.open')
+def test_export_mesh_ply_textured(mock_open, exists, PILImage, PIL):
+    PIL.return_value.Image.EXTENSION = {'.jpg': None}
+    exists.return_value = False
+    fake_path = '/fake/fake.ply'
+    MagicMock.name = PropertyMock(return_value=fake_path)
+    m = MagicMock()
+    #type(m).name = fake_path
+    mock_open.return_value = m
+    mio.export_textured_mesh(test_obj, fake_path, extension='ply')
+    assert PILImage.fromarray.called
 
 @patch('menpo.io.output.landmark.json.dump')
 @patch('menpo3d.io.output.base.Path.exists')
