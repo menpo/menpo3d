@@ -64,10 +64,7 @@ def ply_exporter(mesh, file_handle, binary = False, **kwargs):
 
     cells = vtk.vtkCellArray()
     counts = np.tile([3], mesh.trilist.shape[0]).reshape((mesh.trilist.shape[0], 1))
-    print(counts.shape)
     tris = np.concatenate((counts, mesh.trilist), axis = 1)
-    print(tris.shape)
-    tris.ravel()
     cells.SetCells(mesh.trilist.shape[0], numpy_to_vtkIdTypeArray(tris))
     polydata.SetPolys(cells)
 
