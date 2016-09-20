@@ -6,8 +6,7 @@ from menpo.transform import UniformScale
 
 
 class Menpo3DMM:
-
-    # TODO
+    
     def __init__(self, shape_model=None, texture_model=None, landmarks=None):
         self.shape_model = shape_model
         self.texture_model = texture_model
@@ -22,6 +21,13 @@ class Menpo3DMM:
         else:
             landmarks = None
         return Menpo3DMM(shape, texture, landmarks)
+    
+    def __str__(self):
+        str_out = '3D MORPHABLE MODEL \n\n' + \
+                  'Shape Model \n----------- \n' + self.shape_model.__str__() + '\n' + \
+                  'Texture Model \n------------- \n' + self.texture_model.__str__() + '\n' + \
+                  'Landmarks \n--------- \n' + self.landmarks.__str__()
+        return str_out
 
     def instance(self, model_type = 'bfm', alpha=None, beta=None, landmark_group = 'ibug68'):
         if alpha is None:

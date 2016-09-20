@@ -1,20 +1,22 @@
 import sys
-import menpo.io as mio
+import time
 import numpy as np
-import matplotlib.pyplot as plt
-from .lmalign import retrieve_view_projection_transforms
-from .detectandfit import detect_and_fit
-#from .irenderer import InverseRenderer, params_from_ir
+import menpo.io as mio
 import menpo3d.io as m3dio
+import matplotlib.pyplot as plt
 from menpo.feature import gradient
 from menpo.image import Image
 from menpo3d.rasterize import GLRasterizer
 from menpo.transform import Homogeneous, UniformScale
+from .lmalign import retrieve_view_projection_transforms
+from .detectandfit import detect_and_fit
 from .derivatives import compute_pers_projection_derivatives_shape_parameters, \
                               compute_ortho_projection_derivatives_shape_parameters, \
                               compute_ortho_projection_derivatives_warp_parameters, \
                               compute_pers_projection_derivatives_warp_parameters, \
-                              compute_texture_derivatives_texture_parameters
+                              compute_texture_derivatives_texture_parameters, \
+                              compute_projection_derivatives_warp_parameters, \
+                              compute_projection_derivatives_shape_parameters
 
 
 class MMFitter(object):
@@ -25,6 +27,8 @@ class MMFitter(object):
     def __init__(self, mm):
         self._model = mm
         self.result = None
+        self.rasterized_result = None
+        self.rasterizer = None
         self.errors = []
 
     @property
@@ -44,24 +48,31 @@ class MMFitter(object):
         return self.result
 
     # TODO
-    def fit(self, image_path, n_alphas, n_betas, n_tris, max_iters=50):
+    def fit(self, image_path, n_alphas=100, n_betas=100, n_tris=1000, camera_update=False, max_iters=100):
 
         # PRE-COMPUTATIONS
         # ----------------
         # Constants
-        threshold = 1e-2
+        threshold = 1e-3
+        # Projection type: 1 is for perspective and 0 for orthographic
+        projection_type = 1
 
-        # Import and fit aam on image
+        # Import the image 
         image = mio.import_image(image_path)
+        
+        # Do face detection and landmark fitting
         detect_and_fit(image)
 
-        # Compute gradient
-        image.pixels = image.pixels.astype(np.double)
-        # print image.pixels
+        # Compute the gradient
         grad = gradient(image)
-        # scaling by image resolution solves the not plausible face shapes problem
-        VI_dy = grad.pixels[:3] * image.shape[1] / 2
-        VI_dx = grad.pixels[3:] * image.shape[0] / 2
+        
+        # scaling the gradient by image resolution solves the non human-like faces problem
+        if image.shape[1] > image.shape[0]:
+            scale = image.shape[1]/2
+        else:
+            scale = image.shape[0]/2
+        VI_dy = grad.pixels[:3] * scale
+        VI_dx = grad.pixels[3:] * scale
 
         # Generate instance
         instance = self._model.instance()
@@ -76,30 +87,31 @@ class MMFitter(object):
         alpha = np.zeros(n_alphas)
         beta = np.zeros(n_betas)
 
-        dalpha_prior_dalpha = 2. / np.square(self._model.shape_model.eigenvalues[:n_alphas])
-        #dalpha_prior_drho = np.zeros(len(rho_array))
         dalpha_prior_dbeta = np.zeros(n_betas)
-        #SD_alpha_prior = np.concatenate((dalpha_prior_dalpha, dalpha_prior_drho, dalpha_prior_dbeta))
-        SD_alpha_prior = np.concatenate((dalpha_prior_dalpha, dalpha_prior_dbeta))
-        H_alpha_prior = np.diag(SD_alpha_prior)
-
+        dalpha_prior_dalpha = 2. / np.square(self._model.shape_model.eigenvalues[:n_alphas])
+        
         dbeta_prior_dalpha = np.zeros(n_alphas)
-        #dbeta_prior_drho = np.zeros(len(rho_array))
         dbeta_prior_dbeta = 2. / np.square(self._model.texture_model.eigenvalues[:n_betas])
-        #SD_beta_prior = np.concatenate((dbeta_prior_dalpha, dbeta_prior_drho, dbeta_prior_dbeta))
-        SD_beta_prior = np.concatenate((dbeta_prior_dalpha, dbeta_prior_dbeta))
+        
+        if camera_update:
+            prior_drho = np.zeros(len(rho_array))
+            SD_alpha_prior = np.concatenate((dalpha_prior_dalpha, prior_drho, dalpha_prior_dbeta))
+            SD_beta_prior = np.concatenate((dbeta_prior_dalpha, prior_drho, dbeta_prior_dbeta))
+        else:
+            SD_alpha_prior = np.concatenate((dalpha_prior_dalpha, dalpha_prior_dbeta))
+            SD_beta_prior = np.concatenate((dbeta_prior_dalpha, dbeta_prior_dbeta))
+            
+        H_alpha_prior = np.diag(SD_alpha_prior)
         H_beta_prior = np.diag(SD_beta_prior)
         
-        # Initilialize inverse renderer
+        # Initilialize rasterizer
         rasterizer = GLRasterizer(height=image.height, width=image.width,
                                   view_matrix=view_t.h_matrix,
-                                  projection_matrix=proj_t.h_matrix)
-        
+                                  projection_matrix=proj_t.h_matrix)  
         errors = []
         eps = np.inf
         k = 0
         
-
         while k < max_iters and eps > threshold:
             
             # Progress bar
@@ -107,149 +119,166 @@ class MMFitter(object):
             sys.stdout.write("\r%d%%" % progress)
             sys.stdout.flush()
 
+            # Rotation matrices 
             r_phi, r_theta, r_varphi = compute_rotation_matrices(rho_array)
-
-            # Pre-computations
+            
+            # Inverse rendering
             tri_index_img, b_coords_img = rasterizer.rasterize_barycentric_coordinate_image(instance)
             tri_indices = tri_index_img.as_vector() 
             b_coords = b_coords_img.as_vector(keep_channels=True) 
-            yx = tri_index_img.mask.true_indices() 
+            yx = tri_index_img.mask.true_indices()
 
-            #ir_image = ir.inverse_render(instance)
-
-            #inverse_image = ir_image[1]
-            #yx = inverse_image.mask.true_indices()
-
-            #b_coords, tri_indices = params_from_ir(inverse_image)
-            
+            # Select triangles randomly
             rand = np.random.permutation(b_coords.shape[1])
             b_coords = b_coords[:, rand[:n_tris]]
             yx = yx[rand[:n_tris]]
             tri_indices = tri_indices[rand[:n_tris]]
 
-            # build the vertex indices (3 per pixel)
+            # Build the vertex indices (3 per pixel)
             # for the visible triangle
             vertex_indices = instance.trilist[tri_indices]
-
+            
+            # Warp the shape witht the view matrix
             W = view_t.apply(instance.points)
+            
+            # This solves the perspective projection problems
+            # It cancels the axes flip done in the view matrix before the rasterization
+            W[:, 1:] *= -1
+            
+            # Shape and texture principal components are reshaped before sampling
             shape_pc = self._model.shape_model.components.T
             tex_pc = self._model.texture_model.components.T
-
-            # Reshape before sampling
             shape_pc = shape_pc.reshape([instance.n_points, -1])
             tex_pc = tex_pc.reshape([instance.n_points, -1])
 
-            # Compute samples
-            #norms_uv = sample_object(instance.vertex_normals(), vertex_indices, b_coords)  # normals
+            # Sampling
+            norms_uv = sample_object(instance.vertex_normals(), vertex_indices, b_coords)  # normals
             shape_uv = sample_object(instance.points, vertex_indices, b_coords)  # shape
             tex_uv = sample_object(instance.colours, vertex_indices, b_coords)  # texture
-            warped_uv = sample_object(W, vertex_indices, b_coords)  # shape multiplied by view matrix
+            warped_uv = sample_object(W, vertex_indices, b_coords)  # shape multiplied by view matrix          
             shape_pc_uv = sample_object(shape_pc, vertex_indices, b_coords)  # shape eigenvectors
             tex_pc_uv = sample_object(tex_pc, vertex_indices, b_coords)  # texture eigenvectors
-            img_uv = sample_image(image, yx)  # image
-            VI_dx_uv = Image(VI_dx).sample(yx)
-            VI_dy_uv = Image(VI_dy).sample(yx)
+            img_uv = image.sample(yx)  # image
+            VI_dx_uv = Image(VI_dx).sample(yx) # gradient along x
+            VI_dy_uv = Image(VI_dy).sample(yx) # gradient along y
 
             # Reshape after sampling
             new_shape = tex_pc_uv.shape
             shape_pc_uv = shape_pc_uv.reshape([new_shape[0], 3, -1])
-            tex_pc_uv = tex_pc_uv.reshape([new_shape[0], 3, -1])
+            tex_pc_uv = tex_pc_uv.reshape([new_shape[0], 3, -1])       
 
             # DERIVATIVES
-
-            # Orthographic projection derivative wrt shape parameters
-            dop_dalpha = compute_ortho_projection_derivatives_shape_parameters(shape_uv, shape_pc_uv, rho_array,
-                                                                               R, self._model.shape_model.eigenvalues)
+            dop_dalpha = []
+            dpp_dalpha = []
+            dt_dbeta = []
+            dop_drho = []
+            dpp_drho = []
             
-            dop_dalpha = dop_dalpha[:, :n_alphas, :]
+            if n_alphas >0:
+
+                # Projection derivative wrt shape parameters
+                dp_dalpha = compute_projection_derivatives_shape_parameters(shape_pc_uv, rho_array, warped_uv,
+                                                                            R, self._model.shape_model.eigenvalues, projection_type)
+                dp_dalpha = dp_dalpha[:, :n_alphas, :]
+                
+            if n_betas >0:
             
+                # Texture derivative wrt texture parameters
+                dt_dbeta = compute_texture_derivatives_texture_parameters(tex_pc_uv, self._model.texture_model.eigenvalues)
+                dt_dbeta = dt_dbeta[:, :n_betas, :]
+                
+            if camera_update:
 
-            # Perspective projection derivative wrt shape parameters
-            # dpp_dalpha = compute_pers_projection_derivatives_shape_parameters(shape_uv, warped_uv.T, shape_pc_uv,
-            #                                                                   rho_array, R, shape_model.eigenvalues)
-
-            # Texture derivative wrt texture parameters
-            dt_dbeta = compute_texture_derivatives_texture_parameters(tex_pc_uv, self._model.texture_model.eigenvalues)
-            dt_dbeta = dt_dbeta[:, :n_betas, :]
-
-            # Orthographic projection derivative wrt warp parameters
-            dop_drho = compute_ortho_projection_derivatives_warp_parameters(shape_uv, warped_uv.T, rho_array,
-                                                                            r_phi, r_theta, r_varphi)
-            
-
-            # Perspective projection derivative wrt warp parameters
-            # dpp_drho = compute_pers_projection_derivatives_warp_parameters(shape_uv, warped_uv.T, rho_array,
-            #                                                               r_phi, r_theta, r_varphi)
+                # Projection derivative wrt warp parameters
+                dp_drho = compute_projection_derivatives_warp_parameters(shape_uv, warped_uv.T, rho_array,
+                                                                         r_phi, r_theta, r_varphi, projection_type)
 
             # Compute sd matrix and hessian
-            #dp_dgamma = np.hstack((dop_dalpha, dop_drho))
-            dt = -dt_dbeta
-            SD_gamma = compute_sd(dop_dalpha, VI_dx_uv, VI_dy_uv)
-            SD_img = np.hstack((SD_gamma, dt))
+            if camera_update:
+                dp_dgamma = np.hstack((dp_dalpha, dp_drho))
+            else: 
+                dp_dgamma = dp_dalpha
+            
+            if n_betas > 0 and n_alphas > 0:
+                dt = -dt_dbeta
+                SD_gamma = compute_sd(dp_dgamma, VI_dx_uv, VI_dy_uv)
+                SD_img = np.hstack((SD_gamma, dt))
+            elif n_alphas > 0 and n_betas == 0:
+                SD_img = compute_sd(dp_dgamma, VI_dx_uv, VI_dy_uv)
+            else:
+                SD_img = -dt_dbeta              
+                
+            # Hessian approximation
             H_img = compute_hessian(SD_img)
 
             # Compute error
             img_error_uv = img_uv - tex_uv.T
+
+            # Compute steepest descent matrix
+            SD_error_img = compute_sd_error(SD_img, img_error_uv)
+            
+            # Compute and store the error for future plots
             eps = (img_error_uv ** 2).mean()
             errors.append(eps)
-            SD_error_img = compute_sd_error(SD_img, img_error_uv)
 
             # Prior probabilities over shape parameters
-            #alpha_prior_error = np.concatenate((alpha, rho_array, beta))
-            alpha_prior_error = np.concatenate((alpha, beta))
-            SD_error_alpha_prior = np.multiply(SD_alpha_prior, alpha_prior_error)
-
-            # Prior probabilities over texture parameters
-            #beta_prior_error = np.concatenate((alpha, rho_array, beta))
-            beta_prior_error = np.concatenate((alpha, beta))
-            SD_error_beta_prior = np.multiply(SD_beta_prior, beta_prior_error)
+            if camera_update:
+                prior_error = np.concatenate((alpha, rho_array, beta))
+            else:
+                prior_error = np.concatenate((alpha, beta))
+                
+            # Prior probability SD matrices
+            SD_error_alpha_prior = SD_alpha_prior*prior_error
+            SD_error_beta_prior = SD_beta_prior*prior_error
 
             # Final hessian and SD error matrix
-            H = H_img + 0.005*H_alpha_prior + 10e6 * H_beta_prior
-            SD_error = SD_error_img + 0.005*SD_error_alpha_prior + 10e6 * SD_error_beta_prior
+            H = H_img + 1e-2*H_alpha_prior + H_beta_prior
+            SD_error = SD_error_img + 1e-2*SD_error_alpha_prior + SD_error_beta_prior
 
-            # Compute update
+            # Compute increment
             delta_sigma = -np.dot(np.linalg.inv(H), SD_error)
 
             # Update parameters
-            alpha += delta_sigma[:n_alphas]
-            #rho_array += delta_sigma[len(alpha):len(alpha) + len(rho_array)]
-            #beta += delta_sigma[len(alpha) + len(rho_array):len(alpha) + len(rho_array) + len(beta)]
-            beta += delta_sigma[n_alphas:]
-            
+            if camera_update:
+                alpha += delta_sigma[:n_alphas]
+                rho_array += delta_sigma[n_alphas:n_alphas + len(rho_array)]
+                beta += delta_sigma[n_alphas + len(rho_array):n_alphas + len(rho_array) + n_betas]
+            else:
+                alpha += delta_sigma[:n_alphas]
+                beta += delta_sigma[n_alphas:]      
 
             # Generate the updated instance
-            instance = self._model.instance(alpha=alpha, beta=5e2*beta)
+            # The texture is scaled by 255 to cancel the 1./255 scaling in the model class
+            instance = self._model.instance(alpha=alpha, beta=255.*beta)
+            
+            # Clip to avoid out of range pixels
+            instance.colours = np.clip(instance.colours, 0, 1)
 
-            # Generate the new view and projection matrices (the projection matrix is fixed for now)
-            #view_t_flipped, R = compute_view_matrix(rho_array)
-            #view_t.h_matrix[1:3, :3] = -R.h_matrix[1:3, :3]
-            #view_t.h_matrix[0, :3] = R.h_matrix[0, :3]
+            if camera_update:
+                # Compute new view matrix
+                _, R = compute_view_matrix(rho_array)
+                view_t.h_matrix[1:3, :3] = -R.h_matrix[1:3, :3]
+                view_t.h_matrix[0, :3] = R.h_matrix[0, :3]
             
-            # Update the inverse renderer
-            #rasterizer.set_view_matrix(view_t.h_matrix)
-            
-            # View per-iteration result 
-            #result = rasterizer.rasterize_mesh(instance)
-            
-            # Hacky blue pixels fix 
-            #result.pixels = np.clip(result.pixels, 0, 1)
-            #result.view()
+                # Update the rasterizer
+                rasterizer.set_view_matrix(view_t.h_matrix)
             
             k += 1
+            
+        # Rasterize the final mesh
+        rasterized_result = rasterizer.rasterize_mesh(instance)
+        
+        # Save final values
+        self.rasterized_result = rasterized_result
+        self.result = instance
+        self.rasterizer = rasterizer
+        self.errors = errors
         
         sys.stdout.write('\rSuccessfully fitted.')
-        #render = GLRasterizer(image.height, image.width, view_matrix=view_t.h_matrix,
-        #                         projection_matrix=proj_t.h_matrix)
-        result = rasterizer.rasterize_mesh(instance)
-        result.pixels = np.clip(result.pixels, 0, 1)
-        self.result = result
-        #self.result = instance
-        self.errors = errors
         
 
     def visualize_result(self):
-        self.result.view()
+        self.rasterized_result.view()
     
     def plot_error(self, image_name):
         plt.plot(self.errors)
@@ -262,13 +291,6 @@ def sample_object(x, vertex_indices, b_coords):
     per_vert_per_pixel = x[vertex_indices]
     return np.sum(per_vert_per_pixel *
                   b_coords.T[..., None], axis=1)
-
-
-def sample_image(image, yx):
-    # how do we do this?
-    # [img_uv_rand] = sampleImageAtUV(img, yx_rand);
-    image_uv = image.sample(yx)
-    return image_uv
 
 
 def rho_from_view_projection_matrices(proj_t, view_t):
@@ -299,16 +321,16 @@ def rho_from_view_projection_matrices(proj_t, view_t):
 
 
 def compute_rotation_matrices(rho_array):
-    rot_varphi = np.eye(4)
+    rot_phi = np.eye(4)
 
-    rot_varphi[1:3, 1:3] = np.array([[np.cos(rho_array[1]), np.sin(rho_array[1])],
-                                     [-np.sin(rho_array[1]), np.cos(rho_array[1])]])
+    rot_phi[1:3, 1:3] = np.array([[np.cos(rho_array[1]), -np.sin(rho_array[1])],
+                                     [np.sin(rho_array[1]), np.cos(rho_array[1])]])
     rot_theta = np.eye(4)
     rot_theta[0:3, 0:3] = np.array([[np.cos(rho_array[2]), 0, np.sin(rho_array[2])],
                                     [0, 1, 0],
                                     [-np.sin(rho_array[2]), 0, np.cos(rho_array[2])]])
-    rot_phi = np.eye(4)
-    rot_phi[0:2, 0:2] = np.array([[np.cos(rho_array[3]), -np.sin(rho_array[3])],
+    rot_varphi = np.eye(4)
+    rot_varphi[0:2, 0:2] = np.array([[np.cos(rho_array[3]), -np.sin(rho_array[3])],
                                   [np.sin(rho_array[3]), np.cos(rho_array[3])]])
 
     r_phi = Homogeneous(rot_phi)
@@ -319,61 +341,42 @@ def compute_rotation_matrices(rho_array):
 
 
 def compute_view_matrix(rho):
-    axes_flip_matrix = np.eye(4)
-    axes_flip_matrix[1, 1] = -1
-    axes_flip_matrix[2, 2] = -1
-    axes_flip_t = Homogeneous(axes_flip_matrix)
 
     view_t = np.eye(4)
     view_t[0, 3] = -rho[4]  # tw x
     view_t[1, 3] = -rho[5]  # tw y
     r_phi, r_theta, r_varphi = compute_rotation_matrices(rho)
-    rotation = np.dot(np.dot(r_phi.h_matrix, r_varphi.h_matrix), r_theta.h_matrix)
+    rotation = np.dot(np.dot(r_varphi.h_matrix, r_theta.h_matrix), r_phi.h_matrix)
     view_t[:3, :3] = rotation[:3, :3]
-
-    # view_t = Homogeneous(view_t).compose_before(axes_flip_t)
 
     return Homogeneous(view_t), Homogeneous(rotation)
 
 
 def compute_sd(dp_dgamma, VI_dx_uv, VI_dy_uv):
-    # SD_x
-    expanded_vi_dx = np.expand_dims(VI_dx_uv, axis=2)
-    permuted_vi_dx = np.transpose(expanded_vi_dx, (0, 2, 1))
-    new_vi_dx = np.tile(permuted_vi_dx, (1, dp_dgamma.shape[1], 1))
-    SD_x = np.multiply(new_vi_dx, np.tile(dp_dgamma[0, :, :], (3, 1, 1)))
-
-    # SD_y
-    expanded_vi_dy = np.expand_dims(VI_dy_uv, axis=2)
-    permuted_vi_dy = np.transpose(expanded_vi_dy, (0, 2, 1))
-    new_vi_dy = np.tile(permuted_vi_dy, (1, dp_dgamma.shape[1], 1))
-    SD_y = np.multiply(new_vi_dy, np.tile(dp_dgamma[1, :, :], (3, 1, 1)))
-
-    return SD_x + SD_y
+    permuted_vi_dx = np.transpose(VI_dx_uv[..., None], (0, 2, 1))
+    permuted_vi_dy = np.transpose(VI_dy_uv[..., None], (0, 2, 1))
+    return permuted_vi_dx*dp_dgamma[0] + permuted_vi_dy*dp_dgamma[1]
 
 
 def compute_hessian(sd):
     # Computes the hessian as defined in the Lucas Kanade Algorithm
-    n_channels = np.size(sd[:, 0, 1])
-    n_params = np.size(sd[0, :, 0])
-    h = np.zeros([n_params, n_params])
-    sd = np.transpose(sd, [2, 1, 0])
+    n_channels = sd.shape[0]
+    n_params = sd.shape[1]
+    h = np.zeros((n_params, n_params))
+    sd = sd.T
     for i in xrange(n_channels):
-        h_i = np.dot(np.transpose(sd[:, :, i]), sd[:, :, i])
-        h += h_i
+        h += np.dot(sd[:, :, i].T, sd[:, :, i])
     return h
 
 
 def compute_sd_error(sd, error_uv):
-    n_channels = np.size(sd, 0)
-    n_parameters = np.size(sd, 1)
-
-    sd = np.transpose(sd, (2, 1, 0))
+    n_channels = sd.shape[0]
+    n_parameters = sd.shape[1]
     sd_error_product = np.zeros(n_parameters)
-
+    sd = sd.T
+ 
     for i in xrange(n_channels):
-        sd_error_prod_i = np.dot(error_uv[i, :], sd[:, :, i])
-        sd_error_product += sd_error_prod_i
-
-    return sd_error_product
+        sd_error_product += np.dot(error_uv[i, :], sd[:, :, i])
+        
+    return sd_error_product.T
 
