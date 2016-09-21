@@ -54,6 +54,7 @@ docs/_build/
 target/
 
 # Intellij
+.idea
 menpo3d.iml
 
 # Data 

@@ -1,57 +1,17 @@
-from menpo.io.input.landmark import LJSONImporter
-from .mesh import AssimpImporter, WRLImporter, MJSONImporter
-from .landmark_mesh import (BNDImporter, LANImporter, LM3Importer,
-                            MeshPTSImporter)
+from menpo.io.input.landmark import ljson_importer
+from .mesh import (wrl_importer, mjson_importer, obj_importer,
+                   stl_importer)
+from .landmark_mesh import (bnd_importer, lan_importer, lm3_importer,
+                            pts_mesh_importer)
 
-mesh_types = {'.dae': AssimpImporter,
-              '.3ds': AssimpImporter,
-              '.ase': AssimpImporter,
-              '.obj': AssimpImporter,
-              '.ifc': AssimpImporter,
-              '.xgl': AssimpImporter,
-              '.zgl': AssimpImporter,
-              '.ply': AssimpImporter,
-              '.dxf': AssimpImporter,
-              '.lwo': AssimpImporter,
-              '.lws': AssimpImporter,
-              '.lxo': AssimpImporter,
-              '.stl': AssimpImporter,
-              '.x': AssimpImporter,
-              '.ac': AssimpImporter,
-              '.md5': AssimpImporter,
-              '.smd': AssimpImporter,
-              '.vta': AssimpImporter,
-              '.m3': AssimpImporter,
-              '.3d': AssimpImporter,
-              '.b3d': AssimpImporter,
-              '.q3d': AssimpImporter,
-              '.q3s': AssimpImporter,
-              '.nff': AssimpImporter,
-              '.off': AssimpImporter,
-              '.raw': AssimpImporter,
-              '.ter': AssimpImporter,
-              '.mdl': AssimpImporter,
-              '.hmp': AssimpImporter,
-              '.ndo': AssimpImporter,
-              '.ms3d': AssimpImporter,
-              '.cob': AssimpImporter,
-              '.scn': AssimpImporter,
-              '.bvh': AssimpImporter,
-              '.csm': AssimpImporter,
-              '.xml': AssimpImporter,
-              '.irrmesh': AssimpImporter,
-              '.irr': AssimpImporter,
-              '.md2': AssimpImporter,
-              '.md3': AssimpImporter,
-              '.pk3': AssimpImporter,
-              '.mdc': AssimpImporter,
-              # '.blend': AssimpImporter,
-              '.wrl': WRLImporter,
-              '.mjson': MJSONImporter}
+# TODO: Add PLY (ASCII and binary) and OFF importers
+mesh_types = {'.obj': obj_importer,
+              '.stl': stl_importer,
+              '.wrl': wrl_importer,
+              '.mjson': mjson_importer}
 
-mesh_landmark_types = {'.pts3': MeshPTSImporter,
-                       '.lm3': LM3Importer,
-                       '.lan': LANImporter,
-                       '.bnd': BNDImporter,
-                       '.ljson': LJSONImporter}
-
+mesh_landmark_types = {'.pts3': pts_mesh_importer,
+                       '.lm3': lm3_importer,
+                       '.lan': lan_importer,
+                       '.bnd': bnd_importer,
+                       '.ljson': ljson_importer}

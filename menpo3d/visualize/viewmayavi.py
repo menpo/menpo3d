@@ -106,9 +106,10 @@ class MayaviViewer(Renderer):
         r"""Retrieves the projection matrix for this scene.
         """
         scene = self.figure.scene
+        camera = scene.camera
         scene_size = tuple(scene.get_size())
         aspect_ratio = float(scene_size[0]) / float(scene_size[1])
-        p = scene.camera.get_perspective_transform_matrix(
+        p = camera.get_projection_transform_matrix(
             aspect_ratio, -1, 1).to_array().astype(np.float32)
         return p
 
@@ -271,16 +272,21 @@ class MayaviTexturedTriMeshViewer3d(MayaviTriMeshViewer3d):
         pd.points = self.points
         pd.polys = self.trilist
         pd.point_data.t_coords = self.tcoords_per_point
-        mapper = tvtk.PolyDataMapper(input=pd)
+        mapper = tvtk.PolyDataMapper()
+        mapper.set_input_data(pd)
         actor = tvtk.Actor(mapper=mapper)
         # Get the pixels from our image class which are [0, 1] and scale
         # back to valid pixels. Then convert to tvtk ImageData.
-        image_data = np.flipud(np.array(self.texture.as_PILImage())).ravel()
+        texture = self.texture.pixels_with_channels_at_back(out_dtype=np.uint8)
+        if self.texture.n_channels == 1:
+            texture = np.stack([texture] * 3, axis=-1)
+        image_data = np.flipud(texture).ravel()
         image_data = image_data.reshape([-1, 3])
         image = tvtk.ImageData()
         image.point_data.scalars = image_data
         image.dimensions = self.texture.width, self.texture.height, 1
-        texture = tvtk.Texture(input=image)
+        texture = tvtk.Texture()
+        texture.set_input_data(image)
         actor.texture = texture
         self.figure.scene.add_actors(actor)
 
@@ -301,7 +307,8 @@ class MayaviColouredTriMeshViewer3d(MayaviTriMeshViewer3d):
         pd.points = self.points
         pd.polys = self.trilist
         pd.point_data.scalars = (self.colour_per_point * 255.).astype(np.uint8)
-        mapper = tvtk.PolyDataMapper(input=pd)
+        mapper = tvtk.PolyDataMapper()
+        mapper.set_input_data(pd)
         actor = tvtk.Actor(mapper=mapper)
         self.figure.scene.add_actors(actor)
 

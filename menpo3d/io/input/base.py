@@ -1,101 +1,73 @@
+import warnings
+from functools import partial
+
+from menpo.base import partial_doc
 from menpo.io.input.base import (glob_with_suffix, _import_glob_lazy_list,
-                                 _import, _import_object_attach_landmarks)
+                                 _import, _import_object_attach_landmarks,
+                                 _data_dir_path, _data_path_to,
+                                 _ls_builtin_assets, BuiltinAssets,
+                                 _import_builtin_asset,
+                                 _register_importer)
+from menpo.io.input import same_name, image_paths
 from menpo3d.base import menpo3d_src_dir_path
+from .extensions import mesh_types, mesh_landmark_types
 
 
-def same_name(path):
+def mesh_paths(pattern):
     r"""
-    Menpo3d's default landmark resolver. Returns all landmarks found to have
-    the same stem as the asset.
+    Return mesh filepaths that Menpo3d can import that match the glob pattern.
+    """
+    return glob_with_suffix(pattern, mesh_types)
+
+
+def landmark_file_paths(pattern):
+    r"""
+    Return landmark file filepaths that Menpo3d can import that match the glob
+    pattern.
+    """
+    return glob_with_suffix(pattern, mesh_landmark_types)
+
+
+def same_name_texture(path, paths_callable=image_paths):
+    r"""
+    Default image texture resolver. Returns **the lexicographically
+    sorted first** texture found to have the same stem as the asset. A warning
+    is raised if more than one texture is found.
     """
     # pattern finding all landmarks with the same stem
     pattern = path.with_suffix('.*')
-    # find all the landmarks we can with this name. Key is ext (without '.')
-    return {p.suffix[1:].upper(): p for p in landmark_file_paths(pattern)}
+    texture_paths = sorted(paths_callable(pattern))
+    if len(texture_paths) > 1:
+        warnings.warn('More than one texture found for file, returning '
+                      'only the first.')
+    if not texture_paths:
+        return None
+    return texture_paths[0]
 
 
-def data_dir_path():
-    r"""A path to the Menpo3d built in ./data folder on this machine.
+same_name_landmark = partial_doc(same_name, paths_callable=landmark_file_paths)
 
-    Returns
-    -------
-    `pathlib.Path`
-        The path to the local Menpo3d ./data folder
+menpo3d_data_dir_path = partial_doc(_data_dir_path, menpo3d_src_dir_path)
 
-    """
-    return menpo3d_src_dir_path() / 'data'
+menpo3d_ls_builtin_assets = partial_doc(_ls_builtin_assets, 
+                                        menpo3d_data_dir_path)
 
+menpo3d_data_path_to = partial_doc(_data_path_to, menpo3d_data_dir_path,
+                                   menpo3d_ls_builtin_assets)
 
-def ls_builtin_assets():
-    r"""List all the builtin asset examples provided in Menpo3d.
-
-    Returns
-    -------
-    list of strings
-        Filenames of all assets in the data directory shipped with Menpo3d
-
-    """
-    return [p.name for p in data_dir_path().glob('*')]
+_menpo3d_import_builtin_asset = partial_doc(_import_builtin_asset,
+                                            menpo3d_data_path_to,
+                                            mesh_types, mesh_landmark_types,
+                                            texture_resolver=same_name_texture)
 
 
-def data_path_to(asset_filename):
-    r"""
-    The path to a builtin asset in the ./data folder on this machine.
-
-    Parameters
-    ----------
-    asset_filename : `str`
-        The filename (with extension) of a file builtin to Menpo3d. The full
-        set of allowed names is given by :func:`ls_builtin_assets()`
-
-    Returns
-    -------
-    data_path : `pathlib.Path`
-        The path to a given asset in the ./data folder
-
-    Raises
-    ------
-    ValueError
-        If the asset_filename doesn't exist in the `data` folder.
-    """
-    asset_path = data_dir_path() / asset_filename
-    if not asset_path.is_file():
-        raise ValueError("{} is not a builtin asset: {}".format(
-            asset_filename, ls_builtin_assets()))
-    return asset_path
+register_mesh_importer = partial_doc(_register_importer, mesh_types)
+register_landmark_importer = partial_doc(_register_importer, 
+                                         mesh_landmark_types)
 
 
-def _import_builtin_asset(asset_name, **kwargs):
-    r"""Single builtin asset (mesh or landmark) importer.
-
-    Imports the relevant builtin asset from the ./data directory that
-    ships with Menpo3d.
-
-    Parameters
-    ----------
-    asset_name : `str`
-        The filename of a builtin asset (see :map:`ls_builtin_assets`
-        for allowed values)
-
-    Returns
-    -------
-    asset
-        An instantiated :map:`LandmarkGroup` or :map:`TriMesh` asset.
-    """
-    asset_path = data_path_to(asset_name)
-    # Import could be either a mesh or a set of landmarks, so we try
-    # importing them both separately.
-    try:
-        return _import(asset_path, mesh_types,
-                       landmark_ext_map=mesh_landmark_types,
-                       landmark_attach_func=_import_object_attach_landmarks,
-                       importer_kwargs=kwargs)
-    except ValueError:
-        return _import(asset_path, mesh_landmark_types,
-                       importer_kwargs=kwargs)
-
-
-def import_mesh(filepath, landmark_resolver=same_name, texture=True):
+def import_mesh(filepath, landmark_resolver=same_name_landmark,
+                texture_resolver=same_name_texture):
     r"""Single mesh (and associated landmarks and texture) importer.
 
     Iff an mesh file is found at `filepath`, returns a :map:`TriMesh`
@@ -120,7 +92,7 @@ def import_mesh(filepath, landmark_resolver=same_name, texture=True):
     trimesh : :map:`TriMesh`
         An instantiated :map:`TriMesh` (or subclass thereof)
     """
-    kwargs = {'texture': texture}
+    kwargs = {'texture_resolver': texture_resolver}
     return _import(filepath, mesh_types,
                    landmark_resolver=landmark_resolver,
                    landmark_ext_map=mesh_landmark_types,
@@ -254,39 +226,8 @@ def import_landmark_files(pattern, max_landmarks=None, shuffle=False,
                                   verbose=verbose)
 
 
-def mesh_paths(pattern):
-    r"""
-    Return mesh filepaths that Menpo3d can import that match the glob pattern.
-    """
-    return glob_with_suffix(pattern, mesh_types)
+import_builtin_asset = BuiltinAssets(_menpo3d_import_builtin_asset)
 
-
-def landmark_file_paths(pattern):
-    r"""
-    Return landmark file filepaths that Menpo3d can import that match the glob
-    pattern.
-    """
-    return glob_with_suffix(pattern, mesh_landmark_types)
-
-
-def import_builtin(x):
-
-    def execute():
-        return _import_builtin_asset(x)
-
-    return execute
-
-
-class BuiltinAssets(object):
-
-    def __call__(self, asset_name):
-        return _import_builtin_asset(asset_name)
-
-import_builtin_asset = BuiltinAssets()
-
-for asset in ls_builtin_assets():
-    setattr(import_builtin_asset, asset.replace('.', '_'), import_builtin(asset))
-
-
-# Avoid circular imports
-from .extensions import mesh_types, mesh_landmark_types
+for asset in menpo3d_ls_builtin_assets():
+    setattr(import_builtin_asset, asset.replace('.', '_'),
+            partial(_menpo3d_import_builtin_asset, asset))

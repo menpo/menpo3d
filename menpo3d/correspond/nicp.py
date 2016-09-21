@@ -5,7 +5,13 @@ from menpo.transform import Translation, UniformScale
 from menpo3d.vtkutils import trimesh_to_vtk, VTKClosestPointLocator
 
 try:
-    from scikits.sparse.cholmod import cholesky_AAt
+    
+    try:
+        # First try the newer scikit-sparse namespace
+        from sksparse.cholmod import cholesky_AAt
+    except ImportError:
+        # Fall back to the older scikits.sparse namespace
+        from scikits.sparse.cholmod import cholesky_AAt
 
     # user has cholesky available - provide a fast solve
     def spsolve(sparse_X, dense_b):

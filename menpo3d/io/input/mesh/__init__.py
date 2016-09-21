@@ -1,1 +1,1 @@
-from .base import AssimpImporter, WRLImporter, MJSONImporter
+from .base import wrl_importer, mjson_importer, obj_importer, stl_importer
