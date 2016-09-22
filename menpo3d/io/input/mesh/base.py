@@ -74,13 +74,13 @@ def vtk_ensure_trilist(polydata):
                           'connectivity is being coerced into a triangular '
                           'mesh. This may have unintended consequences.')
             t_filter = vtk.vtkTriangleFilter()
-            t_filter.SetInput(polydata)
+            t_filter.SetInputData(polydata)
             t_filter.Update()
             trilist = vtk_to_numpy(t_filter.GetOutput().GetPolys().GetData())
 
         return trilist.reshape([-1, 4])[:, 1:]
     except Exception as e:
-        print(e)
+        warnings.warn(str(e))
         return None
 
 
@@ -126,7 +126,6 @@ def wrl_importer(filepath, asset=None, texture_resolver=None, **kwargs):
 
     # Get the Data
     polydata = vtk.vtkPolyData.SafeDownCast(mapper_dataset)
-    polydata.Update()
 
     # We must have point data!
     points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float)
@@ -221,6 +220,7 @@ def obj_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     return _construct_shape_type(points, trilist, tcoords, texture,
                                  colour_per_vertex)
 
+
 def ply_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     """Allows importing Wavefront (OBJ) files.
 
@@ -244,7 +244,6 @@ def ply_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     """
     import vtk
     from vtk.util.numpy_support import vtk_to_numpy
-
 
     ply_importer = vtk.vtkPLYReader()
     ply_importer.SetFileName(str(filepath))
@@ -278,6 +277,7 @@ def ply_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     colour_per_vertex = None
     return _construct_shape_type(points, trilist, tcoords, texture,
                                  colour_per_vertex)
+
 
 def stl_importer(filepath, asset=None, **kwargs):
     """Allows importing Stereolithography CAD (STL) files.
