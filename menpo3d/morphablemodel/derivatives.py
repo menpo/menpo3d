@@ -2,37 +2,39 @@ import numpy as np
 from menpo.transform import Homogeneous
 
 
-def compute_projection_derivatives_shape_parameters(shape_pc_uv, rho_array, warped_uv,
-                                                    R, shape_eigenvalues,
+def compute_projection_derivatives_shape_parameters(shape_pc_uv, rho_array,
+                                                    warped_uv, R,
+                                                    shape_eigenvalues,
                                                     projection_type):
     if projection_type == 1:
         # Perspective projection derivative wrt shape parameters
-        dp_dalpha = compute_pers_projection_derivatives_shape_parameters(warped_uv, shape_pc_uv,
-                                                                         rho_array, R,
-                                                                         shape_eigenvalues)
+        dp_dalpha = compute_pers_projection_derivatives_shape_parameters(
+            warped_uv, shape_pc_uv, rho_array, R, shape_eigenvalues)
     else:
         # Orthographic projection derivative wrt shape parameters 
-        dp_dalpha = compute_ortho_projection_derivatives_shape_parameters(shape_pc_uv, rho_array,
-                                                                          R, shape_eigenvalues)
+        dp_dalpha = compute_ortho_projection_derivatives_shape_parameters(
+            shape_pc_uv, rho_array, R, shape_eigenvalues)
 
     return dp_dalpha
 
 
-def compute_projection_derivatives_warp_parameters(shape_uv, warped_uv, rho_array, r_phi, r_theta, r_varphi,
-                                                   projection_type):
+def compute_projection_derivatives_warp_parameters(shape_uv, warped_uv,
+                                                   rho_array, r_phi, r_theta,
+                                                   r_varphi, projection_type):
     
     if projection_type == 1:
         # Orthographic projection derivative wrt warp parameters
-        dp_drho = compute_ortho_projection_derivatives_warp_parameters(shape_uv, warped_uv, rho_array,
-                                                                       r_phi, r_theta, r_varphi)
+        dp_drho = compute_ortho_projection_derivatives_warp_parameters(
+            shape_uv, warped_uv, rho_array, r_phi, r_theta, r_varphi)
     else:
         # Perspective projection derivative wrt warp parameters
-        dp_drho = compute_pers_projection_derivatives_warp_parameters(shape_uv, warped_uv.T, rho_array,
-                                                                      r_phi, r_theta, r_varphi)
+        dp_drho = compute_pers_projection_derivatives_warp_parameters(
+            shape_uv, warped_uv.T, rho_array, r_phi, r_theta, r_varphi)
     return dp_drho
 
 
-def compute_ortho_projection_derivatives_shape_parameters(s_pc_uv, rho, r_tot, shape_ev):
+def compute_ortho_projection_derivatives_shape_parameters(s_pc_uv, rho, r_tot,
+                                                          shape_ev):
     # Precomputations
     n_parameters = np.size(s_pc_uv, 2)
     n_points = np.size(s_pc_uv, 0)
@@ -48,7 +50,8 @@ def compute_ortho_projection_derivatives_shape_parameters(s_pc_uv, rho, r_tot, s
     return dp_dalpha
 
 
-def compute_pers_projection_derivatives_shape_parameters(w_uv, s_pc_uv, rho, r_tot, shape_ev):
+def compute_pers_projection_derivatives_shape_parameters(w_uv, s_pc_uv, rho,
+                                                         r_tot, shape_ev):
     # Precomputations
     n_parameters = s_pc_uv.shape[2]
     n_points = s_pc_uv.shape[0]
@@ -67,7 +70,8 @@ def compute_pers_projection_derivatives_shape_parameters(w_uv, s_pc_uv, rho, r_t
     return dp_dalpha
 
 
-def compute_pers_projection_derivatives_warp_parameters(s_uv, w_uv, rho, r_phi, r_theta, r_varphi):
+def compute_pers_projection_derivatives_warp_parameters(s_uv, w_uv, rho, r_phi,
+                                                        r_theta, r_varphi):
     # Precomputations
     n_parameters = len(rho)
     n_points = np.size(s_uv, 0)
@@ -148,7 +152,8 @@ def compute_pers_projection_derivatives_warp_parameters(s_uv, w_uv, rho, r_phi, 
     return dp_dgamma  
 
 
-def compute_ortho_projection_derivatives_warp_parameters(s_uv, w_uv, rho, r_phi, r_theta, r_varphi):
+def compute_ortho_projection_derivatives_warp_parameters(s_uv, w_uv, rho, r_phi,
+                                                         r_theta, r_varphi):
     # Precomputations
     n_parameters = len(rho)
     n_points = np.size(s_uv, 0)
