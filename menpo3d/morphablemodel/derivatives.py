@@ -7,19 +7,19 @@ def compute_projection_derivatives_shape_parameters(shape_pc_uv, rho_array, warp
                                                     projection_type):
     if projection_type == 1:
         # Perspective projection derivative wrt shape parameters
-        dp_dalpha = compute_pers_projection_derivatives_shape_parameters( warped_uv, shape_pc_uv, 
-                                                                          rho_array, R, 
-                                                                          shape_eigenvalues)
+        dp_dalpha = compute_pers_projection_derivatives_shape_parameters(warped_uv, shape_pc_uv,
+                                                                         rho_array, R,
+                                                                         shape_eigenvalues)
     else:
         # Orthographic projection derivative wrt shape parameters 
         dp_dalpha = compute_ortho_projection_derivatives_shape_parameters(shape_pc_uv, rho_array,
-                                                                           R, shape_eigenvalues)
+                                                                          R, shape_eigenvalues)
 
     return dp_dalpha
 
 
 def compute_projection_derivatives_warp_parameters(shape_uv, warped_uv, rho_array, r_phi, r_theta, r_varphi,
-                                                  projection_type):
+                                                   projection_type):
     
     if projection_type == 1:
         # Orthographic projection derivative wrt warp parameters
