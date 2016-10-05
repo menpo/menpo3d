@@ -56,3 +56,8 @@ target/
 # Intellij
 .idea
 menpo3d.iml
+
+# Data 
+*.mat
+
+.ipynb_checkpoints
