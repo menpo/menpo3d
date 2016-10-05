@@ -16,7 +16,7 @@ class ColouredMorphableModel(object):
                 'Colour Model \n------------- \n' + self.texture_model.__str__() + '\n' +
                 'Landmarks \n--------- \n' + self.landmarks.__str__())
 
-    def instance(self, model_type = 'bfm', alpha=None, beta=None, landmark_group = 'ibug68'):
+    def instance(self, model_type='bfm', alpha=None, beta=None, landmark_group='ibug68'):
         if alpha is None:
             alpha = np.zeros(len(self.shape_model.eigenvalues))
         if beta is None:

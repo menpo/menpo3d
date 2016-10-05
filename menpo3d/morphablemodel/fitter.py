@@ -15,6 +15,9 @@ from .derivatives import (compute_texture_derivatives_texture_parameters,
                           compute_projection_derivatives_shape_parameters)
 
 
+LANDMARK_GROUP = '__3dmm_fit'
+
+
 class MMFitter(object):
     r"""
     Class for defining a 3DMM fitter.
@@ -23,7 +26,7 @@ class MMFitter(object):
     def __init__(self, mm):
         self.model = mm
 
-    def fit(self, image_path, n_alphas=100, n_betas=100, n_tris=1000, camera_update=False, max_iters=100):
+    def fit_from_shape(self, image, shape, n_alphas=100, n_betas=100, n_tris=1000, camera_update=False, max_iters=100):
 
         # PRE-COMPUTATIONS
         # ----------------
@@ -32,11 +35,8 @@ class MMFitter(object):
         # Projection type: 1 is for perspective and 0 for orthographic
         projection_type = 1
 
-        # Import the image 
-        image = mio.import_image(image_path)
-        
-        # Do face detection and landmark fitting
-        detect_and_fit(image)
+        # store the landmarks
+        image.landmarks[LANDMARK_GROUP] = shape
 
         # Compute the gradient
         grad = gradient(image)
@@ -46,14 +46,15 @@ class MMFitter(object):
             scale = image.shape[1]/2
         else:
             scale = image.shape[0]/2
+
         VI_dy = grad.pixels[:3] * scale
         VI_dx = grad.pixels[3:] * scale
 
         # Generate instance
-        instance = self.model.instance()
+        instance = self.model.instance(landmark_group=LANDMARK_GROUP)
 
         # Get view projection rotation matrices
-        view_t, proj_t, R = retrieve_view_projection_transforms(image, instance, group='ibug68')
+        view_t, proj_t, R = retrieve_view_projection_transforms(image, instance, group=LANDMARK_GROUP)
 
         # Get camera parameters array
         rho_array = rho_from_view_projection_matrices(proj_t.h_matrix, R.h_matrix)
