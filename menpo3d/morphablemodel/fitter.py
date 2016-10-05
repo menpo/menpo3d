@@ -21,29 +21,8 @@ class MMFitter(object):
 
     """
     def __init__(self, mm):
-        self._model = mm
-        self.result = None
-        self.rasterized_result = None
-        self.rasterizer = None
-        self.errors = []
+        self.model = mm
 
-    @property
-    def mm(self):
-        r"""
-        The 3DMM model.
-
-        """
-        return self._model
-
-    @property
-    def get_result(self):
-        r"""
-        The 3DMM model fitting result.
-
-        """
-        return self.result
-
-    # TODO
     def fit(self, image_path, n_alphas=100, n_betas=100, n_tris=1000, camera_update=False, max_iters=100):
 
         # PRE-COMPUTATIONS
@@ -71,7 +50,7 @@ class MMFitter(object):
         VI_dx = grad.pixels[3:] * scale
 
         # Generate instance
-        instance = self._model.instance()
+        instance = self.model.instance()
 
         # Get view projection rotation matrices
         view_t, proj_t, R = retrieve_view_projection_transforms(image, instance, group='ibug68')
@@ -84,10 +63,10 @@ class MMFitter(object):
         beta = np.zeros(n_betas)
 
         dalpha_prior_dbeta = np.zeros(n_betas)
-        dalpha_prior_dalpha = 2. / np.square(self._model.shape_model.eigenvalues[:n_alphas])
+        dalpha_prior_dalpha = 2. / np.square(self.model.shape_model.eigenvalues[:n_alphas])
         
         dbeta_prior_dalpha = np.zeros(n_alphas)
-        dbeta_prior_dbeta = 2. / np.square(self._model.texture_model.eigenvalues[:n_betas])
+        dbeta_prior_dbeta = 2. / np.square(self.model.texture_model.eigenvalues[:n_betas])
         
         if camera_update:
             prior_drho = np.zeros(len(rho_array))
@@ -142,8 +121,8 @@ class MMFitter(object):
             W[:, 1:] *= -1
             
             # Shape and texture principal components are reshaped before sampling
-            shape_pc = self._model.shape_model.components.T
-            tex_pc = self._model.texture_model.components.T
+            shape_pc = self.model.shape_model.components.T
+            tex_pc = self.model.texture_model.components.T
             shape_pc = shape_pc.reshape([instance.n_points, -1])
             tex_pc = tex_pc.reshape([instance.n_points, -1])
 
@@ -174,13 +153,13 @@ class MMFitter(object):
 
                 # Projection derivative wrt shape parameters
                 dp_dalpha = compute_projection_derivatives_shape_parameters(shape_pc_uv, rho_array, warped_uv,
-                                                                            R, self._model.shape_model.eigenvalues, projection_type)
+                                                                            R, self.model.shape_model.eigenvalues, projection_type)
                 dp_dalpha = dp_dalpha[:, :n_alphas, :]
                 
             if n_betas >0:
             
                 # Texture derivative wrt texture parameters
-                dt_dbeta = compute_texture_derivatives_texture_parameters(tex_pc_uv, self._model.texture_model.eigenvalues)
+                dt_dbeta = compute_texture_derivatives_texture_parameters(tex_pc_uv, self.model.texture_model.eigenvalues)
                 dt_dbeta = dt_dbeta[:, :n_betas, :]
                 
             if camera_update:
@@ -245,7 +224,7 @@ class MMFitter(object):
 
             # Generate the updated instance
             # The texture is scaled by 255 to cancel the 1./255 scaling in the model class
-            instance = self._model.instance(alpha=alpha, beta=255.*beta)
+            instance = self.model.instance(alpha=alpha, beta=255. * beta)
             
             # Clip to avoid out of range pixels
             instance.colours = np.clip(instance.colours, 0, 1)
@@ -265,21 +244,13 @@ class MMFitter(object):
         rasterized_result = rasterizer.rasterize_mesh(instance)
         
         # Save final values
-        self.rasterized_result = rasterized_result
-        self.result = instance
-        self.rasterizer = rasterizer
-        self.errors = errors
-        
         sys.stdout.write('\rSuccessfully fitted.')
 
-    def visualize_result(self):
-        self.rasterized_result.view()
-    
-    def plot_error(self, image_name):
-        plt.plot(self.errors)
-        plt.ylabel('Error')
-        plt.title(image_name)
-        plt.show()
+        return {
+            'rasterized_result': rasterized_result,
+            'result': instance,
+            'errors': errors
+        }
 
 
 def sample_object(x, vertex_indices, b_coords):
