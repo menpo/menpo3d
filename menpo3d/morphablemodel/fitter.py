@@ -150,7 +150,7 @@ class MMFitter(object):
             dop_drho = []
             dpp_drho = []
             
-            if n_alphas >0:
+            if n_alphas > 0:
 
                 # Projection derivative wrt shape parameters
                 dp_dalpha = compute_projection_derivatives_shape_parameters(shape_pc_uv, rho_array, warped_uv,
