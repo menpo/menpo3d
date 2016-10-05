@@ -3,6 +3,7 @@ from functools import partial
 import numpy as np
 
 from menpo.io.input.landmark import pts_importer
+from menpo.landmark import LandmarkGroup
 from menpo.shape import PointCloud
 
 

@@ -1,5 +1,10 @@
 from pathlib import Path
-from menpo.io.output.base import _export, _normalize_extension
+
+from menpo.compatibility import basestring
+from menpo.io.output.base import (_export, _export_paths_only,
+                                  _normalize_extension,
+                                  _validate_and_get_export_func,
+                                  _enforce_only_paths_supported)
 from menpo.io.output.extensions import image_types
 
 
@@ -41,11 +46,13 @@ def export_landmark_file(landmark_group, fp, extension=None,
         The provided extension does not match to an existing exporter type
         (the output type is not supported).
     """
+    from .extensions import landmark_types
+
     _export(landmark_group, fp, landmark_types, extension,
             overwrite)
 
 
-def export_mesh(mesh, fp, extension=None, overwrite=False):
+def export_mesh(mesh, fp, extension=None, overwrite=False, **kwargs):
     r"""
     Exports a given mesh. The ``fp`` argument can be either
     a `str` or any Python type that acts like a file. If a file is provided,
@@ -67,6 +74,8 @@ def export_mesh(mesh, fp, extension=None, overwrite=False):
         path is a string. Determines the type of exporter that is used.
     overwrite : `bool`, optional
         Whether or not to overwrite a file if it already exists.
+    **kwargs : `dict`
+        Keyword arguments to be passed through to exporter function.
 
     Raises
     ------
@@ -82,11 +91,22 @@ def export_mesh(mesh, fp, extension=None, overwrite=False):
         The provided extension does not match to an existing exporter type
         (the output type is not supported).
     """
-    _export(mesh, fp, mesh_types, extension, overwrite)
+    from .extensions import mesh_types, mesh_types_paths_only
+    if isinstance(fp, basestring):
+        fp = Path(fp)
+    if isinstance(fp, Path):
+        _, extension = _validate_and_get_export_func(
+            fp, mesh_types, extension, overwrite, return_extension=True)
+    if extension in mesh_types_paths_only:
+        _export_paths_only(mesh, fp, mesh_types, extension, overwrite,
+                           exporter_kwargs=kwargs)
+    else:
+        _export(mesh, fp, mesh_types, extension, overwrite,
+                exporter_kwargs=kwargs)
 
 
-def export_textured_mesh(mesh, filepath, extension=None,
-                         texture_extension='jpg', overwrite=False):
+def export_textured_mesh(mesh, file_path, extension=None,
+                         texture_extension='.jpg', overwrite=False, **kwargs):
     r"""
     Exports a given textured mesh. The ``filepath`` argument must be a string
     containing the filepath to write the mesh out to. Unlike the other export
@@ -102,18 +122,18 @@ def export_textured_mesh(mesh, filepath, extension=None,
     ----------
     mesh : :map:`PointCloud`
         The mesh to export.
-    filepath : `str`
-        The string path to save the object at/into.
+    file_path : `pathlib.Path` or `str`
+        The path to save the object at/into.
     extension : `str` or None, optional
         The extension to use for the exported mesh, this must match the file
         path if the file path is a string. Determines the type of exporter that
         is used for the mesh.
     texture_extension : `str`, optional
         Determines the type of exporter that is used for the texture.
-
-        Default: 'jpg'
     overwrite : `bool`, optional
         Whether or not to overwrite a file if it already exists.
+    **kwargs : `dict`
+        Keyword arguments to be passed through to exporter function.
 
     Raises
     ------
@@ -128,15 +148,16 @@ def export_textured_mesh(mesh, filepath, extension=None,
     ValueError
         The mesh is not textured.
     """
-    if not hasattr(mesh, 'texture'):
+    from menpo.shape import TexturedTriMesh
+    if not isinstance(mesh, TexturedTriMesh):
         raise ValueError('Must supply a textured mesh.')
-    _export(mesh, filepath, mesh_types, extension, overwrite)
+
+    file_path = _enforce_only_paths_supported(file_path, 'textured mesh')
+    export_mesh(mesh, file_path, extension=extension, overwrite=overwrite,
+                exporter_kwargs=kwargs)
 
     # Put the image next to the mesh
-    image_output_path = Path(filepath).with_suffix(
-        _normalize_extension(texture_extension))
+    texture_extension = _normalize_extension(texture_extension)
+    image_output_path = Path(file_path).with_suffix(texture_extension)
     _export(mesh.texture, image_output_path,
             image_types, texture_extension, overwrite)
-
-
-from .extensions import mesh_types, landmark_types
