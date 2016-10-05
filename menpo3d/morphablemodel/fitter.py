@@ -1,22 +1,18 @@
 import sys
-import time
 import numpy as np
+from matplotlib import pyplot as plt
+
 import menpo.io as mio
-import menpo3d.io as m3dio
-import matplotlib.pyplot as plt
 from menpo.feature import gradient
 from menpo.image import Image
+from menpo.transform import Homogeneous
 from menpo3d.rasterize import GLRasterizer
-from menpo.transform import Homogeneous, UniformScale
+
 from .lmalign import retrieve_view_projection_transforms
 from .detectandfit import detect_and_fit
-from .derivatives import compute_pers_projection_derivatives_shape_parameters, \
-                              compute_ortho_projection_derivatives_shape_parameters, \
-                              compute_ortho_projection_derivatives_warp_parameters, \
-                              compute_pers_projection_derivatives_warp_parameters, \
-                              compute_texture_derivatives_texture_parameters, \
-                              compute_projection_derivatives_warp_parameters, \
-                              compute_projection_derivatives_shape_parameters
+from .derivatives import (compute_texture_derivatives_texture_parameters,
+                          compute_projection_derivatives_warp_parameters,
+                          compute_projection_derivatives_shape_parameters)
 
 
 class MMFitter(object):
@@ -275,7 +271,6 @@ class MMFitter(object):
         self.errors = errors
         
         sys.stdout.write('\rSuccessfully fitted.')
-        
 
     def visualize_result(self):
         self.rasterized_result.view()
@@ -364,7 +359,7 @@ def compute_hessian(sd):
     n_params = sd.shape[1]
     h = np.zeros((n_params, n_params))
     sd = sd.T
-    for i in xrange(n_channels):
+    for i in range(n_channels):
         h += np.dot(sd[:, :, i].T, sd[:, :, i])
     return h
 
@@ -375,8 +370,7 @@ def compute_sd_error(sd, error_uv):
     sd_error_product = np.zeros(n_parameters)
     sd = sd.T
  
-    for i in xrange(n_channels):
+    for i in range(n_channels):
         sd_error_product += np.dot(error_uv[i, :], sd[:, :, i])
         
     return sd_error_product.T
-

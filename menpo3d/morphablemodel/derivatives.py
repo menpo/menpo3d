@@ -1,6 +1,7 @@
 import numpy as np
 from menpo.transform import Homogeneous
 
+
 def compute_projection_derivatives_shape_parameters(shape_pc_uv, rho_array, warped_uv,
                                                     R, shape_eigenvalues,
                                                     projection_type):
@@ -39,7 +40,7 @@ def compute_ortho_projection_derivatives_shape_parameters(s_pc_uv, rho, r_tot, s
 
     const = rho[0]
 
-    for k in xrange(n_parameters):
+    for k in range(n_parameters):
         dw_dalpha_k_uv = r_tot.apply((shape_ev[k] * s_pc_uv[:, :, k])).T
         dp_dalpha_k_uv = np.vstack((dw_dalpha_k_uv[0], dw_dalpha_k_uv[1]))
         dp_dalpha[:, k, :] = const*dp_dalpha_k_uv
@@ -56,7 +57,7 @@ def compute_pers_projection_derivatives_shape_parameters(w_uv, s_pc_uv, rho, r_t
     w = w_uv[:, 2]
     const = rho[0]/(w**2)
 
-    for k in xrange(n_parameters):
+    for k in range(n_parameters):
         dw_dalpha_k_uv = r_tot.apply(shape_ev[k] * s_pc_uv[:, :, k]).T
         dp_dalpha_k_uv = np.vstack(
             (dw_dalpha_k_uv[0]*w - w_uv[:, 0]*dw_dalpha_k_uv[2],
@@ -213,7 +214,7 @@ def compute_texture_derivatives_texture_parameters(t_pc, texture_ev):
     dt_dbeta = np.zeros([3, n_parameters, n_points])
 
     # Computations
-    for k in xrange(n_parameters):
+    for k in range(n_parameters):
         # Compute the derivative of the linear texture model wrt beta k
         dt_dbeta[:, k, :] = texture_ev[k]*t_pc[:, :, k].T
 
