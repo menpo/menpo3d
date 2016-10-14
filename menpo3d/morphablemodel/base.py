@@ -70,7 +70,7 @@ class ColouredMorphableModel(object):
         return 'Coloured Morphable Model'
 
     def instance(self, shape_weights=None, texture_weights=None,
-                 landmark_group='landmarks'):
+                 landmark_group='landmarks', normalized_weights=False):
         r"""
         Generates a novel Morphable Model instance given a set of shape and
         texture weights. If no weights are provided, then the mean Morphable
@@ -102,14 +102,14 @@ class ColouredMorphableModel(object):
 
         # Generate instance
         shape_instance = self.shape_model.instance(shape_weights,
-                                                   normalized_weights=True)
+                                                   normalized_weights=normalized_weights)
         texture_instance = self.texture_model.instance(texture_weights,
-                                                       normalized_weights=True)
+                                                       normalized_weights=normalized_weights)
 
         # Create and return trimesh
         return self._instance(shape_instance, texture_instance, landmark_group)
 
-    def random_instance(self, landmark_group='landmarks'):
+    def random_instance(self, landmark_group='__landmarks__'):
         r"""
         Generates a random instance of the Morphable Model.
 
@@ -117,7 +117,8 @@ class ColouredMorphableModel(object):
         ----------
         landmark_group : `str`, optional
             The group name that will be used for the sparse landmarks that
-            will be attached to the returned instance.
+            will be attached to the returned instance. Default is
+            ``'__landmarks__'``.
 
         Returns
         -------
@@ -140,15 +141,12 @@ class ColouredMorphableModel(object):
         texture_scale = UniformScale(1. / 255, 3)
         texture_instance = texture_scale.apply(
             texture_instance.reshape([-1, 3]))
-        # Scale the landmarks
-        landmarks_scale = UniformScale(1e-5, 3)
-        landmarks = landmarks_scale.apply(self.landmarks)
         # Create trimesh
         trimesh = ColouredTriMesh(shape_instance.points,
                                   trilist=shape_instance.trilist,
                                   colours=texture_instance)
         # Attach landmarks to trimesh
-        trimesh.landmarks[landmark_group] = landmarks
+        trimesh.landmarks[landmark_group] = self.landmarks
         # Return trimesh
         return trimesh
 
@@ -162,11 +160,11 @@ class ColouredMorphableModel(object):
    - {} texture components
    - {} channels
  - Sparse landmarks class: {}
-   - {} landmarks""".format(
-            self._str_title, name_of_callable(self.shape_model),
-            self.n_vertices, self.n_triangles, self.shape_model.n_components,
-            name_of_callable(self.shape_model.template_instance),
-            name_of_callable(self.texture_model),
-            self.texture_model.n_components, self.n_channels,
-            name_of_callable(self.landmarks), self.landmarks.n_points)
+   - {} landmarks
+""".format(self._str_title, name_of_callable(self.shape_model),
+           self.n_vertices, self.n_triangles, self.shape_model.n_components,
+           name_of_callable(self.shape_model.template_instance),
+           name_of_callable(self.texture_model),
+           self.texture_model.n_components, self.n_channels,
+           name_of_callable(self.landmarks), self.landmarks.n_points)
         return cls_str
