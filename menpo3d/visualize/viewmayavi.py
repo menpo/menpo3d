@@ -145,39 +145,49 @@ class MayaviPointCloudViewer3d(MayaviViewer):
         super(MayaviPointCloudViewer3d, self).__init__(figure_id, new_figure)
         self.points = points
 
-    def render(self, marker_size=1, marker_face_colour=(1, 1, 1), **kwargs):
+    def render(self, marker_type='sphere', marker_size=1,
+               marker_colour=(1, 0, 0), marker_resolution=8, alpha=1.0):
         from mayavi import mlab
         mlab.points3d(
             self.points[:, 0], self.points[:, 1], self.points[:, 2],
             figure=self.figure, scale_factor=marker_size,
-            color=marker_face_colour)
+            mode=marker_type, color=marker_colour, opacity=alpha,
+            resolution=marker_resolution)
         return self
 
 
 class MayaviPointGraphViewer3d(MayaviViewer):
 
-    def __init__(self, figure_id, new_figure, points, adjacency_array):
+    def __init__(self, figure_id, new_figure, points, edges):
         super(MayaviPointGraphViewer3d, self).__init__(figure_id, new_figure)
         self.points = points
-        self.adjacency_array = adjacency_array
+        self.edges = edges
 
-    def render(self, line_width=4, render_points=True, points_color=(0, 0, 1),
-               points_scale=2, line_color=(0, 0, 1), **kwargs):
+    def render(self, render_lines=True, line_colour=(1, 0, 0), line_width=4,
+               render_markers=True, marker_type='sphere', marker_size=1,
+               marker_colour=(1, 0, 0), marker_resolution=8, alpha=1.0):
         from mayavi import mlab
-        # Create the points
-        src = mlab.pipeline.scalar_scatter(self.points[:, 0], self.points[:, 1],
-                                           self.points[:, 2])
-        # Connect them
-        src.mlab_source.dataset.lines = self.adjacency_array
-        # The stripper filter cleans up connected lines
-        lines = mlab.pipeline.stripper(src)
+        # Render the lines if requested
+        if render_lines:
+            # Create the points
+            src = mlab.pipeline.scalar_scatter(self.points[:, 0], self.points[:, 1],
+                                               self.points[:, 2])
+            # Connect them
+            src.mlab_source.dataset.lines = self.edges
+            # The stripper filter cleans up connected lines
+            lines = mlab.pipeline.stripper(src)
 
-        # Finally, display the set of lines
-        mlab.pipeline.surface(lines, line_width=line_width, color=line_color)
-        if render_points:
+            # Finally, display the set of lines
+            mlab.pipeline.surface(lines, figure=self.figure,
+                                  line_width=line_width, color=line_colour,
+                                  opacity=alpha)
+        # Render the markers if requested
+        if render_markers:
             mlab.points3d(self.points[:, 0], self.points[:, 1],
-                          self.points[:, 2], scale_factor=points_scale,
-                          color=points_color)
+                          self.points[:, 2], figure=self.figure,
+                          scale_factor=marker_size, mode=marker_type,
+                          color=marker_colour, opacity=alpha,
+                          resolution=marker_resolution)
         return self
 
 
