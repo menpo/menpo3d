@@ -145,13 +145,13 @@ class MayaviPointCloudViewer3d(MayaviViewer):
         super(MayaviPointCloudViewer3d, self).__init__(figure_id, new_figure)
         self.points = points
 
-    def render(self, marker_type='sphere', marker_size=1,
+    def render(self, marker_style='sphere', marker_size=1,
                marker_colour=(1, 0, 0), marker_resolution=8, alpha=1.0):
         from mayavi import mlab
         mlab.points3d(
             self.points[:, 0], self.points[:, 1], self.points[:, 2],
             figure=self.figure, scale_factor=marker_size,
-            mode=marker_type, color=marker_colour, opacity=alpha,
+            mode=marker_style, color=marker_colour, opacity=alpha,
             resolution=marker_resolution)
         return self
 
@@ -164,7 +164,7 @@ class MayaviPointGraphViewer3d(MayaviViewer):
         self.edges = edges
 
     def render(self, render_lines=True, line_colour=(1, 0, 0), line_width=4,
-               render_markers=True, marker_type='sphere', marker_size=1,
+               render_markers=True, marker_style='sphere', marker_size=1,
                marker_colour=(1, 0, 0), marker_resolution=8, alpha=1.0):
         from mayavi import mlab
         # Render the lines if requested
@@ -185,7 +185,7 @@ class MayaviPointGraphViewer3d(MayaviViewer):
         if render_markers:
             mlab.points3d(self.points[:, 0], self.points[:, 1],
                           self.points[:, 2], figure=self.figure,
-                          scale_factor=marker_size, mode=marker_type,
+                          scale_factor=marker_size, mode=marker_style,
                           color=marker_colour, opacity=alpha,
                           resolution=marker_resolution)
         return self
@@ -248,20 +248,28 @@ class MayaviTriMeshViewer3d(MayaviViewer):
         self.points = points
         self.trilist = trilist
 
-    def _render_mesh(self):
+    def _render_mesh(self, mesh_type='wireframe', line_width=2,
+                     colour=(1, 0, 0), marker_size=0.05, marker_resolution=8,
+                     marker_style='sphere', alpha=0.5):
         import mayavi.mlab as mlab
-        mlab.triangular_mesh(self.points[:, 0],
-                             self.points[:, 1],
-                             self.points[:, 2],
-                             self.trilist,
-                             color=(0.5, 0.5, 0.5),
-                             figure=self.figure)
+        mlab.triangular_mesh(self.points[:, 0], self.points[:, 1],
+                             self.points[:, 2], self.trilist,
+                             figure=self.figure, line_width=line_width,
+                             representation=mesh_type, color=colour,
+                             scale_factor=marker_size,
+                             resolution=marker_resolution, mode=marker_style,
+                             opacity=alpha, tube_radius=None)
 
-    def render(self, normals=None, **kwargs):
+    def render(self, normals=None, mesh_type='wireframe', line_width=2,
+               colour=(1, 0, 0), marker_size=0.05, marker_resolution=8,
+               marker_style='sphere', alpha=0.5, **kwargs):
         if normals is not None:
             MayaviVectorViewer3d(self.figure_id, False,
                                  self.points, normals).render(**kwargs)
-        self._render_mesh()
+        self._render_mesh(mesh_type=mesh_type, line_width=line_width,
+                          colour=colour, marker_size=marker_size,
+                          marker_resolution=marker_resolution,
+                          marker_style=marker_style, alpha=alpha)
         return self
 
 
