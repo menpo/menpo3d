@@ -146,13 +146,14 @@ class MayaviPointCloudViewer3d(MayaviViewer):
         self.points = points
 
     def render(self, marker_style='sphere', marker_size=1,
-               marker_colour=(1, 0, 0), marker_resolution=8, alpha=1.0):
+               marker_colour=(1, 0, 0), marker_resolution=8, step=None,
+               alpha=1.0):
         from mayavi import mlab
         mlab.points3d(
             self.points[:, 0], self.points[:, 1], self.points[:, 2],
             figure=self.figure, scale_factor=marker_size,
             mode=marker_style, color=marker_colour, opacity=alpha,
-            resolution=marker_resolution)
+            resolution=marker_resolution, mask_points=step)
         return self
 
 
@@ -165,12 +166,17 @@ class MayaviPointGraphViewer3d(MayaviViewer):
 
     def render(self, render_lines=True, line_colour=(1, 0, 0), line_width=4,
                render_markers=True, marker_style='sphere', marker_size=1,
-               marker_colour=(1, 0, 0), marker_resolution=8, alpha=1.0):
+               marker_colour=(1, 0, 0), marker_resolution=8, step=None,
+               alpha=1.0):
         from mayavi import mlab
         # Render the lines if requested
         if render_lines:
+            # TODO: Make step work for lines as well
             # Create the points
-            src = mlab.pipeline.scalar_scatter(self.points[:, 0], self.points[:, 1],
+            if step is None:
+                step = 1
+            src = mlab.pipeline.scalar_scatter(self.points[:, 0],
+                                               self.points[:, 1],
                                                self.points[:, 2])
             # Connect them
             src.mlab_source.dataset.lines = self.edges
@@ -187,7 +193,7 @@ class MayaviPointGraphViewer3d(MayaviViewer):
                           self.points[:, 2], figure=self.figure,
                           scale_factor=marker_size, mode=marker_style,
                           color=marker_colour, opacity=alpha,
-                          resolution=marker_resolution)
+                          resolution=marker_resolution, mask_points=step)
         return self
 
 
@@ -250,25 +256,31 @@ class MayaviTriMeshViewer3d(MayaviViewer):
 
     def _render_mesh(self, mesh_type='wireframe', line_width=2,
                      colour=(1, 0, 0), marker_size=0.05, marker_resolution=8,
-                     marker_style='sphere', alpha=0.5):
+                     marker_style='sphere', step=None, alpha=1.0):
         import mayavi.mlab as mlab
         mlab.triangular_mesh(self.points[:, 0], self.points[:, 1],
                              self.points[:, 2], self.trilist,
                              figure=self.figure, line_width=line_width,
                              representation=mesh_type, color=colour,
-                             scale_factor=marker_size,
+                             scale_factor=marker_size, mask_points=step,
                              resolution=marker_resolution, mode=marker_style,
                              opacity=alpha, tube_radius=None)
 
-    def render(self, normals=None, mesh_type='wireframe', line_width=2,
-               colour=(1, 0, 0), marker_size=0.05, marker_resolution=8,
-               marker_style='sphere', alpha=0.5, **kwargs):
+    def render(self, mesh_type='wireframe', line_width=2, colour=(1, 0, 0),
+               marker_size=0.05, marker_resolution=8, marker_style='sphere',
+               normals=None, normals_colour=(0, 0, 0), normals_line_width=2,
+               normals_marker_style='2darrow', normals_marker_resolution=8,
+               normals_marker_size=0.05, step=None, alpha=1.0):
         if normals is not None:
             MayaviVectorViewer3d(self.figure_id, False,
-                                 self.points, normals).render(**kwargs)
+                                 self.points, normals).render(
+                colour=normals_colour, line_width=normals_line_width, step=step,
+                marker_style=normals_marker_style,
+                marker_resolution=normals_marker_resolution,
+                marker_size=normals_marker_size, alpha=alpha)
         self._render_mesh(mesh_type=mesh_type, line_width=line_width,
                           colour=colour, marker_size=marker_size,
-                          marker_resolution=marker_resolution,
+                          marker_resolution=marker_resolution, step=step,
                           marker_style=marker_style, alpha=alpha)
         return self
 
@@ -339,16 +351,14 @@ class MayaviVectorViewer3d(MayaviViewer):
         self.points = points
         self.vectors = vectors
 
-    def render(self, **kwargs):
+    def render(self, colour=(1, 0, 0), line_width=2, step=None,
+               marker_style='2darrow', marker_resolution=8, marker_size=0.05,
+               alpha=1.0):
         from mayavi import mlab
-        # Only get every nth vector. 1 means get every vector.
-        mask_points = kwargs.get('mask_points', 1)
-        mlab.quiver3d(self.points[:, 0],
-                      self.points[:, 1],
-                      self.points[:, 2],
-                      self.vectors[:, 0],
-                      self.vectors[:, 1],
-                      self.vectors[:, 2],
-                      mask_points=mask_points,
-                      figure=self.figure)
+        mlab.quiver3d(self.points[:, 0], self.points[:, 1], self.points[:, 2],
+                      self.vectors[:, 0], self.vectors[:, 1], self.vectors[:, 2],
+                      figure=self.figure, color=colour, mask_points=step,
+                      line_width=line_width, mode=marker_style,
+                      resolution=marker_resolution, opacity=alpha,
+                      scale_factor=marker_size)
         return self
