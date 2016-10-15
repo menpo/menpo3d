@@ -285,18 +285,19 @@ class MayaviTriMeshViewer3d(MayaviViewer):
         return self
 
 
-class MayaviTexturedTriMeshViewer3d(MayaviTriMeshViewer3d):
+class MayaviTexturedTriMeshViewer3d(MayaviViewer):
 
-    def __init__(self, figure_id, new_figure, points,
-                 trilist, texture, tcoords_per_point):
+    def __init__(self, figure_id, new_figure, points, trilist, texture,
+                 tcoords_per_point):
         super(MayaviTexturedTriMeshViewer3d, self).__init__(figure_id,
-                                                            new_figure,
-                                                            points,
-                                                            trilist)
+                                                            new_figure)
+        self.points = points
+        self.trilist = trilist
         self.texture = texture
         self.tcoords_per_point = tcoords_per_point
 
-    def _render_mesh(self):
+    def _render_mesh(self, mesh_type='surface', ambient_light=0.0,
+                     specular_light=0.0, alpha=1.0):
         from tvtk.api import tvtk
         pd = tvtk.PolyData()
         pd.points = self.points
@@ -304,7 +305,9 @@ class MayaviTexturedTriMeshViewer3d(MayaviTriMeshViewer3d):
         pd.point_data.t_coords = self.tcoords_per_point
         mapper = tvtk.PolyDataMapper()
         mapper.set_input_data(pd)
-        actor = tvtk.Actor(mapper=mapper)
+        p = tvtk.Property(representation=mesh_type, opacity=alpha,
+                          ambient=ambient_light, specular=specular_light)
+        actor = tvtk.Actor(mapper=mapper, property=p)
         # Get the pixels from our image class which are [0, 1] and scale
         # back to valid pixels. Then convert to tvtk ImageData.
         texture = self.texture.pixels_with_channels_at_back(out_dtype=np.uint8)
@@ -320,18 +323,34 @@ class MayaviTexturedTriMeshViewer3d(MayaviTriMeshViewer3d):
         actor.texture = texture
         self.figure.scene.add_actors(actor)
 
+    def render(self, mesh_type='surface', ambient_light=0.0, specular_light=0.0,
+               normals=None, normals_colour=(0, 0, 0), normals_line_width=2,
+               normals_marker_style='2darrow', normals_marker_resolution=8,
+               normals_marker_size=0.05, step=None, alpha=1.0):
+        if normals is not None:
+            MayaviVectorViewer3d(self.figure_id, False,
+                                 self.points, normals).render(
+                colour=normals_colour, line_width=normals_line_width, step=step,
+                marker_style=normals_marker_style,
+                marker_resolution=normals_marker_resolution,
+                marker_size=normals_marker_size, alpha=alpha)
+        self._render_mesh(mesh_type=mesh_type, ambient_light=ambient_light,
+                          specular_light=specular_light, alpha=alpha)
+        return self
 
-class MayaviColouredTriMeshViewer3d(MayaviTriMeshViewer3d):
+
+class MayaviColouredTriMeshViewer3d(MayaviViewer):
 
     def __init__(self, figure_id, new_figure, points,
                  trilist, colour_per_point):
         super(MayaviColouredTriMeshViewer3d, self).__init__(figure_id,
-                                                            new_figure,
-                                                            points,
-                                                            trilist)
+                                                            new_figure)
+        self.points = points
+        self.trilist = trilist
         self.colour_per_point = colour_per_point
 
-    def _render_mesh(self):
+    def _render_mesh(self, mesh_type='surface', ambient_light=0.0,
+                     specular_light=0.0, alpha=1.0):
         from tvtk.api import tvtk
         pd = tvtk.PolyData()
         pd.points = self.points
@@ -339,8 +358,25 @@ class MayaviColouredTriMeshViewer3d(MayaviTriMeshViewer3d):
         pd.point_data.scalars = (self.colour_per_point * 255.).astype(np.uint8)
         mapper = tvtk.PolyDataMapper()
         mapper.set_input_data(pd)
-        actor = tvtk.Actor(mapper=mapper)
+        p = tvtk.Property(representation=mesh_type, opacity=alpha,
+                          ambient=ambient_light, specular=specular_light)
+        actor = tvtk.Actor(mapper=mapper, property=p)
         self.figure.scene.add_actors(actor)
+
+    def render(self, mesh_type='surface', ambient_light=0.0, specular_light=0.0,
+               normals=None, normals_colour=(0, 0, 0), normals_line_width=2,
+               normals_marker_style='2darrow', normals_marker_resolution=8,
+               normals_marker_size=0.05, step=None, alpha=1.0):
+        if normals is not None:
+            MayaviVectorViewer3d(self.figure_id, False,
+                                 self.points, normals).render(
+                colour=normals_colour, line_width=normals_line_width, step=step,
+                marker_style=normals_marker_style,
+                marker_resolution=normals_marker_resolution,
+                marker_size=normals_marker_size, alpha=alpha)
+        self._render_mesh(mesh_type=mesh_type, ambient_light=ambient_light,
+                          specular_light=specular_light, alpha=alpha)
+        return self
 
 
 class MayaviVectorViewer3d(MayaviViewer):
