@@ -17,17 +17,17 @@ class MayaviViewer(Renderer):
 
     def __init__(self, figure_id, new_figure):
         try:
-            import mayavi
+            import mayavi.mlab as mlab
         except ImportError:
             raise ImportError("mayavi is required for viewing 3D objects "
                               "(consider 'conda/pip install mayavi')")
         super(MayaviViewer, self).__init__(figure_id, new_figure)
 
-        self._supported_ext = ['.png', '.jpg', '.bmp', '.tiff',  # 2D
-                               '.ps', '.eps', '.pdf',  # 2D
-                               '.rib', '.oogl', 'iv', '.vrml', '.obj']  # 3D
+        self._supported_ext = ['png', 'jpg', 'bmp', 'tiff',  # 2D
+                               'ps', 'eps', 'pdf',  # 2D
+                               'rib', 'oogl', 'iv', 'vrml', 'obj']  # 3D
         n_ext = len(self._supported_ext)
-        func_list = [lambda obj, fp: mayavi.mlab.savefig(fp, **obj)] * n_ext
+        func_list = [lambda obj, fp, **kwargs: mlab.savefig(fp.name, **obj)] * n_ext
         self._extensions_map = dict(zip(['.' + s for s in self._supported_ext],
                                     func_list))
 
