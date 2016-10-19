@@ -65,15 +65,17 @@ class MayaviViewer(Renderer):
         format : `str`
             The format to use. This must match the file path if the file path is
             a `str`.
-        size : `tuple` of `int`, optional
+        size : `tuple` of `int` or ``None``, optional
             The size of the image created (unless magnification is set,
-            in which case it is the size of the window used for rendering).
-        magnification :	`double`, optional
+            in which case it is the size of the window used for rendering). If
+            ``None``, then the figure size is used.
+        magnification :	`double` or ``'auto'``, optional
             The magnification is the scaling between the pixels on the screen,
             and the pixels in the file saved. If you do not specify it, it will
             be calculated so that the file is saved with the specified size.
             If you specify a magnification, Mayavi will use the given size as a
             screen size, and the file size will be ``magnification * size``.
+            If ``'auto'``, then the magnification will be set automatically.
         overwrite : `bool`, optional
             If ``True``, the file will be overwritten if it already exists.
         """
