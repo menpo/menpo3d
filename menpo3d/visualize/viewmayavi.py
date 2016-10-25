@@ -45,7 +45,9 @@ class MayaviViewer(Renderer):
         """
         import mayavi.mlab as mlab
         if self.new_figure or self.figure_id is not None:
-            self.figure = mlab.figure(self.figure_id)
+            self.figure = mlab.figure(self.figure_id, bgcolor=(1, 1, 1))
+            # and reset the view to z forward, y up.
+            self.figure.scene.camera.view_up = np.array([0, 1, 0])
         else:
             self.figure = mlab.gcf()
 
@@ -139,6 +141,13 @@ class MayaviViewer(Renderer):
                 'model_matrix': np.eye(4, dtype=np.float32),
                 'view_matrix': self.modelview_matrix,
                 'projection_matrix': self.projection_matrix}
+
+    def clear_figure(self):
+        r"""
+        Method for clearing the current figure.
+        """
+        from mayavi import mlab
+        mlab.clf(figure=self.figure)
 
 
 class MayaviPointCloudViewer3d(MayaviViewer):
@@ -297,6 +306,7 @@ class MayaviTexturedTriMeshViewer3d(MayaviViewer):
         self.trilist = trilist
         self.texture = texture
         self.tcoords_per_point = tcoords_per_point
+        self._actors = []
 
     def _render_mesh(self, mesh_type='surface', ambient_light=0.0,
                      specular_light=0.0, alpha=1.0):
@@ -324,6 +334,7 @@ class MayaviTexturedTriMeshViewer3d(MayaviViewer):
         texture.set_input_data(image)
         actor.texture = texture
         self.figure.scene.add_actors(actor)
+        self._actors.append(actor)
 
     def render(self, mesh_type='surface', ambient_light=0.0, specular_light=0.0,
                normals=None, normals_colour=(0, 0, 0), normals_line_width=2,
@@ -350,6 +361,7 @@ class MayaviColouredTriMeshViewer3d(MayaviViewer):
         self.points = points
         self.trilist = trilist
         self.colour_per_point = colour_per_point
+        self._actors = []
 
     def _render_mesh(self, mesh_type='surface', ambient_light=0.0,
                      specular_light=0.0, alpha=1.0):
@@ -364,6 +376,7 @@ class MayaviColouredTriMeshViewer3d(MayaviViewer):
                           ambient=ambient_light, specular=specular_light)
         actor = tvtk.Actor(mapper=mapper, property=p)
         self.figure.scene.add_actors(actor)
+        self._actors.append(actor)
 
     def render(self, mesh_type='surface', ambient_light=0.0, specular_light=0.0,
                normals=None, normals_colour=(0, 0, 0), normals_line_width=2,
@@ -379,6 +392,14 @@ class MayaviColouredTriMeshViewer3d(MayaviViewer):
         self._render_mesh(mesh_type=mesh_type, ambient_light=ambient_light,
                           specular_light=specular_light, alpha=alpha)
         return self
+
+    def clear_figure(self):
+        r"""
+        Method for clearing the current figure.
+        """
+        from mayavi import mlab
+        mlab.clf(figure=self.figure)
+        self.figure.scene.remove_actors(self._actors)
 
 
 class MayaviVectorViewer3d(MayaviViewer):
