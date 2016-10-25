@@ -2,7 +2,6 @@ import numpy as np
 
 from menpo.base import name_of_callable
 from menpo.shape import ColouredTriMesh
-from menpo.transform import UniformScale
 
 
 class ColouredMorphableModel(object):
@@ -70,7 +69,7 @@ class ColouredMorphableModel(object):
         return 'Coloured Morphable Model'
 
     def instance(self, shape_weights=None, texture_weights=None,
-                 landmark_group='landmarks', normalized_weights=False):
+                 landmark_group='landmarks'):
         r"""
         Generates a novel Morphable Model instance given a set of shape and
         texture weights. If no weights are provided, then the mean Morphable
@@ -101,10 +100,8 @@ class ColouredMorphableModel(object):
             texture_weights = np.zeros(self.texture_model.n_active_components)
 
         # Generate instance
-        shape_instance = self.shape_model.instance(shape_weights,
-                                                   normalized_weights=normalized_weights)
-        texture_instance = self.texture_model.instance(texture_weights,
-                                                       normalized_weights=normalized_weights)
+        shape_instance = self.shape_model.instance(shape_weights)
+        texture_instance = self.texture_model.instance(texture_weights)
 
         # Create and return trimesh
         return self._instance(shape_instance, texture_instance, landmark_group)
@@ -127,20 +124,16 @@ class ColouredMorphableModel(object):
         """
         # TODO: this bit of logic should to be transferred down to PCAModel
         shape_weights = np.random.randn(self.shape_model.n_active_components)
-        shape_instance = self.shape_model.instance(shape_weights,
-                                                   normalized_weights=True)
+        shape_instance = self.shape_model.instance(shape_weights)
         texture_weights = np.random.randn(
             self.texture_model.n_active_components)
-        texture_instance = self.texture_model.instance(texture_weights,
-                                                       normalized_weights=True)
+        texture_instance = self.texture_model.instance(texture_weights)
 
         return self._instance(shape_instance, texture_instance, landmark_group)
 
     def _instance(self, shape_instance, texture_instance, landmark_group):
-        # Scale and reshape the texture instance
-        texture_scale = UniformScale(1. / 255, 3)
-        texture_instance = texture_scale.apply(
-            texture_instance.reshape([-1, 3]))
+        # Reshape the texture instance
+        texture_instance = texture_instance.reshape([-1, self.n_channels])
         # Create trimesh
         trimesh = ColouredTriMesh(shape_instance.points,
                                   trilist=shape_instance.trilist,
@@ -149,6 +142,77 @@ class ColouredMorphableModel(object):
         trimesh.landmarks[landmark_group] = self.landmarks
         # Return trimesh
         return trimesh
+
+    def view_shape_model_widget(self, n_parameters=5,
+                                parameters_bounds=(-15.0, 15.0),
+                                mode='multiple'):
+        r"""
+        Visualizes the shape model of the Morphable Model using an interactive
+        widget.
+
+        Parameters
+        ----------
+        n_parameters : `int` or `list` of `int` or ``None``, optional
+            The number of shape principal components to be used for the
+            parameters sliders. If `int`, then the number of sliders per
+            scale is the minimum between `n_parameters` and the number of
+            active components per scale. If `list` of `int`, then a number of
+            sliders is defined per scale. If ``None``, all the active
+            components per scale will have a slider.
+        parameters_bounds : ``(float, float)``, optional
+            The minimum and maximum bounds, in std units, for the sliders.
+        mode : {``single``, ``multiple``}, optional
+            If ``'single'``, only a single slider is constructed along with a
+            drop down menu. If ``'multiple'``, a slider is constructed for
+            each parameter.
+        """
+        try:
+            from menpowidgets import visualize_shape_model_3d
+            visualize_shape_model_3d(self.shape_model,
+                                     n_parameters=n_parameters,
+                                     parameters_bounds=parameters_bounds,
+                                     mode=mode)
+        except ImportError:
+            from menpo.visualize.base import MenpowidgetsMissingError
+            raise MenpowidgetsMissingError()
+
+    def view_mm_widget(self, n_shape_parameters=5, n_texture_parameters=5,
+                       parameters_bounds=(-15.0, 15.0), mode='multiple'):
+        r"""
+        Visualizes the Morphable Model using an interactive widget.
+
+        Parameters
+        ----------
+        n_shape_parameters : `int` or `list` of `int` or ``None``, optional
+            The number of shape principal components to be used for the
+            parameters sliders. If `int`, then the number of sliders per
+            scale is the minimum between `n_parameters` and the number of
+            active components per scale. If `list` of `int`, then a number of
+            sliders is defined per scale. If ``None``, all the active
+            components per scale will have a slider.
+        n_texture_parameters : `int` or `list` of `int` or ``None``, optional
+            The number of texture principal components to be used for the
+            parameters sliders. If `int`, then the number of sliders per
+            scale is the minimum between `n_parameters` and the number of
+            active components per scale. If `list` of `int`, then a number of
+            sliders is defined per scale. If ``None``, all the active
+            components per scale will have a slider.
+        parameters_bounds : ``(float, float)``, optional
+            The minimum and maximum bounds, in std units, for the sliders.
+        mode : {``single``, ``multiple``}, optional
+            If ``'single'``, only a single slider is constructed along with a
+            drop down menu. If ``'multiple'``, a slider is constructed for
+            each parameter.
+        """
+        try:
+            from menpowidgets import visualize_morphable_model
+            visualize_morphable_model(
+                self, n_shape_parameters=n_shape_parameters,
+                n_texture_parameters=n_texture_parameters,
+                parameters_bounds=parameters_bounds, mode=mode)
+        except ImportError:
+            from menpo.visualize.base import MenpowidgetsMissingError
+            raise MenpowidgetsMissingError()
 
     def __str__(self):
         cls_str = r"""{}
