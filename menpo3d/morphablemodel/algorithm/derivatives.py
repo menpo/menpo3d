@@ -188,15 +188,3 @@ def d_perspective_projection_d_warp_parameters(shape_uv, warped_uv,
     dp_dr[:, 5, :] = const * dp_dty_uv
 
     return dp_dr
-
-
-def d_texture_d_texture_parameters(texture_pc_uv):
-    # Initialize
-    n_points, _, n_parameters = texture_pc_uv.shape
-    dt_db = np.zeros((3, n_parameters, n_points))
-
-    # Compute derivative per parameter
-    for k in range(n_parameters):
-        dt_db[:, k, :] = texture_pc_uv[:, :, k].T
-
-    return dt_db

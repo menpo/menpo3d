@@ -9,8 +9,7 @@ from menpo3d.rasterize import GLRasterizer
 from .derivatives import (d_orthographic_projection_d_shape_parameters,
                           d_perspective_projection_d_shape_parameters,
                           d_orthographic_projection_d_warp_parameters,
-                          d_perspective_projection_d_warp_parameters,
-                          d_texture_d_texture_parameters)
+                          d_perspective_projection_d_warp_parameters)
 from ..projection import (compute_view_projection_transforms,
                           get_camera_parameters, compute_rotation_matrices)
 
@@ -364,8 +363,8 @@ class Simultaneous(LucasKanade):
                 # Concatenate it with the derivative wrt shape parameters
                 dp_da_dr = np.hstack((dp_da_dr, dp_dr))
 
-            # Compute derivative of texture wrt texture parameters
-            dt_db = d_texture_d_texture_parameters(texture_pc_uv)
+            # Derivative of texture wrt texture parameters
+            dt_db = np.rollaxis(texture_pc_uv, 0, 3)
 
             # Compute steepest descent
             sd_da_dr = self.compute_steepest_descent(dp_da_dr, grad_x_uv,
