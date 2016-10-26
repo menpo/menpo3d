@@ -11,9 +11,6 @@ class MMFitter(object):
         The trained Morphable Model.
     algorithm : `class`
         The algorithm object that will perform the fitting.
-    projection_type : ``{'orthographic', 'perspective'}``, optional
-        The type of projection from 3D to 2D. It can be either
-        `'orthographic'` or `'perspective'`.
     """
     def __init__(self, mm, algorithm):
         # Assign model and algorithm objects

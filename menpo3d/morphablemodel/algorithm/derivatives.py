@@ -3,8 +3,7 @@ import numpy as np
 from menpo.transform import Homogeneous
 
 
-def d_orthographic_projection_d_shape_parameters(shape_pc_uv, shape_eigenvalues,
-                                                 focal_length,
+def d_orthographic_projection_d_shape_parameters(shape_pc_uv, focal_length,
                                                  rotation_transform):
     # Initialize
     n_points, _, n_parameters = shape_pc_uv.shape
@@ -15,16 +14,14 @@ def d_orthographic_projection_d_shape_parameters(shape_pc_uv, shape_eigenvalues,
 
     # Compute derivative per parameter
     for k in range(n_parameters):
-        dw_da_k_uv = rotation_transform.apply(
-            shape_eigenvalues[k] * shape_pc_uv[..., k]).T
+        dw_da_k_uv = rotation_transform.apply(shape_pc_uv[..., k]).T
         dp_da_k_uv = np.vstack((dw_da_k_uv[0], dw_da_k_uv[1]))
         dp_da[:, k, :] = const * dp_da_k_uv
 
     return dp_da
 
 
-def d_perspective_projection_d_shape_parameters(shape_pc_uv, shape_eigenvalues,
-                                                focal_length,
+def d_perspective_projection_d_shape_parameters(shape_pc_uv, focal_length,
                                                 rotation_transform, warped_uv):
     # Initialize
     n_points, _, n_parameters = shape_pc_uv.shape
@@ -32,16 +29,15 @@ def d_perspective_projection_d_shape_parameters(shape_pc_uv, shape_eigenvalues,
 
     # Compute constant (focal length divided by squared Z dimension of warped
     # shape
-    w = warped_uv[:, 2]
+    w = -warped_uv[:, 2]
     const = focal_length / (w ** 2)
 
     # Compute derivative per parameter
     for k in range(n_parameters):
-        dw_da_k_uv = rotation_transform.apply(
-            shape_eigenvalues[k] * shape_pc_uv[..., k]).T
+        dw_da_k_uv = rotation_transform.apply(shape_pc_uv[..., k]).T
         dp_da_k_uv = np.vstack(
             (dw_da_k_uv[0] * w - warped_uv[:, 0] * dw_da_k_uv[2],
-             dw_da_k_uv[1] * w - warped_uv[:, 1] * dw_da_k_uv[2]))
+             dw_da_k_uv[1] * w + warped_uv[:, 1] * dw_da_k_uv[2]))
         dp_da[:, k, :] = const * dp_da_k_uv
 
     return dp_da
@@ -194,13 +190,13 @@ def d_perspective_projection_d_warp_parameters(shape_uv, warped_uv,
     return dp_dr
 
 
-def d_texture_d_texture_parameters(texture_pc_uv, texture_eigenvalues):
+def d_texture_d_texture_parameters(texture_pc_uv):
     # Initialize
     n_points, _, n_parameters = texture_pc_uv.shape
     dt_db = np.zeros((3, n_parameters, n_points))
 
     # Compute derivative per parameter
     for k in range(n_parameters):
-        dt_db[:, k, :] = texture_eigenvalues[k] * texture_pc_uv[:, :, k].T
+        dt_db[:, k, :] = texture_pc_uv[:, :, k].T
 
     return dt_db

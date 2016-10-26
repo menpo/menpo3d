@@ -142,8 +142,6 @@ class LucasKanade(object):
         # Inverse rendering
         tri_index_img, b_coords_img = \
             self.rasterizer.rasterize_barycentric_coordinate_image(instance)
-        print(tri_index_img)
-        print(b_coords_img)
         tri_indices = tri_index_img.as_vector()
         b_coords = b_coords_img.as_vector(keep_channels=True)
         true_indices = tri_index_img.mask.true_indices()
@@ -161,7 +159,7 @@ class LucasKanade(object):
 
     def sample(self, x, vertex_indices, b_coords):
         r"""
-        Method tht samples an object at locations specified by the
+        Method that samples an object at locations specified by the
         barycentric coordinates.
 
         Parameters
@@ -205,7 +203,7 @@ class LucasKanade(object):
             scale = image.shape[1] / 2
         else:
             scale = image.shape[0] / 2
-
+        #scale = 1
         # Create gradient image for X and Y
         grad_y = Image(grad.pixels[:self.n_channels] * scale)
         grad_x = Image(grad.pixels[self.n_channels:] * scale)
@@ -213,16 +211,13 @@ class LucasKanade(object):
         return grad_x, grad_y
 
     def d_projection_d_shape_parameters(self, warped_uv, shape_pc_uv,
-                                        shape_eigenvalues, focal_length,
-                                        rotation_transform):
+                                        focal_length, rotation_transform):
         if self.projection_type == 'perspective':
             dp_da = d_perspective_projection_d_shape_parameters(
-                shape_pc_uv, shape_eigenvalues, focal_length,
-                rotation_transform, warped_uv)
+                shape_pc_uv, focal_length, rotation_transform, warped_uv)
         else:
             dp_da = d_orthographic_projection_d_shape_parameters(
-                shape_pc_uv, shape_eigenvalues, focal_length,
-                rotation_transform)
+                shape_pc_uv, focal_length, rotation_transform)
         return dp_da
 
     def d_projection_d_warp_parameters(self, shape_uv, warped_uv,
@@ -318,6 +313,7 @@ class Simultaneous(LucasKanade):
         b_list = [texture_parameters]
         r_list = [warp_parameters]
         costs = []
+        images = []
 
         # Compute input image gradient
         grad_x, grad_y = self.gradient(image)
@@ -327,25 +323,7 @@ class Simultaneous(LucasKanade):
 
         # Generate instance
         instance = self.model.instance()
-
-        # Prior
-        da_prior_db = np.zeros(self.m)
-        da_prior_da = 2. / (self.model.shape_model.eigenvalues ** 2)
-        db_prior_da = np.zeros(self.n)
-        db_prior_db = 2. / (self.model.texture_model.eigenvalues ** 2)
-        if camera_update:
-            prior_drho = np.zeros(len(warp_parameters))
-            sd_alpha_prior = np.concatenate((da_prior_da, prior_drho,
-                                             da_prior_db))
-            sd_beta_prior = np.concatenate((db_prior_da, prior_drho,
-                                            db_prior_db))
-        else:
-            sd_alpha_prior = np.concatenate((da_prior_da,
-                                             da_prior_db))
-            sd_beta_prior = np.concatenate((db_prior_da,
-                                            db_prior_db))
-        h_alpha_prior = np.diag(sd_alpha_prior)
-        h_beta_prior = np.diag(sd_beta_prior)
+        images.append(self.rasterizer.rasterize_mesh(instance))
 
         # Initialize iteration counter and epsilon
         k = 0
@@ -359,19 +337,12 @@ class Simultaneous(LucasKanade):
             # Warp the mesh with the view matrix
             W = view_t.apply(instance.points)
 
-            # This solves the perspective projection problems
-            # It cancels the axes flip done in the view matrix before the
-            # rasterization
-            W[:, 1:] *= -1
-
             # Sample to UV space
             shape_uv = self.sample(instance.points, vertex_indices, b_coords)
             texture_uv = self.sample(instance.colours, vertex_indices, b_coords)
             warped_uv = self.sample(W, vertex_indices, b_coords)
             shape_pc_uv = self.sample(self.shape_pc, vertex_indices, b_coords)
-            print(self.texture_pc.shape)
             texture_pc_uv = self.sample(self.texture_pc, vertex_indices, b_coords)
-            print(texture_pc_uv.shape)
             img_uv = image.sample(true_indices)
             grad_x_uv = grad_x.sample(true_indices)
             grad_y_uv = grad_y.sample(true_indices)
@@ -381,12 +352,10 @@ class Simultaneous(LucasKanade):
             shape_pc_uv = shape_pc_uv.reshape([new_shape[0], 3, -1])
             texture_pc_uv = texture_pc_uv.reshape(
                 [new_shape[0], self.model.n_channels, -1])
-            print(texture_pc_uv.shape)
 
             # Compute derivative of projection wrt shape parameters
             dp_da_dr = self.d_projection_d_shape_parameters(
-                warped_uv, shape_pc_uv, self.model.shape_model.eigenvalues,
-                warp_parameters[0], rotation_t)
+                warped_uv, shape_pc_uv, warp_parameters[0], rotation_t)
 
             # Compute derivative of projection wrt warp parameters
             if camera_update:
@@ -396,8 +365,7 @@ class Simultaneous(LucasKanade):
                 dp_da_dr = np.hstack((dp_da_dr, dp_dr))
 
             # Compute derivative of texture wrt texture parameters
-            dt_db = d_texture_d_texture_parameters(
-                texture_pc_uv, self.model.texture_model.eigenvalues)
+            dt_db = d_texture_d_texture_parameters(texture_pc_uv)
 
             # Compute steepest descent
             sd_da_dr = self.compute_steepest_descent(dp_da_dr, grad_x_uv,
@@ -418,25 +386,8 @@ class Simultaneous(LucasKanade):
             if return_costs:
                 costs.append(eps)
 
-            # Prior probabilities over shape parameters
-            if camera_update:
-                prior_error = np.concatenate((shape_parameters,
-                                              warp_parameters,
-                                              texture_parameters))
-            else:
-                prior_error = np.concatenate((shape_parameters,
-                                              texture_parameters))
-
-            # Prior probability SD matrices
-            sd_error_alpha_prior = sd_alpha_prior * prior_error
-            sd_error_beta_prior = sd_beta_prior * prior_error
-
-            # Final hessian and SD error matrix
-            h += 0 * h_alpha_prior + h_beta_prior
-            sd_error_img += 0 * sd_error_alpha_prior + sd_error_beta_prior
-
             # Compute increment
-            delta_s = -np.dot(np.linalg.inv(h), sd_error_img)
+            delta_s = - np.linalg.solve(h, sd_error_img)
 
             # Update parameters
             shape_parameters += delta_s[:self.n]
@@ -449,15 +400,32 @@ class Simultaneous(LucasKanade):
                 texture_parameters += delta_s[self.n:]
             b_list.append(texture_parameters)
 
+            # print("Image UV: {:.5f} - {:.5f}".format(img_uv.min(),
+            #                                          img_uv.max()))
+            # print("Instance UV: {:.5f} - {:.5f}".format(texture_uv.min(),
+            #                                             texture_uv.max()))
+            # print("Grad X: {:.5f} - {:.5f}".format(grad_x_uv.min(),
+            #                                        grad_x_uv.max()))
+            # print("Grad Y: {:.5f} - {:.5f}".format(grad_y_uv.min(),
+            #                                        grad_y_uv.max()))
+            # print("SD 1.1: {:.5f} - {:.5f}".format(sd_da_dr.min(),
+            #                                        sd_da_dr.max()))
+            # print("SD 1.2: {:.5f} - {:.5f}".format(dp_da_dr.min(),
+            #                                        dp_da_dr.max()))
+            # print("SD 2: {:.5f} - {:.5f}".format(dt_db.min(),
+            #                                      dt_db.max()))
+
             # Generate the updated instance
             # The texture is scaled by 255 to cancel the 1./255 scaling in the
             # model class
             instance = self.model.instance(
                 shape_weights=shape_parameters,
-                texture_weights=255. * texture_parameters)
+                texture_weights=texture_parameters)
 
             # Clip to avoid out of range pixels
             instance.colours = np.clip(instance.colours, 0, 1)
+
+            images.append(self.rasterizer.rasterize_mesh(instance))
 
             # Update rasterizer
             if camera_update:
@@ -479,8 +447,7 @@ class Simultaneous(LucasKanade):
 
         del self.rasterizer
 
-        return rasterized_result, instance, costs, shape_parameters, \
-               texture_parameters, warp_parameters
+        return rasterized_result, instance, costs, images, a_list, b_list, r_list
 
     def __str__(self):
         return "Simultaneous Lucas-Kanade"
