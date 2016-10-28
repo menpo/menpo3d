@@ -1,10 +1,10 @@
 import numpy as np
 
 from menpo.base import name_of_callable
-from menpo.shape import ColouredTriMesh
+from menpo.shape import ColouredTriMesh, TexturedTriMesh
 
 
-class ColouredMorphableModel(object):
+class MorphableModel(object):
     r"""
     Class for defining a Coloured Morphable Model. Please see the references
     for a basic list of relevant papers.
@@ -131,18 +131,6 @@ class ColouredMorphableModel(object):
 
         return self._instance(shape_instance, texture_instance, landmark_group)
 
-    def _instance(self, shape_instance, texture_instance, landmark_group):
-        # Reshape the texture instance
-        texture_instance = texture_instance.reshape([-1, self.n_channels])
-        # Create trimesh
-        trimesh = ColouredTriMesh(shape_instance.points,
-                                  trilist=shape_instance.trilist,
-                                  colours=texture_instance)
-        # Attach landmarks to trimesh
-        trimesh.landmarks[landmark_group] = self.landmarks
-        # Return trimesh
-        return trimesh
-
     def view_shape_model_widget(self, n_parameters=5,
                                 parameters_bounds=(-15.0, 15.0),
                                 mode='multiple'):
@@ -232,3 +220,37 @@ class ColouredMorphableModel(object):
            self.texture_model.n_components, self.n_channels,
            name_of_callable(self.landmarks), self.landmarks.n_points)
         return cls_str
+
+
+class ColouredMorphableModel(MorphableModel):
+
+    def _instance(self, shape_instance, texture_instance, landmark_group):
+        # Reshape the texture instance
+        texture_instance = texture_instance.reshape([-1, self.n_channels])
+        # Create trimesh
+        trimesh = ColouredTriMesh(shape_instance.points,
+                                  trilist=shape_instance.trilist,
+                                  colours=texture_instance)
+        # Attach landmarks to trimesh
+        trimesh.landmarks[landmark_group] = self.landmarks
+        # Return trimesh
+        return trimesh
+
+
+class TexturedMorphableModel(MorphableModel):
+
+    def __init__(self, shape_model, texture_model, landmarks, tcoords):
+        super(TexturedMorphableModel, self).__init__(shape_model,
+                                                     texture_model, landmarks)
+        self.tcoords = tcoords
+
+    def _instance(self, shape_instance, texture_instance, landmark_group):
+        # Create trimesh
+        trimesh = TexturedTriMesh(shape_instance.points,
+                                  trilist=shape_instance.trilist,
+                                  tcoords=tcoords,
+                                  texture=texture_instance)
+        # Attach landmarks to trimesh
+        trimesh.landmarks[landmark_group] = self.landmarks
+        # Return trimesh
+        return trimesh
