@@ -1,10 +1,10 @@
 import numpy as np
 
-from menpo.base import name_of_callable
+from menpo.base import name_of_callable, Copyable
 from menpo.shape import ColouredTriMesh
 
 
-class ColouredMorphableModel(object):
+class ColouredMorphableModel(Copyable):
     r"""
     Class for defining a Coloured Morphable Model. Please see the references
     for a basic list of relevant papers.
