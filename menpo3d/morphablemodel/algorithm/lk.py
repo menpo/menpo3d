@@ -4,14 +4,11 @@ from menpo.feature import gradient as fast_gradient
 from menpo.image import Image
 from menpo.visualize import print_dynamic
 
-from menpo3d.rasterize import GLRasterizer
-
 from .derivatives import (d_orthographic_projection_d_shape_parameters,
                           d_perspective_projection_d_shape_parameters,
                           d_orthographic_projection_d_warp_parameters,
                           d_perspective_projection_d_warp_parameters)
-from ..projection import (compute_view_projection_transforms,
-                          get_camera_parameters, compute_rotation_matrices)
+from ..projection import get_camera_parameters, compute_rotation_matrices
 
 
 class LucasKanade(object):
@@ -20,7 +17,6 @@ class LucasKanade(object):
         self.eps = eps
         self.n_samples = n_samples
         self.projection_type = projection_type
-        self.rasterizer = None
 
         # Call precomputation
         self._precompute()
@@ -61,66 +57,7 @@ class LucasKanade(object):
         """
         return self.model.n_channels
 
-    def initialize_camera_parameters(self, image, shape,
-                                     distortion_coeffs=None):
-        r"""
-        Retrieves the camera model properties, i.e. view transform,
-        projection transform, rotation transform and the warp parameters
-        vector (focal length, varphi, theta, phi, translation X, translation Y).
-
-        Parameters
-        ----------
-        image : `menpo.image.Image` or subclass
-            The input image.
-        shape : `menpo.shape.PointCloud` or subclass
-            The input 2D pointcloud defined on the image coordinate space.
-        distortion_coeffs : ``(4,)`` or ``(5,)`` or ``(8,)`` `ndarray` or ``None``, optional
-            The distortion coefficients of 4, 5, or 8 elements. If ``None``,
-            then the distortion coefficients are set to zero.
-
-        Returns
-        -------
-        view_transform : `menpo.transform.Homogeneous`
-            The view transform object.
-        projection_transform : `menpo.transform.Homogeneous`
-            The projection transform object.
-        rotation_transform : `menpo.transform.Rotation`
-            The rotation transform object.
-        params : ``(6,)`` `ndarray`
-            The camera parameters:
-            focal length, varphi, theta, phi, translation X, translation Y
-        """
-        # Estimate view transform, projection transform and rotation
-        view_t, projection_t, rotation_t = compute_view_projection_transforms(
-            image=image, mesh=self.model.shape_model.mean(),
-            image_pointcloud=shape, mesh_pointcloud=self.model.landmarks,
-            distortion_coeffs=distortion_coeffs)
-
-        # Get warp (camera) parameters vector
-        warp_parameters = get_camera_parameters(projection_t, view_t)
-
-        return view_t, projection_t, rotation_t, warp_parameters
-
-    def initialize_rasterizer(self, image, view_transform,
-                              projection_transform):
-        r"""
-        Initializes the rasterizer using :map:`GLRasterizer`.
-
-        Parameters
-        ----------
-        image : `menpo.image.Image` or subclass
-            The input image.
-        view_transform : `menpo.transform.Homogeneous`
-            The view transform object of the camera.
-        projection_transform : `menpo.transform.Homogeneous`
-            The projection transform object of the camera.
-        """
-        self.rasterizer = GLRasterizer(
-            height=image.height, width=image.width,
-            view_matrix=view_transform.h_matrix,
-            projection_matrix=projection_transform.h_matrix)
-
-    def compute_warp_indices(self, instance):
+    def compute_warp_indices(self, instance, rasterizer):
         r"""
         Computes the warping map.
 
@@ -140,7 +77,7 @@ class LucasKanade(object):
         """
         # Inverse rendering
         tri_index_img, b_coords_img = \
-            self.rasterizer.rasterize_barycentric_coordinate_image(instance)
+            rasterizer.rasterize_barycentric_coordinate_image(instance)
         tri_indices = tri_index_img.as_vector()
         b_coords = b_coords_img.as_vector(keep_channels=True)
         true_indices = tri_index_img.mask.true_indices()
@@ -267,8 +204,8 @@ class Simultaneous(LucasKanade):
     r"""
     Class for defining Simultaneous Morphable Model optimization algorithm.
     """
-    def run(self, image, initial_shape, camera_update=False, max_iters=20,
-            return_costs=False):
+    def run(self, image, instance, rasterizer, view_t, projection_t, rotation_t,
+            camera_update=False, max_iters=20, return_costs=False):
         r"""
         Execute the optimization algorithm.
 
@@ -300,29 +237,25 @@ class Simultaneous(LucasKanade):
         def cost_closure(x):
             return x.T.dot(x)
 
-        # Retrieve warp (camera) parameters, view transform, projection
-        # transform and rotation transform
-        view_t, projection_t, rotation_t, warp_parameters = \
-            self.initialize_camera_parameters(image, initial_shape)
+        # Retrieve warp (camera) parameters from the provided view and
+        # projection transforms.
+        warp_parameters = get_camera_parameters(projection_t, view_t)
 
         # Initialize parameters lists
-        shape_parameters = np.zeros(self.n)
-        texture_parameters = np.zeros(self.m)
+        shape_parameters = self.model.shape_model.project(instance)
+        texture_parameters = self.model.texture_model.project(
+            instance.colours.ravel())
         a_list = [shape_parameters]
         b_list = [texture_parameters]
         r_list = [warp_parameters]
         costs = []
-        images = []
+        rasterized_fittings = []
 
         # Compute input image gradient
         grad_x, grad_y = self.gradient(image)
 
-        # Initialize the rasterizer
-        self.initialize_rasterizer(image, view_t, projection_t)
-
-        # Generate instance
-        instance = self.model.instance()
-        images.append(self.rasterizer.rasterize_mesh(instance))
+        # Store instance
+        rasterized_fittings.append(rasterizer.rasterize_mesh(instance))
 
         # Initialize iteration counter and epsilon
         k = 0
@@ -331,7 +264,7 @@ class Simultaneous(LucasKanade):
             print_dynamic("{}/{}".format(k, max_iters))
             # Compute indices locations for warping
             vertex_indices, b_coords, true_indices = self.compute_warp_indices(
-                instance)
+                instance, rasterizer)
 
             # Warp the mesh with the view matrix
             W = view_t.apply(instance.points)
@@ -424,7 +357,7 @@ class Simultaneous(LucasKanade):
             # Clip to avoid out of range pixels
             instance.colours = np.clip(instance.colours, 0, 1)
 
-            images.append(self.rasterizer.rasterize_mesh(instance))
+            rasterized_fittings.append(rasterizer.rasterize_mesh(instance))
 
             # Update rasterizer
             if camera_update:
@@ -436,17 +369,12 @@ class Simultaneous(LucasKanade):
                 view_t.h_matrix[0, :3] = rot_t.h_matrix[0, :3]
 
                 # Update the rasterizer
-                self.rasterizer.set_view_matrix(view_t.h_matrix)
+                rasterizer.set_view_matrix(view_t.h_matrix)
 
             # Increase iteration counter
             k += 1
 
-        # Rasterize the final mesh
-        rasterized_result = self.rasterizer.rasterize_mesh(instance)
-
-        del self.rasterizer
-
-        return rasterized_result, instance, costs, images, a_list, b_list, r_list
+        return rasterized_fittings, instance, costs, a_list, b_list, r_list
 
     def __str__(self):
         return "Simultaneous Lucas-Kanade"
