@@ -6,8 +6,19 @@ from menpo.shape import ColouredTriMesh, TexturedTriMesh
 
 class MorphableModel(Copyable):
     r"""
-    Class for defining a Coloured Morphable Model. Please see the references
-    for a basic list of relevant papers.
+    Abstract class for defining a Morphable Model.
+
+    There are two subclasses, analogously to the :map:`TexturedTriMesh` and
+    :map:`ColouredTriMesh`. The only differences come in two areas:
+
+         1. How the shape and texture PCA models are combined in synthesising a
+            new instance
+         2. How the texture is sampled at locations in forming the cost
+            function
+
+    The vast majority of the code is shared in this superclass.
+
+    Please see the references for a basic list of relevant papers.
 
     Parameters
     ----------
@@ -15,10 +26,7 @@ class MorphableModel(Copyable):
         The PCA model of the 3D shape. It is assumed that a shape instance is
         defined as a `menpo.shape.TriMesh`.
     texture_model : `menpo.model.PCAVectorModel`
-        The PCA model of the 3D texture. It is assumed that a texture
-        instance is defined as an ``(n_vertices * n_channels,)`` vector,
-        where `n_vertices` should be the same as in the case of the
-        `shape_model`.
+
     landmarks : `menpo.shape.PointUndirectedGraph`
         The set of sparse landmarks defined in the 3D space.
 
@@ -223,7 +231,33 @@ class MorphableModel(Copyable):
 
 
 class ColouredMorphableModel(MorphableModel):
+    r"""
+    A Morphable Model where the texture information is assigned as a per-vertex
+    Color vector.
 
+    Parameters
+    ----------
+    shape_model : `menpo.model.PCAModel`
+        The PCA model of the 3D shape. It is assumed that a shape instance is
+        defined as a `menpo.shape.TriMesh`.
+    color_model : `menpo.model.PCAVectorModel`
+        The PCA model of the per-vertex texture. It is assumed that a texture
+        instance is defined as an ``(n_vertices * n_channels,)`` vector,
+        where `n_vertices` should be the same as in the case of the
+        `shape_model`.
+    landmarks : `menpo.shape.PointCloud`
+        The set of sparse landmarks defined in the 3D space.
+
+    References
+    ----------
+    .. [1] V. Blanz, T. Vetter. "A morphable model for the synthesis of 3D
+        faces", Conference on Computer Graphics and Interactive Techniques,
+        pp. 187-194, 1999.
+    .. [2] P. Paysan, R. Knothe, B. Amberg, S. Romdhani, T. Vetter. "A 3D
+        face model for pose and illumination invariant face recognition",
+        IEEE International Conference on Advanced Video and Signal Based
+        Surveillance, pp. 296-301, 2009.
+    """
     def _instance(self, shape_instance, texture_instance, landmark_group):
         # Reshape the texture instance
         texture_instance = texture_instance.reshape([-1, self.n_channels])
@@ -238,7 +272,25 @@ class ColouredMorphableModel(MorphableModel):
 
 
 class TexturedMorphableModel(MorphableModel):
+    r"""
+    A Morphable Model where the texture information is assigned as image, with
+    texture coordinates linking the vertex locations to the texture. This allows
+    for a Model with differing spatial and texture resolutions.
 
+    Parameters
+    ----------
+    shape_model : `menpo.model.PCAModel`
+        The PCA model of the 3D shape. It is assumed that a shape instance is
+        defined as a :map:`menpo.shape.TriMesh`.
+    texture_model : :map:`PCAModel`.
+        The PCA model of texture. It is assumed that a texture instance is
+        defined as a `menpo.image.Image`.
+    landmarks : `menpo.shape.PointCloud`
+        The set of sparse landmarks defined in the 3D space.
+     tcoords : `menpo.shape.PointCloud`
+        The texture coordinates linking any instance of the `texture_model`
+        to any instance of the `shape_model`.
+    """
     def __init__(self, shape_model, texture_model, landmarks, tcoords):
         super(TexturedMorphableModel, self).__init__(shape_model,
                                                      texture_model, landmarks)
