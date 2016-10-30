@@ -1,8 +1,8 @@
 from __future__ import division
 import numpy as np
-import cv2
 
-from menpo.transform import Translation, Rotation, Homogeneous
+from menpo.transform import Homogeneous
+from menpo3d.camera import optimal_perspective_camera
 
 
 def compute_rotation_matrices(phi, theta, varphi):
@@ -102,7 +102,8 @@ def weak_projection_matrix(width, height, mesh_camera_space):
 
 
 def compute_view_projection_transforms(image, mesh, image_pointcloud,
-                                       mesh_pointcloud, distortion_coeffs=None):
+                                       mesh_pointcloud,
+                                       distortion_coeffs=None):
     r"""
     Function that estimates the camera pose (view and projection transforms)
     given a mesh, an image, the 3D sparse pointcloud on the mesh and its
@@ -133,28 +134,9 @@ def compute_view_projection_transforms(image, mesh, image_pointcloud,
     rotation_transform : `menpo.transform.Rotation`
         The rotation transform object.
     """
-    # Create camera matrix
-    max_d = max(image.height, image.width)
-    camera_matrix = np.array([[max_d, 0,     image.width / 2.0 ],
-                              [0,     max_d, image.height / 2.0],
-                              [0,     0,     1.0]])
-
-    # If distortion coefficients are None, set them to zero
-    if distortion_coeffs is None:
-        distortion_coeffs = np.zeros(4)
-
-    # Estimate the mesh (camera) pose, given the 3D sparse pointcloud on the
-    # mesh, its 2D projection on the image, the camera matrix and the
-    # distortion coefficients
-    _, r_vec, t_vec = cv2.solvePnP(mesh_pointcloud.points,
-                                   image_pointcloud.points[:, ::-1],
-                                   camera_matrix, distortion_coeffs)
-
-    # Create rotation and translation transform objects from the vectors
-    # acquired at the previous step
-    rotation_matrix = cv2.Rodrigues(r_vec)[0]
-    r = Rotation(rotation_matrix)
-    t = Translation(t_vec.ravel())
+    r, t, p, c = optimal_perspective_camera(image_pointcloud, mesh_pointcloud,
+                                            image.width, image.height,
+                                            distortion_coeffs=distortion_coeffs)
 
     # This is equivalent to rotating y by 180, then rotating z by 180.
     # This is also equivalent to glulookat to lookat the origin

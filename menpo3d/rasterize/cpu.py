@@ -3,7 +3,7 @@ from menpo.transform.piecewiseaffine.base import barycentric_vectors
 from menpo.image import BooleanImage, MaskedImage
 
 
-def _pixels_to_check_python():
+def _pixels_to_check_python(start, end, _):
     pixel_locations = []
     tri_indices = []
 
@@ -12,22 +12,6 @@ def _pixels_to_check_python():
             for y in range(s_y, e_y):
                 pixel_locations.append((x, y))
                 tri_indices.append(i)
-
-    pixel_locations = np.array(pixel_locations)
-    tri_indices = np.array(tri_indices)
-    return pixel_locations, tri_indices
-
-
-def _pixels_to_check_alt_python():
-    pixel_locations = []
-    tri_indices = []
-
-    for i, ((s_x, s_y), (e_x, e_y)) in enumerate(zip(start, end)):
-        x = np.arange(s_x, e_x)
-        y = np.arange(s_y, e_y)
-        grid = np.transpose([np.tile(x, len(y)), np.repeat(y, len(x))])
-        pixel_locations.append(grid)
-        tri_indices.append(np.repeat(i, grid.shape[0]))
 
     pixel_locations = np.array(pixel_locations)
     tri_indices = np.array(tri_indices)
@@ -86,9 +70,37 @@ def z_values_for_bcoords(mesh, bcoords, tri_indices):
         mesh.points[:, -1][..., None], bcoords, tri_indices)[:, 0]
 
 
+def pixel_sample_uniform(xy, n_samples):
+    chosen_mask = np.random.permutation(np.arange(xy.shape[0]))[:n_samples]
+    return xy[chosen_mask]
+
+
+def unique_locations(xy, width, height):
+    mask = np.zeros([width, height], dtype=np.bool)
+    mask[xy[:, 0], xy[:, 1]] = True
+    return np.vstack(np.nonzero(mask)).T
+
+
+def location_to_index(xy, width):
+    return xy[:, 0] * width + xy[:, 1]
+
+
 def barycentric_coordinate_image(mesh, width, height):
 
+    # 1. Find all pixel-sites that may need to be rendered to
+    #    + the triangle that may partake in rendering
     xy, tri_indices = pixel_locations_and_tri_indices(mesh)
+
+    # # Optionally limit to subset of pixels
+    # if n_random_samples is not None:
+    #     # 2. Find the unique pixel sites
+    #     xy_u = unique_locations(xy, width, height)
+    #
+    #     xy_u = pixel_sample_uniform(xy_u, n_random_samples)
+    #     to_keep = np.in1d(location_to_index(xy, width),
+    #                       location_to_index(xy_u, width))
+    #     xy = xy[to_keep]
+    #     tri_indices = tri_indices[to_keep]
 
     bcoords = xy_bcoords(mesh, tri_indices, xy)
 
@@ -119,7 +131,7 @@ def barycentric_coordinate_image(mesh, width, height):
     bcoords = bcoords[z_buffer_mask]
     tri_indices = tri_indices[z_buffer_mask]
 
-    tri_index_img = np.zeros((1, height, width))
+    tri_index_img = np.zeros((1, height, width), dtype=int)
     bcoord_img = np.zeros((3, height, width))
     mask = np.zeros((height, width), dtype=np.bool)
     mask[height - xy[:, 1], xy[:, 0]] = True
