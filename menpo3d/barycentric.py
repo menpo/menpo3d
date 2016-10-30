@@ -1,5 +1,5 @@
 import numpy as np
-from menpo.shape import PointCloud, TriMesh
+from menpo.shape import PointCloud, TriMesh, ColouredTriMesh, TexturedTriMesh
 from .vtkutils import trimesh_to_vtk, VTKClosestPointLocator
 
 
@@ -139,7 +139,22 @@ def project_barycentric_coordinates(self, bcoords, tri_indices):
     return PointCloud(interped_points, copy=False)
 
 
+def sample_texture_with_barycentric_coordinates_colour(self, bcoords,
+                                                       tri_indices):
+    return self.barycentric_coordinate_interpolation(
+        self.colours, bcoords, tri_indices)
+
+
+def sample_texture_with_barycentric_coordinates_texture(self, bcoords,
+                                                        tri_indices):
+    sample_points = self.barycentric_coordinate_interpolation(
+            self.tcoords_pixel_scaled().points, bcoords, tri_indices)
+    return self.texture.sample(sample_points).T
+
+
 TriMesh.snap_pointcloud_to_surface = snap_pointcloud_to_surface
 TriMesh.barycentric_coordinates_of_pointcloud = barycentric_coordinates_of_pointcloud
 TriMesh.barycentric_coordinate_interpolation = barycentric_coordinate_interpolation
 TriMesh.project_barycentric_coordinates = project_barycentric_coordinates
+ColouredTriMesh.sample_texture_with_barycentric_coordinates = sample_texture_with_barycentric_coordinates_colour
+TexturedTriMesh.sample_texture_with_barycentric_coordinates = sample_texture_with_barycentric_coordinates_texture

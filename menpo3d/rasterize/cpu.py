@@ -27,8 +27,10 @@ except IOError:
 
 def pixel_locations_and_tri_indices(mesh):
     vertex_trilist = mesh.points[mesh.trilist]
-    start = np.floor(vertex_trilist.min(axis=1)[:, :2]).astype(int)
-    end = np.ceil(vertex_trilist.max(axis=1)[:, :2]).astype(int)
+    start = np.floor(vertex_trilist.min(axis=1)[:, :2])
+    end = np.ceil(vertex_trilist.max(axis=1)[:, :2])
+    start = start.astype(int)
+    end = end.astype(int)
     n_sites = np.product((end - start), axis=1).sum()
     return pixels_to_check(start, end, n_sites)
 
@@ -85,7 +87,7 @@ def location_to_index(xy, width):
     return xy[:, 0] * width + xy[:, 1]
 
 
-def barycentric_coordinate_image(mesh, width, height):
+def rasterize_barycentric_coordinate_images(mesh, width, height):
 
     # 1. Find all pixel-sites that may need to be rendered to
     #    + the triangle that may partake in rendering
