@@ -5,6 +5,7 @@ import menpo3d.checks as checks
 
 from .algorithm import Simultaneous
 from .projection import compute_view_projection_transforms
+from menpo3d.camera import optimal_perspective_camera
 
 
 class MMFitter(object):
@@ -107,7 +108,7 @@ class MMFitter(object):
 
         return feature_image, initial_shape, affine_transform
 
-    def _fit(self, image, view_transform, projection_transform,
+    def _fit(self, r, t, p, c, image, view_transform, projection_transform,
              rotation_transfrom, instance=None, camera_update=False,
              max_iters=50, return_costs=False):
         # Check provided instance
@@ -129,7 +130,7 @@ class MMFitter(object):
         # Main loop at each scale level
         for i in range(self.n_scales):
             # Run algorithm
-            algorithm_result = self.algorithms[i].run(
+            algorithm_result = self.algorithms[i].run(r, t, p, c,
                 image, instance, rasterizer, view_transform,
                 projection_transform, rotation_transfrom,
                 camera_update=camera_update, max_iters=max_iters[i],
@@ -162,6 +163,9 @@ class MMFitter(object):
 
         # Estimate view, projection and rotation transforms from the
         # provided initial shape
+        r, t, p, c = optimal_perspective_camera(
+            initial_shape, self.mm.landmarks, image.width, image.height)
+
         view_t, projection_t, rotation_t = compute_view_projection_transforms(
             image=rescaled_image, mesh=self.mm.shape_model.mean(),
             image_pointcloud=rescaled_initial_shape,
@@ -169,7 +173,7 @@ class MMFitter(object):
             distortion_coeffs=distortion_coeffs)
 
         # Execute multi-scale fitting
-        algorithm_results = self._fit(
+        algorithm_results = self._fit(r, t, p, c,
             image=rescaled_image, view_transform=view_t,
             projection_transform=projection_t, rotation_transfrom=rotation_t,
             camera_update=camera_update, max_iters=max_iters,
@@ -188,14 +192,16 @@ class MMFitter(object):
         a_list = []
         b_list = []
         r_list = []
+        gl_rasterized_results = []
         for r in algorithm_results:
             rasterized_results += r[0]
+            gl_rasterized_results += r[6]
             instances.append(r[1])
             costs += r[2]
             a_list += r[3]
             b_list += r[4]
             r_list += r[5]
-        return rasterized_results, instances, costs, a_list, b_list, r_list
+        return rasterized_results, instances, costs, a_list, b_list, r_list, gl_rasterized_results
 
 
 class LucasKanadeMMFitter(MMFitter):

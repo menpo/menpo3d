@@ -22,10 +22,12 @@ class PerspectiveProjection(Transform):
         c_x = self.image_width / 2
         c_y = self.image_height / 2
 
+        f_z = (self.f_x + self.f_y) / 2
+
         output = np.empty_like(x)
         output[:, 0] = (self.f_x * x[:, 0]) / x[:, 2] + c_x
         output[:, 1] = self.image_height - ((self.f_y * x[:, 1]) / x[:, 2] + c_y)
-        output[:, 2] = x[:, 2]
+        output[:, 2] = f_z * x[:, 2]
 
         return output
 
@@ -43,12 +45,13 @@ def optimal_perspective_camera(points_image, points_3d, image_width,
     # If distortion coefficients are None, set them to zero
     if distortion_coeffs is None:
         distortion_coeffs = np.zeros(4)
-
     # Estimate the camera pose given the 3D sparse pointcloud on the
     # mesh, its 2D projection on the image, the camera matrix and the
     # distortion coefficients
+    lm2d = points_image.points[:, ::-1]
+    lm2d[: 1] = image_height - lm2d[: 1]
     _, r_vec, t_vec = cv2.solvePnP(points_3d.points,
-                                   points_image.points[:, ::-1],
+                                   lm2d,
                                    camera_matrix, distortion_coeffs)
 
     # Create rotation and translation transform objects from the vectors

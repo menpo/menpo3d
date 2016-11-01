@@ -4,6 +4,11 @@ from menpo.feature import gradient as fast_gradient
 from menpo.image import Image
 from menpo.visualize import print_dynamic
 
+from menpo3d.rasterize import (
+    rasterize_barycentric_coordinate_images,
+    rasterize_mesh_from_barycentric_coordinate_images
+)
+
 from .derivatives import (d_orthographic_projection_d_shape_parameters,
                           d_perspective_projection_d_shape_parameters,
                           d_orthographic_projection_d_warp_parameters,
@@ -57,7 +62,7 @@ class LucasKanade(object):
         """
         return self.model.n_channels
 
-    def compute_warp_indices(self, instance, rasterizer):
+    def compute_warp_indices(self, instance_in_img, instance, rasterizer, image_width, image_height):
         r"""
         Computes the warping map.
 
@@ -76,6 +81,7 @@ class LucasKanade(object):
             The indices of the true points.
         """
         # Inverse rendering
+        # tri_index_img, b_coords_img = rasterize_barycentric_coordinate_images(instance_in_img, image_width, image_height)
         tri_index_img, b_coords_img = \
             rasterizer.rasterize_barycentric_coordinate_image(instance)
         tri_indices = tri_index_img.as_vector()
@@ -204,8 +210,9 @@ class Simultaneous(LucasKanade):
     r"""
     Class for defining Simultaneous Morphable Model optimization algorithm.
     """
-    def run(self, image, instance, rasterizer, view_t, projection_t, rotation_t,
-            camera_update=False, max_iters=20, return_costs=False):
+    def run(self, r, t, p, c, image, instance, rasterizer, view_t,
+            projection_t, rotation_t, camera_update=False,
+            max_iters=20, return_costs=False):
         r"""
         Execute the optimization algorithm.
 
@@ -250,12 +257,18 @@ class Simultaneous(LucasKanade):
         r_list = [warp_parameters]
         costs = []
         rasterized_fittings = []
-
+        gl_rasterized_results = []
         # Compute input image gradient
         grad_x, grad_y = self.gradient(image)
 
         # Store instance
-        rasterized_fittings.append(rasterizer.rasterize_mesh(instance))
+        instance_in_image = c.apply(instance.copy())
+
+        ti, bc = rasterize_barycentric_coordinate_images(instance_in_image,
+                                                image.width, image.height)
+        rasterized_fittings.append(rasterize_mesh_from_barycentric_coordinate_images(instance_in_image, bc, ti))
+
+        gl_rasterized_results.append(rasterizer.rasterize_mesh(instance))
 
         # Initialize iteration counter and epsilon
         k = 0
@@ -264,7 +277,7 @@ class Simultaneous(LucasKanade):
             print_dynamic("{}/{}".format(k, max_iters))
             # Compute indices locations for warping
             vertex_indices, b_coords, true_indices = self.compute_warp_indices(
-                instance, rasterizer)
+                instance_in_image, instance, rasterizer, image.width, image.height)
 
             # Warp the mesh with the view matrix
             W = view_t.apply(instance.points)
@@ -357,7 +370,15 @@ class Simultaneous(LucasKanade):
             # Clip to avoid out of range pixels
             instance.colours = np.clip(instance.colours, 0, 1)
 
-            rasterized_fittings.append(rasterizer.rasterize_mesh(instance))
+            instance_in_image = c.apply(instance.copy())
+            ti, bc = rasterize_barycentric_coordinate_images(instance_in_image,
+                                                             image.width,
+                                                             image.height)
+            rasterized_fittings.append(
+                rasterize_mesh_from_barycentric_coordinate_images(
+                    instance_in_image, bc, ti))
+
+            gl_rasterized_results.append(rasterizer.rasterize_mesh(instance))
 
             # Update rasterizer
             if camera_update:
@@ -374,7 +395,7 @@ class Simultaneous(LucasKanade):
             # Increase iteration counter
             k += 1
 
-        return rasterized_fittings, instance, costs, a_list, b_list, r_list
+        return rasterized_fittings, instance, costs, a_list, b_list, r_list, gl_rasterized_results
 
     def __str__(self):
         return "Simultaneous Lucas-Kanade"
