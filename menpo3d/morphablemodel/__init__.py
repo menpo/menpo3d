@@ -1,1 +1,1 @@
-from .base import ColouredMorphableModel
+from .base import ColouredMorphableModel, TexturedMorphableModel

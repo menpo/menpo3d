@@ -72,10 +72,6 @@ class MorphableModel(Copyable):
         """
         return int(self.texture_model.n_features / self.n_vertices)
 
-    @property
-    def _str_title(self):
-        return 'Coloured Morphable Model'
-
     def instance(self, shape_weights=None, texture_weights=None,
                  landmark_group='landmarks'):
         r"""
@@ -258,6 +254,10 @@ class ColouredMorphableModel(MorphableModel):
         IEEE International Conference on Advanced Video and Signal Based
         Surveillance, pp. 296-301, 2009.
     """
+    @property
+    def _str_title(self):
+        return 'Coloured Morphable Model'
+
     def _instance(self, shape_instance, texture_instance, landmark_group):
         # Reshape the texture instance
         texture_instance = texture_instance.reshape([-1, self.n_channels])
@@ -296,11 +296,15 @@ class TexturedMorphableModel(MorphableModel):
                                                      texture_model, landmarks)
         self.tcoords = tcoords
 
+    @property
+    def _str_title(self):
+        return 'Textured Morphable Model'
+
     def _instance(self, shape_instance, texture_instance, landmark_group):
         # Create trimesh
         trimesh = TexturedTriMesh(shape_instance.points,
                                   trilist=shape_instance.trilist,
-                                  tcoords=tcoords,
+                                  tcoords=self.tcoords.points,
                                   texture=texture_instance)
         # Attach landmarks to trimesh
         trimesh.landmarks[landmark_group] = self.landmarks
