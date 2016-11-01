@@ -56,7 +56,7 @@ def xy_bcoords(mesh, tri_indices, pixel_locations):
     ik = ik[:, tri_indices]
     a, b = alpha_beta(i, ij, ik, pixel_locations.T)
     c = 1 - a - b
-    bcoords = np.array([a, b, c]).T
+    bcoords = np.array([c, a, b]).T
     return bcoords
 
 
@@ -88,10 +88,18 @@ def location_to_index(xy, width):
 
 
 def rasterize_barycentric_coordinate_images(mesh, width, height):
-
+    width, height = int(width), int(height)
     # 1. Find all pixel-sites that may need to be rendered to
     #    + the triangle that may partake in rendering
     xy, tri_indices = pixel_locations_and_tri_indices(mesh)
+
+    # 2. Limit to only pixel sites in the image
+    out_of_bounds = np.logical_or(
+        np.any(xy < 0, axis=1),
+        np.any((np.array([width, height]) - xy) < 0, axis=1))
+    in_image = ~out_of_bounds
+    xy = xy[in_image]
+    tri_indices = tri_indices[in_image]
 
     # # Optionally limit to subset of pixels
     # if n_random_samples is not None:
