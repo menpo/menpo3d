@@ -96,7 +96,7 @@ def rasterize_barycentric_coordinate_images(mesh, width, height):
     # 2. Limit to only pixel sites in the image
     out_of_bounds = np.logical_or(
         np.any(xy < 0, axis=1),
-        np.any((np.array([width, height]) - xy) < 0, axis=1))
+        np.any((np.array([width, height]) - xy) < 1, axis=1))
     in_image = ~out_of_bounds
     xy = xy[in_image]
     tri_indices = tri_indices[in_image]
