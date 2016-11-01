@@ -1,3 +1,5 @@
+from menpo.transform import AlignmentAffine
+
 from menpo3d.rasterize import GLRasterizer
 import menpo3d.checks as checks
 
@@ -11,7 +13,7 @@ class MMFitter(object):
 
     Parameters
     ----------
-    mm : :map:`ColouredMorphableModel` or `subclass`
+    mm : :map:`ColouredMorphableModel` or :map:`TexturedMorphableModel`
         The trained Morphable Model.
     algorithms : `list` of `class`
         The list of algorithm objects that will perform the fitting per scale.
@@ -27,9 +29,83 @@ class MMFitter(object):
         r"""
         The trained Morphable Model.
 
-        :type: :map:`ColouredMorphableModel` or `subclass`
+        :type: :map:`ColouredMorphableModel` or `:map:`TexturedMorphableModel`
         """
         return self._model
+
+    @property
+    def holistic_features(self):
+        r"""
+        The features that are extracted from the input image.
+
+        :type: `function`
+        """
+        return self.mm.holistic_features
+
+    @property
+    def diagonal(self):
+        r"""
+        The diagonal used to rescale the image.
+
+        :type: `int`
+        """
+        return self.mm.diagonal
+
+    def _prepare_image(self, image, initial_shape):
+        r"""
+        Function the performs pre-processing on the image to be fitted. This
+        involves the following steps:
+
+            1. Rescale image so that the provided initial_shape has the
+               specified diagonal.
+            2. Compute features
+            3. Estimate the affine transform introduced by the rescale to
+               diagonal and features extraction
+
+        Parameters
+        ----------
+        image : `menpo.image.Image` or subclass
+            The image to be fitted.
+        initial_shape : `menpo.shape.PointCloud`
+            The initial shape estimate from which the fitting procedure
+            will start.
+
+        Returns
+        -------
+        image : `menpo.image.Image`
+            The feature-based image.
+        initial_shape : `menpo.shape.PointCloud`
+            The rescaled initial shape.
+        affine_transform : `menpo.transform.Affine`
+            The affine transform that is the inverse of the transformations
+            introduced by the rescale wrt diagonal as well as the feature
+            extraction.
+        """
+        # Attach landmarks to the image, in order to make transforms easier
+        image.landmarks['__initial_shape'] = initial_shape
+
+        # Rescale image so that initial_shape matches the provided diagonal
+        feature_image = image.rescale_landmarks_to_diagonal_range(
+            self.diagonal, group='__initial_shape')
+
+        # Extract features
+        feature_image = self.holistic_features(feature_image)
+
+        # Get final transformed landmarks
+        initial_shape = feature_image.landmarks['__initial_shape'].lms
+
+        # Now we have introduced an affine transform that consists of the image
+        # rescaled based on the diagonal, as well as potential rescale
+        # (down-sampling) caused by features. We need to store this transform
+        # (estimated by AlignmentAffine) in order to be able to revert it at
+        # the final fitting result.
+        affine_transform = AlignmentAffine(
+            feature_image.landmarks['__initial_shape'].lms, initial_shape)
+
+        # Detach added landmarks from image
+        del image.landmarks['__initial_shape']
+
+        return feature_image, initial_shape, affine_transform
 
     def _fit(self, image, view_transform, projection_transform,
              rotation_transfrom, instance=None, camera_update=False,
@@ -80,25 +156,32 @@ class MMFitter(object):
                 "The provided 2D initial shape must have {} landmark "
                 "points.".format(self.mm.landmarks.n_points))
 
+        # Rescale image and extract features
+        rescaled_image, rescaled_initial_shape, affine_transform = \
+            self._prepare_image(image, initial_shape)
+
         # Estimate view, projection and rotation transforms from the
         # provided initial shape
         view_t, projection_t, rotation_t = compute_view_projection_transforms(
-            image=image, mesh=self.mm.shape_model.mean(),
-            image_pointcloud=initial_shape, mesh_pointcloud=self.mm.landmarks,
+            image=rescaled_image, mesh=self.mm.shape_model.mean(),
+            image_pointcloud=rescaled_initial_shape,
+            mesh_pointcloud=self.mm.landmarks,
             distortion_coeffs=distortion_coeffs)
 
         # Execute multi-scale fitting
         algorithm_results = self._fit(
-            image=image, view_transform=view_t,
+            image=rescaled_image, view_transform=view_t,
             projection_transform=projection_t, rotation_transfrom=rotation_t,
             camera_update=camera_update, max_iters=max_iters,
             return_costs=return_costs)
 
         # Return multi-scale fitting result
         return self._fitter_result(
-            image=image, algorithm_results=algorithm_results, gt_shape=gt_shape)
+            image=image, algorithm_results=algorithm_results,
+            affine_transform=affine_transform, gt_shape=gt_shape)
 
-    def _fitter_result(self, image, algorithm_results, gt_shape=None):
+    def _fitter_result(self, image, algorithm_results, affine_transform,
+                       gt_shape=None):
         rasterized_results = []
         instances = []
         costs = []

@@ -11,10 +11,10 @@ class MorphableModel(Copyable):
     There are two subclasses, analogously to the :map:`TexturedTriMesh` and
     :map:`ColouredTriMesh`. The only differences come in two areas:
 
-         1. How the shape and texture PCA models are combined in synthesising a
-            new instance
-         2. How the texture is sampled at locations in forming the cost
-            function
+        1. How the shape and texture PCA models are combined in synthesising a
+           new instance
+        2. How the texture is sampled at locations in forming the cost
+           function
 
     The vast majority of the code is shared in this superclass.
 
@@ -26,9 +26,19 @@ class MorphableModel(Copyable):
         The PCA model of the 3D shape. It is assumed that a shape instance is
         defined as a `menpo.shape.TriMesh`.
     texture_model : `menpo.model.PCAVectorModel`
-
+        The PCA texture model. Note that the texture model can be feature
+        based, in which case you need to specify the employed
+        `holistic_features`.
     landmarks : `menpo.shape.PointUndirectedGraph`
         The set of sparse landmarks defined in the 3D space.
+    holistic_features : `function`
+        The features that were used for building the texture model. Please
+        refer to `menpo.feature` for a list of potential features.
+    diagonal : `int`
+        This parameter was used to rescale the training images so that the
+        diagonal of their bounding boxes matches the provided value. In other
+        words, this parameter defined the size of the training images before
+        extracting features.
 
     References
     ----------
@@ -40,10 +50,13 @@ class MorphableModel(Copyable):
         IEEE International Conference on Advanced Video and Signal Based
         Surveillance, pp. 296-301, 2009.
     """
-    def __init__(self, shape_model, texture_model, landmarks):
+    def __init__(self, shape_model, texture_model, landmarks,
+                 holistic_features, diagonal):
         self.shape_model = shape_model
         self.texture_model = texture_model
         self.landmarks = landmarks
+        self.holistic_features = holistic_features
+        self.diagonal = diagonal
 
     @property
     def n_vertices(self):
@@ -214,6 +227,8 @@ class MorphableModel(Copyable):
    - Instance class: {}
  - Texture model class: {}
    - {} texture components
+   - Diagonal of {} pixels
+   - Features function is {}
    - {} channels
  - Sparse landmarks class: {}
    - {} landmarks
@@ -221,7 +236,8 @@ class MorphableModel(Copyable):
            self.n_vertices, self.n_triangles, self.shape_model.n_components,
            name_of_callable(self.shape_model.template_instance),
            name_of_callable(self.texture_model),
-           self.texture_model.n_components, self.n_channels,
+           self.texture_model.n_components, self.diagonal,
+           name_of_callable(self.holistic_features), self.n_channels,
            name_of_callable(self.landmarks), self.landmarks.n_points)
         return cls_str
 
@@ -236,13 +252,22 @@ class ColouredMorphableModel(MorphableModel):
     shape_model : `menpo.model.PCAModel`
         The PCA model of the 3D shape. It is assumed that a shape instance is
         defined as a `menpo.shape.TriMesh`.
-    color_model : `menpo.model.PCAVectorModel`
+    texture_model : `menpo.model.PCAVectorModel`
         The PCA model of the per-vertex texture. It is assumed that a texture
         instance is defined as an ``(n_vertices * n_channels,)`` vector,
         where `n_vertices` should be the same as in the case of the
-        `shape_model`.
-    landmarks : `menpo.shape.PointCloud`
+        `shape_model`. Note that the texture model can be feature based, in
+        which case you need to specify the employed `holistic_features`.
+    landmarks : `menpo.shape.PointUndirectedGraph`
         The set of sparse landmarks defined in the 3D space.
+    holistic_features : `function`
+        The features that were used for building the texture model. Please
+        refer to `menpo.feature` for a list of potential features.
+    diagonal : `int`
+        This parameter was used to rescale the training images so that the
+        diagonal of their bounding boxes matches the provided value. In other
+        words, this parameter defined the size of the training images before
+        extracting features.
 
     References
     ----------
@@ -284,16 +309,27 @@ class TexturedMorphableModel(MorphableModel):
         defined as a :map:`menpo.shape.TriMesh`.
     texture_model : :map:`PCAModel`.
         The PCA model of texture. It is assumed that a texture instance is
-        defined as a `menpo.image.Image`.
-    landmarks : `menpo.shape.PointCloud`
+        defined as a `menpo.image.Image`. Note that the texture model can be
+        feature based, in which case you need to specify the employed
+        `holistic_features`.
+    landmarks : `menpo.shape.PointUndirectedGraph`
         The set of sparse landmarks defined in the 3D space.
-     tcoords : `menpo.shape.PointCloud`
+    tcoords : `menpo.shape.PointCloud`
         The texture coordinates linking any instance of the `texture_model`
         to any instance of the `shape_model`.
+    holistic_features : `function`
+        The features that were used for building the texture model. Please
+        refer to `menpo.feature` for a list of potential features.
+    diagonal : `int`
+        This parameter was used to rescale the training images so that the
+        diagonal of their bounding boxes matches the provided value. In other
+        words, this parameter defined the size of the training images before
+        extracting features.
     """
-    def __init__(self, shape_model, texture_model, landmarks, tcoords):
-        super(TexturedMorphableModel, self).__init__(shape_model,
-                                                     texture_model, landmarks)
+    def __init__(self, shape_model, texture_model, landmarks, tcoords,
+                 holistic_features, diagonal):
+        super(TexturedMorphableModel, self).__init__(
+            shape_model, texture_model, landmarks, holistic_features, diagonal)
         self.tcoords = tcoords
 
     @property
