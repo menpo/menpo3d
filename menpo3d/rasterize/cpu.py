@@ -93,6 +93,14 @@ def rasterize_barycentric_coordinate_images(mesh, width, height):
     #    + the triangle that may partake in rendering
     xy, tri_indices = pixel_locations_and_tri_indices(mesh)
 
+    # 2. Limit to only pixel sites in the image
+    out_of_bounds = np.logical_or(
+        np.any(xy < 0, axis=1),
+        np.any((np.array([width, height]) - xy) < 0, axis=1))
+    in_image = ~out_of_bounds
+    xy = xy[in_image]
+    tri_indices = tri_indices[in_image]
+
     # # Optionally limit to subset of pixels
     # if n_random_samples is not None:
     #     # 2. Find the unique pixel sites
