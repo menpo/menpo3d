@@ -4,10 +4,8 @@ from menpo.feature import gradient as fast_gradient
 from menpo.image import Image
 from menpo.visualize import print_dynamic
 
-from menpo3d.rasterize import (
-    rasterize_barycentric_coordinate_images,
-    rasterize_mesh_from_barycentric_coordinate_images
-)
+from menpo3d.rasterize import (rasterize_barycentric_coordinate_images,
+                               rasterize_mesh)
 
 from .derivatives import (d_orthographic_projection_d_shape_parameters,
                           d_perspective_projection_d_shape_parameters,
@@ -259,7 +257,7 @@ class Simultaneous(LucasKanade):
         telemetry = []
         instances = [instance]
 
-        rasterized_fittings.append(rasterize(c.apply(instance), image.shape))
+        rasterized_fittings.append(rasterize_mesh(c.apply(instance), image.shape))
 
         # Initialize iteration counter and epsilon
         k = 0
@@ -368,8 +366,8 @@ class Simultaneous(LucasKanade):
             instances.append(instance)
             instance_in_image = c.apply(instance.copy())
 
-            rasterized_fittings.append(rasterize(instance_in_image,
-                                                 image.shape))
+            rasterized_fittings.append(rasterize_mesh(instance_in_image,
+                                                      image.shape))
 
             if camera_update:
                 # Compute new view matrix
@@ -388,10 +386,3 @@ class Simultaneous(LucasKanade):
 
     def __str__(self):
         return "Simultaneous Lucas-Kanade"
-
-
-def rasterize(mesh_in_img, image_shape):
-    ti, bc = rasterize_barycentric_coordinate_images(mesh_in_img,
-                                                     image_shape)
-    return rasterize_mesh_from_barycentric_coordinate_images(
-        mesh_in_img, bc, ti)

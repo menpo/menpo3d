@@ -33,3 +33,11 @@ def rasterize_mesh_from_barycentric_coordinate_images(mesh, bcoords_image,
     # Rebuild the image using the usual from_vector machinery
     return tri_indices_image.from_vector(colours.T,
                                          n_channels=mesh.n_channels)
+
+
+def rasterize_mesh(mesh_in_img, image_shape):
+    from .cpu import rasterize_barycentric_coordinate_images
+    ti, bc = rasterize_barycentric_coordinate_images(mesh_in_img,
+                                                     image_shape)
+    return rasterize_mesh_from_barycentric_coordinate_images(
+        mesh_in_img, bc, ti)
