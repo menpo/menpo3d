@@ -85,12 +85,14 @@ class MMFitter(object):
         # Attach landmarks to the image, in order to make transforms easier
         image.landmarks['__initial_shape'] = initial_shape
 
-        # Rescale image so that initial_shape matches the provided diagonal
-        feature_image = image.rescale_landmarks_to_diagonal_range(
-            self.diagonal, group='__initial_shape')
-
+        if self.diagonal is not None:
+            # Rescale image so that initial_shape matches the provided diagonal
+            tmp_image = image.rescale_landmarks_to_diagonal_range(
+                self.diagonal, group='__initial_shape')
+        else:
+            tmp_image = image
         # Extract features
-        feature_image = self.holistic_features(feature_image)
+        feature_image = self.holistic_features(tmp_image)
 
         # Get final transformed landmarks
         initial_shape = feature_image.landmarks['__initial_shape'].lms
@@ -192,16 +194,16 @@ class MMFitter(object):
         a_list = []
         b_list = []
         r_list = []
-        gl_rasterized_results = []
+        telemetry = []
         for r in algorithm_results:
             rasterized_results += r[0]
-            gl_rasterized_results += r[6]
+            telemetry += r[6]
             instances.append(r[1])
             costs += r[2]
             a_list += r[3]
             b_list += r[4]
             r_list += r[5]
-        return rasterized_results, instances, costs, a_list, b_list, r_list, gl_rasterized_results
+        return rasterized_results, instances, costs, a_list, b_list, r_list, telemetry
 
 
 class LucasKanadeMMFitter(MMFitter):

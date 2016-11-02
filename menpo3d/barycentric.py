@@ -146,10 +146,16 @@ def sample_texture_with_barycentric_coordinates_colour(self, bcoords,
 
 
 def sample_texture_with_barycentric_coordinates_texture(self, bcoords,
-                                                        tri_indices):
+                                                        tri_indices, order=1):
     sample_points = self.barycentric_coordinate_interpolation(
             self.tcoords_pixel_scaled().points, bcoords, tri_indices)
-    return self.texture.sample(sample_points).T
+    texture = self.texture
+    if hasattr(texture, 'as_unmasked'):
+        # TODO this as_unmasked should not be needed, but it is (we can fall
+        # off the texture at bcoords). This means the sampled texture contains
+        # wrong (black) values.
+        texture = texture.as_unmasked(copy=False)
+    return texture.sample(sample_points, order=order).T
 
 
 TriMesh.snap_pointcloud_to_surface = snap_pointcloud_to_surface

@@ -126,7 +126,7 @@ def rasterize_barycentric_coordinate_images(mesh, width, height):
     z_values = z_values_for_bcoords(mesh, bcoords, tri_indices)
 
     # argsort z from smallest to biggest - use this to sort all data
-    sort = np.argsort(z_values)[::-1]
+    sort = np.argsort(z_values)
     xy = xy[sort]
     bcoords = bcoords[sort]
     tri_indices = tri_indices[sort]
