@@ -2,7 +2,7 @@ from __future__ import division
 import numpy as np
 
 from menpo.transform import Homogeneous
-from menpo3d.camera import optimal_perspective_camera
+from menpo3d.camera import PerspectiveCamera
 
 
 def compute_rotation_matrices(phi, theta, varphi):
@@ -134,9 +134,12 @@ def compute_view_projection_transforms(image, mesh, image_pointcloud,
     rotation_transform : `menpo.transform.Rotation`
         The rotation transform object.
     """
-    r, t, p, c = optimal_perspective_camera(image_pointcloud, mesh_pointcloud,
-                                            image.shape,
-                                            distortion_coeffs=distortion_coeffs)
+    camera = PerspectiveCamera.init_from_2d_projected_shape(
+        mesh_pointcloud, image_pointcloud, image.shape,
+        distortion_coeffs=distortion_coeffs)
+
+    r = camera.rotation_transform
+    t = camera.translation_transform
 
     # This is equivalent to rotating y by 180, then rotating z by 180.
     # This is also equivalent to glulookat to lookat the origin

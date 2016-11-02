@@ -4,7 +4,7 @@ import menpo3d.checks as checks
 
 from .algorithm import Simultaneous
 from .projection import compute_view_projection_transforms
-from menpo3d.camera import optimal_perspective_camera
+from menpo3d.camera import PerspectiveCamera
 
 
 class MMFitter(object):
@@ -156,8 +156,12 @@ class MMFitter(object):
 
         # Estimate view, projection and rotation transforms from the
         # provided initial shape
-        r, t, p, c = optimal_perspective_camera(
-            initial_shape, self.mm.landmarks, image.shape)
+        camera = PerspectiveCamera.init_from_2d_projected_shape(
+            self.mm.landmarks, initial_shape, image.shape)
+        r = camera.rotation_transform
+        t = camera.translation_transform
+        p = camera.projection_transform
+        c = camera.camera_transform
 
         view_t, projection_t, rotation_t = compute_view_projection_transforms(
             image=rescaled_image, mesh=self.mm.shape_model.mean(),
