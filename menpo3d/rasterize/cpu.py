@@ -87,8 +87,8 @@ def location_to_index(xy, width):
     return xy[:, 0] * width + xy[:, 1]
 
 
-def rasterize_barycentric_coordinate_images(mesh, width, height):
-    width, height = int(width), int(height)
+def rasterize_barycentric_coordinate_images(mesh, image_shape):
+    height, width = int(image_shape[0]), int(image_shape[1])
     # 1. Find all pixel-sites that may need to be rendered to
     #    + the triangle that may partake in rendering
     xy, tri_indices = pixel_locations_and_tri_indices(mesh)

@@ -1,6 +1,5 @@
 from menpo.transform import AlignmentAffine
 
-from menpo3d.rasterize import GLRasterizer
 import menpo3d.checks as checks
 
 from .algorithm import Simultaneous
@@ -120,12 +119,6 @@ class MMFitter(object):
         # Check arguments
         max_iters = checks.check_max_iters(max_iters, self.n_scales)
 
-        # Initialize the rasterizer
-        rasterizer = GLRasterizer(
-            height=image.height, width=image.width,
-            view_matrix=view_transform.h_matrix,
-            projection_matrix=projection_transform.h_matrix)
-
         # Initialize list of algorithm results
         algorithm_results = []
 
@@ -133,19 +126,17 @@ class MMFitter(object):
         for i in range(self.n_scales):
             # Run algorithm
             algorithm_result = self.algorithms[i].run(r, t, p, c,
-                image, instance, rasterizer, view_transform,
+                image, instance, view_transform,
                 projection_transform, rotation_transfrom,
                 camera_update=camera_update, max_iters=max_iters[i],
                 return_costs=return_costs)
 
             # Get current instance
-            instance = algorithm_result[1]
+            instance = algorithm_result[1][-1]
 
             # Add algorithm result to the list
             algorithm_results.append(algorithm_result)
 
-        # Destroy rasterizer
-        del rasterizer
 
         return algorithm_results
 
@@ -198,7 +189,7 @@ class MMFitter(object):
         for r in algorithm_results:
             rasterized_results += r[0]
             telemetry += r[6]
-            instances.append(r[1])
+            instances += r[1]
             costs += r[2]
             a_list += r[3]
             b_list += r[4]

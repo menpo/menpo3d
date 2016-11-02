@@ -62,7 +62,7 @@ class LucasKanade(object):
         """
         return self.model.n_channels
 
-    def compute_warp_indices(self, instance_in_img, instance, rasterizer, image_width, image_height):
+    def compute_warp_indices(self, instance_in_img, image_shape):
         r"""
         Computes the warping map.
 
@@ -81,12 +81,12 @@ class LucasKanade(object):
             The indices of the true points.
         """
         # Inverse rendering
-        tri_index_img_cpu, b_coords_img_cpu = rasterize_barycentric_coordinate_images(instance_in_img, image_width, image_height)
-        tri_index_img, b_coords_img = rasterizer.rasterize_barycentric_coordinate_image(instance)
+        tri_index_img, b_coords_img = rasterize_barycentric_coordinate_images(
+            instance_in_img, image_shape)
 
-        tri_indices = tri_index_img_cpu.as_vector()
-        b_coords = b_coords_img_cpu.as_vector(keep_channels=True).T
-        true_indices = b_coords_img_cpu.mask.true_indices()
+        tri_indices = tri_index_img.as_vector()
+        b_coords = b_coords_img.as_vector(keep_channels=True).T
+        true_indices = b_coords_img.mask.true_indices()
 
         # Select triangles randomly
         rand = np.random.permutation(b_coords.shape[0])
@@ -95,9 +95,9 @@ class LucasKanade(object):
         tri_indices = tri_indices[rand[:self.n_samples]]
 
         # Build the vertex indices (3 per pixel) for the visible triangles
-        vertex_indices = instance.trilist[tri_indices]
+        vertex_indices = instance_in_img.trilist[tri_indices]
 
-        return vertex_indices, tri_indices, b_coords, true_indices, b_coords_img_cpu, tri_index_img_cpu, b_coords_img, tri_index_img
+        return vertex_indices, tri_indices, b_coords, true_indices, b_coords_img, tri_index_img
 
     def sample(self, x, vertex_indices, b_coords):
         r"""
@@ -208,7 +208,7 @@ class Simultaneous(LucasKanade):
     r"""
     Class for defining Simultaneous Morphable Model optimization algorithm.
     """
-    def run(self, r, t, p, c, image, instance, rasterizer, view_t,
+    def run(self, r, t, p, c, image, instance, view_t,
             projection_t, rotation_t, camera_update=False,
             max_iters=20, return_costs=False):
         r"""
@@ -245,49 +245,37 @@ class Simultaneous(LucasKanade):
         # Retrieve warp (camera) parameters from the provided view and
         # projection transforms.
         warp_parameters = get_camera_parameters(projection_t, view_t)
-
-        # Initialize parameters lists
         shape_parameters = self.model.shape_model.project(instance)
         texture_parameters = self.model.project_instance_on_texture_model(instance)
+
+        # Compute input image gradient
+        grad_x, grad_y = self.gradient(image)
 
         a_list = [shape_parameters]
         b_list = [texture_parameters]
         r_list = [warp_parameters]
         costs = []
         rasterized_fittings = []
-        gl_rasterized_results = []
         telemetry = []
-        # Compute input image gradient
-        grad_x, grad_y = self.gradient(image)
+        instances = [instance]
 
-        instance_in_image = c.apply(instance)
-
-        ti, bc = rasterize_barycentric_coordinate_images(instance_in_image,
-                                                image.width, image.height)
-        rasterized_fittings.append(rasterize_mesh_from_barycentric_coordinate_images(instance_in_image, bc, ti))
-
-        gl_rasterized_results.append(rasterizer.rasterize_mesh(instance))
+        rasterized_fittings.append(rasterize(c.apply(instance), image.shape))
 
         # Initialize iteration counter and epsilon
         k = 0
         eps = np.Inf
         while k < max_iters and eps > self.eps:
-            print("{}/{}".format(k, max_iters))
+            print_dynamic("{}/{}".format(k + 1, max_iters))
 
             instance_in_image = c.apply(instance)
 
             # Compute indices locations for warping
-            vertex_indices, tri_indices, b_coords, true_indices, b_c, t_c, b_g, t_g = self.compute_warp_indices(
-                instance_in_image, instance, rasterizer, image.width,
-                image.height)
+            vertex_indices, tri_indices, b_coords, true_indices, b_img, t_img = self.compute_warp_indices(instance_in_image, image.shape)
 
             telemetry.append({
-                'bcoords_img_cpu': b_c,
-                'tri_indices_img_cpu': t_c,
-                'bcoords_img_gl': b_g,
-                'tri_indices_img_gl': t_g
+                'bcoords_img': b_img,
+                'tri_indices_img': t_img,
             })
-
 
             # Warp the mesh with the view matrix
             W = view_t.apply(instance.points)
@@ -304,8 +292,8 @@ class Simultaneous(LucasKanade):
             texture_pc_uv = self.model.sample_texture_model(b_coords,
                                                             tri_indices)
 
-            print('texture_uv.shape: {}, texture_pc_uv.shape: {}'.format(texture_uv.shape, texture_pc_uv.shape))
-            print('shape_uv.shape: {}, shape_pc_uv.shape: {}'.format(shape_uv.shape, shape_pc_uv.shape))
+            # print('texture_uv.shape: {}, texture_pc_uv.shape: {}'.format(texture_uv.shape, texture_pc_uv.shape))
+            # print('shape_uv.shape: {}, shape_pc_uv.shape: {}'.format(shape_uv.shape, shape_pc_uv.shape))
 
             img_uv = image.sample(true_indices)
             grad_x_uv = grad_x.sample(true_indices)
@@ -377,18 +365,12 @@ class Simultaneous(LucasKanade):
             instance = self.model.instance(
                 shape_weights=shape_parameters,
                 texture_weights=texture_parameters)
-
+            instances.append(instance)
             instance_in_image = c.apply(instance.copy())
-            ti, bc = rasterize_barycentric_coordinate_images(instance_in_image,
-                                                             image.width,
-                                                             image.height)
-            rasterized_fittings.append(
-                rasterize_mesh_from_barycentric_coordinate_images(
-                    instance_in_image, bc, ti))
 
-            gl_rasterized_results.append(rasterizer.rasterize_mesh(instance))
+            rasterized_fittings.append(rasterize(instance_in_image,
+                                                 image.shape))
 
-            # Update rasterizer
             if camera_update:
                 # Compute new view matrix
                 _, _, _, rot_t = compute_rotation_matrices(warp_parameters[1],
@@ -397,13 +379,19 @@ class Simultaneous(LucasKanade):
                 view_t.h_matrix[1:3, :3] = -rot_t.h_matrix[1:3, :3]
                 view_t.h_matrix[0, :3] = rot_t.h_matrix[0, :3]
 
-                # Update the rasterizer
-                rasterizer.set_view_matrix(view_t.h_matrix)
+                # TODO we updated rasterizer here
 
             # Increase iteration counter
             k += 1
 
-        return rasterized_fittings, instance, costs, a_list, b_list, r_list, telemetry
+        return rasterized_fittings, instances, costs, a_list, b_list, r_list, telemetry
 
     def __str__(self):
         return "Simultaneous Lucas-Kanade"
+
+
+def rasterize(mesh_in_img, image_shape):
+    ti, bc = rasterize_barycentric_coordinate_images(mesh_in_img,
+                                                     image_shape)
+    return rasterize_mesh_from_barycentric_coordinate_images(
+        mesh_in_img, bc, ti)
