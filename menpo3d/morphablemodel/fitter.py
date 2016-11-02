@@ -157,7 +157,7 @@ class MMFitter(object):
         # Estimate view, projection and rotation transforms from the
         # provided initial shape
         r, t, p, c = optimal_perspective_camera(
-            initial_shape, self.mm.landmarks, image.width, image.height)
+            initial_shape, self.mm.landmarks, image.shape)
 
         view_t, projection_t, rotation_t = compute_view_projection_transforms(
             image=rescaled_image, mesh=self.mm.shape_model.mean(),

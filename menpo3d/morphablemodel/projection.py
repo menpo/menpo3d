@@ -135,7 +135,7 @@ def compute_view_projection_transforms(image, mesh, image_pointcloud,
         The rotation transform object.
     """
     r, t, p, c = optimal_perspective_camera(image_pointcloud, mesh_pointcloud,
-                                            image.width, image.height,
+                                            image.shape,
                                             distortion_coeffs=distortion_coeffs)
 
     # This is equivalent to rotating y by 180, then rotating z by 180.
