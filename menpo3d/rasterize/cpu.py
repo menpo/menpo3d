@@ -91,34 +91,34 @@ def rasterize_barycentric_coordinate_images(mesh, image_shape):
     height, width = int(image_shape[0]), int(image_shape[1])
     # 1. Find all pixel-sites that may need to be rendered to
     #    + the triangle that may partake in rendering
-    xy, tri_indices = pixel_locations_and_tri_indices(mesh)
+    yx, tri_indices = pixel_locations_and_tri_indices(mesh)
 
     # 2. Limit to only pixel sites in the image
     out_of_bounds = np.logical_or(
-        np.any(xy < 0, axis=1),
-        np.any((np.array([width, height]) - xy) < 1, axis=1))
+        np.any(yx < 0, axis=1),
+        np.any((np.array([height, width]) - yx) <= 0, axis=1))
     in_image = ~out_of_bounds
-    xy = xy[in_image]
+    yx = yx[in_image]
     tri_indices = tri_indices[in_image]
 
     # # Optionally limit to subset of pixels
     # if n_random_samples is not None:
     #     # 2. Find the unique pixel sites
-    #     xy_u = unique_locations(xy, width, height)
+    #     xy_u = unique_locations(yx, width, height)
     #
     #     xy_u = pixel_sample_uniform(xy_u, n_random_samples)
-    #     to_keep = np.in1d(location_to_index(xy, width),
+    #     to_keep = np.in1d(location_to_index(yx, width),
     #                       location_to_index(xy_u, width))
-    #     xy = xy[to_keep]
+    #     yx = yx[to_keep]
     #     tri_indices = tri_indices[to_keep]
 
-    bcoords = xy_bcoords(mesh, tri_indices, xy)
+    bcoords = xy_bcoords(mesh, tri_indices, yx)
 
     # check the mask based on triangle containment
     in_tri_mask = tri_containment(bcoords)
 
     # use this mask on the pixels
-    xy = xy[in_tri_mask]
+    yx = yx[in_tri_mask]
     bcoords = bcoords[in_tri_mask]
     tri_indices = tri_indices[in_tri_mask]
 
@@ -127,26 +127,26 @@ def rasterize_barycentric_coordinate_images(mesh, image_shape):
 
     # argsort z from smallest to biggest - use this to sort all data
     sort = np.argsort(z_values)
-    xy = xy[sort]
+    yx = yx[sort]
     bcoords = bcoords[sort]
     tri_indices = tri_indices[sort]
 
     # make a unique id per-pixel location
-    pixel_index = xy[:, 0] * width + xy[:, 1]
+    pixel_index = yx[:, 0] * width + yx[:, 1]
     # find the first instance of each pixel site by depth
     _, z_buffer_mask = np.unique(pixel_index, return_index=True)
 
     # mask the locations again
-    xy = xy[z_buffer_mask]
+    yx = yx[z_buffer_mask]
     bcoords = bcoords[z_buffer_mask]
     tri_indices = tri_indices[z_buffer_mask]
 
     tri_index_img = np.zeros((1, height, width), dtype=int)
     bcoord_img = np.zeros((3, height, width))
     mask = np.zeros((height, width), dtype=np.bool)
-    mask[height - xy[:, 1], xy[:, 0]] = True
-    tri_index_img[:, height - xy[:, 1], xy[:, 0]] = tri_indices
-    bcoord_img[:, height - xy[:, 1], xy[:, 0]] = bcoords.T
+    mask[yx[:, 0], yx[:, 1]] = True
+    tri_index_img[:, yx[:, 0], yx[:, 1]] = tri_indices
+    bcoord_img[:, yx[:, 0], yx[:, 1]] = bcoords.T
 
     mask = BooleanImage(mask)
     return (MaskedImage(tri_index_img, mask=mask.copy(), copy=False),

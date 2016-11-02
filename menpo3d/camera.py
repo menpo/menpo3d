@@ -25,9 +25,9 @@ class PerspectiveProjection(Transform):
         f_z = (self.f_x + self.f_y) / 2
 
         output = np.empty_like(x)
-        output[:, 0] = (self.f_x * x[:, 0]) / x[:, 2] + c_x
-        output[:, 1] = self.height - ((self.f_y * x[:, 1]) / x[:, 2] + c_y)
-        output[:, 2] = f_z * x[:, 2]
+        output[:, 0] = (self.f_y * x[:, 1]) / x[:, 2] + c_y
+        output[:, 1] = (self.f_x * x[:, 0]) / x[:, 2] + c_x
+        output[:, 2] = x[:, 2]
 
         return output
 
