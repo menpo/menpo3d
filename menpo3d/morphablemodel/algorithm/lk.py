@@ -138,15 +138,9 @@ class LucasKanade(object):
         # Compute the gradient of the image
         grad = fast_gradient(image)
 
-        # Scale the gradient by the image resolution
-        if image.shape[1] > image.shape[0]:
-            scale = image.shape[1] / 2
-        else:
-            scale = image.shape[0] / 2
-        #scale = 1
         # Create gradient image for X and Y
-        grad_y = Image(grad.pixels[:self.n_channels] * scale)
-        grad_x = Image(grad.pixels[self.n_channels:] * scale)
+        grad_y = Image(grad.pixels[:self.n_channels])
+        grad_x = Image(grad.pixels[self.n_channels:])
 
         return grad_x, grad_y
 
@@ -242,7 +236,6 @@ class Simultaneous(LucasKanade):
         # Retrieve warp (camera) parameters from the provided view and
         # projection transforms.
         camera_parameters = camera.as_vector()
-        camera_parameters[0] = 2.0 * max(image.width, image.height) / image.width
         shape_parameters = self.model.shape_model.project(instance)
         texture_parameters = self.model.project_instance_on_texture_model(instance)
 
@@ -333,7 +326,7 @@ class Simultaneous(LucasKanade):
             # Update costs
             eps = cost_closure(sd_error_img)
             if return_costs:
-                costs.append(eps)
+                costs.append(cost_closure(img_error_uv.ravel()))
 
             # Compute increment
             delta_s = - np.linalg.solve(h, sd_error_img)

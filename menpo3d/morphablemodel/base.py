@@ -290,7 +290,7 @@ class ColouredMorphableModel(MorphableModel):
         texture_instance = texture_instance.reshape([-1, self.n_channels])
 
         # restrict the texture to 0-1
-        texture_instance = np.clip(texture_instance, 0, 1)
+        # texture_instance = np.clip(texture_instance, 0, 1)
 
         # Create trimesh
         trimesh = ColouredTriMesh(shape_instance.points,
@@ -369,7 +369,7 @@ class TexturedMorphableModel(MorphableModel):
         # Create trimesh
 
         # restrict the texture to 0-1
-        texture_instance.pixels = np.clip(texture_instance.pixels, 0, 1)
+        # texture_instance.pixels = np.clip(texture_instance.pixels, 0, 1)
 
         trimesh = TexturedTriMesh(shape_instance.points,
                                   trilist=shape_instance.trilist,
