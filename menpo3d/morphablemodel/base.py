@@ -76,21 +76,14 @@ class MorphableModel(Copyable):
         """
         return self.shape_model.template_instance.n_tris
 
-    @property
-    def n_channels(self):
-        """
-        Returns the number of channels of the texture model.
-
-        :type: `int`
-        """
-        return int(self.texture_model.n_features / self.n_vertices)
-
     def instance(self, shape_weights=None, texture_weights=None,
                  landmark_group='landmarks'):
         r"""
         Generates a novel Morphable Model instance given a set of shape and
         texture weights. If no weights are provided, then the mean Morphable
         Model instance is returned.
+
+        Note that the texture generated is always clipped to the range(0-1).
 
         Parameters
         ----------
@@ -283,9 +276,22 @@ class ColouredMorphableModel(MorphableModel):
     def _str_title(self):
         return 'Coloured Morphable Model'
 
+    @property
+    def n_channels(self):
+        """
+        Returns the number of channels of the texture model.
+
+        :type: `int`
+        """
+        return int(self.texture_model.n_features / self.n_vertices)
+
     def _instance(self, shape_instance, texture_instance, landmark_group):
         # Reshape the texture instance
         texture_instance = texture_instance.reshape([-1, self.n_channels])
+
+        # restrict the texture to 0-1
+        texture_instance = np.clip(texture_instance, 0, 1)
+
         # Create trimesh
         trimesh = ColouredTriMesh(shape_instance.points,
                                   trilist=shape_instance.trilist,
@@ -294,6 +300,19 @@ class ColouredMorphableModel(MorphableModel):
         trimesh.landmarks[landmark_group] = self.landmarks
         # Return trimesh
         return trimesh
+
+    def sample_texture_model(self, bcoords, tri_indices):
+        shape_template = self.shape_model.template_instance
+        vertex_indices = shape_template.trilist[tri_indices]
+
+        t_model = self.texture_model.components.reshape(
+            [self.texture_model.n_active_components, -1, self.n_channels])
+        # n: components    s: samples    t: triangle    c: channels
+        return np.einsum('nstc, st -> scn',
+                         t_model[:, vertex_indices], bcoords)
+
+    def project_instance_on_texture_model(self, instance):
+        return self.texture_model.project(instance.colours.ravel())
 
 
 class TexturedMorphableModel(MorphableModel):
@@ -331,13 +350,27 @@ class TexturedMorphableModel(MorphableModel):
         super(TexturedMorphableModel, self).__init__(
             shape_model, texture_model, landmarks, holistic_features, diagonal)
         self.tcoords = tcoords
+        self.tcoords_pixel_scaled = self.instance().tcoords_pixel_scaled()
 
     @property
     def _str_title(self):
         return 'Textured Morphable Model'
 
+    @property
+    def n_channels(self):
+        """
+        Returns the number of channels of the texture model.
+
+        :type: `int`
+        """
+        return self.texture_model.template_instance.n_channels
+
     def _instance(self, shape_instance, texture_instance, landmark_group):
         # Create trimesh
+
+        # restrict the texture to 0-1
+        texture_instance.pixels = np.clip(texture_instance.pixels, 0, 1)
+
         trimesh = TexturedTriMesh(shape_instance.points,
                                   trilist=shape_instance.trilist,
                                   tcoords=self.tcoords.points,
@@ -346,3 +379,26 @@ class TexturedMorphableModel(MorphableModel):
         trimesh.landmarks[landmark_group] = self.landmarks
         # Return trimesh
         return trimesh
+
+    def sample_texture_model(self, bcoords, tri_indices):
+        shape_template = self.shape_model.template_instance
+        texture_template = self.texture_model.template_instance
+
+        sample_points_in_texture = shape_template.barycentric_coordinate_interpolation(
+            self.tcoords_pixel_scaled.points, bcoords, tri_indices)
+
+        to_index = sample_points_in_texture.round().astype(int)
+
+        texture_index_img = texture_template.from_vector(
+            np.arange(self.texture_model.n_features))
+
+        # TODO shouldn't get out of mask samples here, but we do (hence
+        # unmasked). This means for some samples every time in UV space
+        # we are getting the wrong point.
+        pca_sample_locations = texture_index_img.as_unmasked().sample(to_index, order=0)
+
+        x = self.texture_model.components[:, pca_sample_locations]
+        return np.swapaxes(x, 0, 2)
+
+    def project_instance_on_texture_model(self, instance):
+        return self.texture_model.project(instance.texture)

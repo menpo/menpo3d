@@ -79,19 +79,19 @@ class LucasKanade(object):
         tri_index_img, b_coords_img = \
             rasterizer.rasterize_barycentric_coordinate_image(instance)
         tri_indices = tri_index_img.as_vector()
-        b_coords = b_coords_img.as_vector(keep_channels=True)
+        b_coords = b_coords_img.as_vector(keep_channels=True).T
         true_indices = tri_index_img.mask.true_indices()
 
         # Select triangles randomly
-        rand = np.random.permutation(b_coords.shape[1])
-        b_coords = b_coords[:, rand[:self.n_samples]]
+        rand = np.random.permutation(b_coords.shape[0])
+        b_coords = b_coords[rand[:self.n_samples]]
         true_indices = true_indices[rand[:self.n_samples]]
         tri_indices = tri_indices[rand[:self.n_samples]]
 
         # Build the vertex indices (3 per pixel) for the visible triangles
         vertex_indices = instance.trilist[tri_indices]
 
-        return vertex_indices, b_coords, true_indices
+        return vertex_indices, tri_indices, b_coords, true_indices
 
     def sample(self, x, vertex_indices, b_coords):
         r"""
@@ -113,7 +113,7 @@ class LucasKanade(object):
             The sampled object.
         """
         per_vert_per_pixel = x[vertex_indices]
-        return np.sum(per_vert_per_pixel * b_coords.T[..., None], axis=1)
+        return np.sum(per_vert_per_pixel * b_coords[..., None], axis=1)
 
     def gradient(self, image):
         r"""
@@ -195,9 +195,7 @@ class LucasKanade(object):
         # Rescale shape and appearance components to have size:
         # n_vertices x (n_active_components * n_dims)
         shape_pc = self.model.shape_model.components.T
-        texture_pc = self.model.texture_model.components.T
         self.shape_pc = shape_pc.reshape([self.n_vertices, -1])
-        self.texture_pc = texture_pc.reshape([self.n_vertices, -1])
 
 
 class Simultaneous(LucasKanade):
@@ -243,8 +241,8 @@ class Simultaneous(LucasKanade):
 
         # Initialize parameters lists
         shape_parameters = self.model.shape_model.project(instance)
-        texture_parameters = self.model.texture_model.project(
-            instance.colours.ravel())
+        texture_parameters = self.model.project_instance_on_texture_model(instance)
+
         a_list = [shape_parameters]
         b_list = [texture_parameters]
         r_list = [warp_parameters]
@@ -261,29 +259,31 @@ class Simultaneous(LucasKanade):
         k = 0
         eps = np.Inf
         while k < max_iters and eps > self.eps:
-            print_dynamic("{}/{}".format(k, max_iters))
+            print("{}/{}".format(k, max_iters))
             # Compute indices locations for warping
-            vertex_indices, b_coords, true_indices = self.compute_warp_indices(
+            vertex_indices, tri_indices, b_coords, true_indices = self.compute_warp_indices(
                 instance, rasterizer)
-
             # Warp the mesh with the view matrix
             W = view_t.apply(instance.points)
 
-            # Sample to UV space
+            # Sample all the terms we need at our sample locations.
             shape_uv = self.sample(instance.points, vertex_indices, b_coords)
-            texture_uv = self.sample(instance.colours, vertex_indices, b_coords)
             warped_uv = self.sample(W, vertex_indices, b_coords)
             shape_pc_uv = self.sample(self.shape_pc, vertex_indices, b_coords)
-            texture_pc_uv = self.sample(self.texture_pc, vertex_indices, b_coords)
+            # Reshape bases after sampling
+            shape_pc_uv = shape_pc_uv.reshape([self.n_samples, 3, -1])
+
+            texture_uv = instance.sample_texture_with_barycentric_coordinates(
+                b_coords, tri_indices)
+            texture_pc_uv = self.model.sample_texture_model(b_coords,
+                                                            tri_indices)
+
+            print('texture_uv.shape: {}, texture_pc_uv.shape: {}'.format(texture_uv.shape, texture_pc_uv.shape))
+            print('shape_uv.shape: {}, shape_pc_uv.shape: {}'.format(shape_uv.shape, shape_pc_uv.shape))
+
             img_uv = image.sample(true_indices)
             grad_x_uv = grad_x.sample(true_indices)
             grad_y_uv = grad_y.sample(true_indices)
-
-            # Reshape bases after sampling
-            new_shape = texture_pc_uv.shape
-            shape_pc_uv = shape_pc_uv.reshape([new_shape[0], 3, -1])
-            texture_pc_uv = texture_pc_uv.reshape(
-                [new_shape[0], self.model.n_channels, -1])
 
             # Compute derivative of projection wrt shape parameters
             dp_da_dr = self.d_projection_d_shape_parameters(
@@ -348,14 +348,9 @@ class Simultaneous(LucasKanade):
             #                                      dt_db.max()))
 
             # Generate the updated instance
-            # The texture is scaled by 255 to cancel the 1./255 scaling in the
-            # model class
             instance = self.model.instance(
                 shape_weights=shape_parameters,
                 texture_weights=texture_parameters)
-
-            # Clip to avoid out of range pixels
-            instance.colours = np.clip(instance.colours, 0, 1)
 
             rasterized_fittings.append(rasterizer.rasterize_mesh(instance))
 

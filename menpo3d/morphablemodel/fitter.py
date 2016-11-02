@@ -84,12 +84,14 @@ class MMFitter(object):
         # Attach landmarks to the image, in order to make transforms easier
         image.landmarks['__initial_shape'] = initial_shape
 
-        # Rescale image so that initial_shape matches the provided diagonal
-        feature_image = image.rescale_landmarks_to_diagonal_range(
-            self.diagonal, group='__initial_shape')
-
+        if self.diagonal is not None:
+            # Rescale image so that initial_shape matches the provided diagonal
+            tmp_image = image.rescale_landmarks_to_diagonal_range(
+                self.diagonal, group='__initial_shape')
+        else:
+            tmp_image = image
         # Extract features
-        feature_image = self.holistic_features(feature_image)
+        feature_image = self.holistic_features(tmp_image)
 
         # Get final transformed landmarks
         initial_shape = feature_image.landmarks['__initial_shape'].lms
