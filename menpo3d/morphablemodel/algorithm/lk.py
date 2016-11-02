@@ -11,7 +11,7 @@ from .derivatives import (d_orthographic_projection_d_shape_parameters,
                           d_perspective_projection_d_shape_parameters,
                           d_orthographic_projection_d_warp_parameters,
                           d_perspective_projection_d_warp_parameters)
-from ..projection import get_camera_parameters, compute_rotation_matrices
+from ..projection import compute_rotation_matrices
 
 
 class LucasKanade(object):
@@ -206,8 +206,7 @@ class Simultaneous(LucasKanade):
     r"""
     Class for defining Simultaneous Morphable Model optimization algorithm.
     """
-    def run(self, r, t, p, c, image, instance, view_t,
-            projection_t, rotation_t, camera_update=False,
+    def run(self, camera, image, instance, camera_update=False,
             max_iters=20, return_costs=False):
         r"""
         Execute the optimization algorithm.
@@ -242,7 +241,8 @@ class Simultaneous(LucasKanade):
 
         # Retrieve warp (camera) parameters from the provided view and
         # projection transforms.
-        warp_parameters = get_camera_parameters(projection_t, view_t)
+        camera_parameters = camera.as_vector()
+        camera_parameters[0] = 2.0 * max(image.width, image.height) / image.width
         shape_parameters = self.model.shape_model.project(instance)
         texture_parameters = self.model.project_instance_on_texture_model(instance)
 
@@ -251,13 +251,15 @@ class Simultaneous(LucasKanade):
 
         a_list = [shape_parameters]
         b_list = [texture_parameters]
-        r_list = [warp_parameters]
+        r_list = [camera_parameters]
         costs = []
         rasterized_fittings = []
         telemetry = []
         instances = [instance]
 
-        rasterized_fittings.append(rasterize_mesh(c.apply(instance), image.shape))
+        rasterized_fittings.append(
+            rasterize_mesh(camera.apply(instance),
+                           image.shape))
 
         # Initialize iteration counter and epsilon
         k = 0
@@ -265,7 +267,7 @@ class Simultaneous(LucasKanade):
         while k < max_iters and eps > self.eps:
             print_dynamic("{}/{}".format(k + 1, max_iters))
 
-            instance_in_image = c.apply(instance)
+            instance_in_image = camera.apply(instance)
 
             # Compute indices locations for warping
             vertex_indices, tri_indices, b_coords, true_indices, b_img, t_img = self.compute_warp_indices(instance_in_image, image.shape)
@@ -276,11 +278,14 @@ class Simultaneous(LucasKanade):
             })
 
             # Warp the mesh with the view matrix
-            W = view_t.apply(instance.points)
+            W = camera.view_transform.apply(instance.points)
 
             # Sample all the terms we need at our sample locations.
             shape_uv = self.sample(instance.points, vertex_indices, b_coords)
+
             warped_uv = self.sample(W, vertex_indices, b_coords)
+
+
             shape_pc_uv = self.sample(self.shape_pc, vertex_indices, b_coords)
             # Reshape bases after sampling
             shape_pc_uv = shape_pc_uv.reshape([self.n_samples, 3, -1])
@@ -299,12 +304,12 @@ class Simultaneous(LucasKanade):
 
             # Compute derivative of projection wrt shape parameters
             dp_da_dr = self.d_projection_d_shape_parameters(
-                warped_uv, shape_pc_uv, warp_parameters[0], rotation_t)
+                warped_uv, shape_pc_uv, camera_parameters[0], camera.rotation_transform)
 
             # Compute derivative of projection wrt warp parameters
             if camera_update:
                 dp_dr = self.d_projection_d_warp_parameters(
-                    shape_uv, warped_uv, warp_parameters)
+                    shape_uv, warped_uv, camera_parameters)
                 # Concatenate it with the derivative wrt shape parameters
                 dp_da_dr = np.hstack((dp_da_dr, dp_dr))
 
@@ -337,9 +342,9 @@ class Simultaneous(LucasKanade):
             shape_parameters += delta_s[:self.n]
             a_list.append(shape_parameters)
             if camera_update:
-                warp_parameters += delta_s[self.n:self.n+len(warp_parameters)]
-                r_list.append(warp_parameters)
-                texture_parameters += delta_s[(self.n+len(warp_parameters)):]
+                camera_parameters += delta_s[self.n:self.n+len(camera_parameters)]
+                r_list.append(camera_parameters)
+                texture_parameters += delta_s[(self.n+len(camera_parameters)):]
             else:
                 texture_parameters += delta_s[self.n:]
             b_list.append(texture_parameters)
@@ -364,20 +369,13 @@ class Simultaneous(LucasKanade):
                 shape_weights=shape_parameters,
                 texture_weights=texture_parameters)
             instances.append(instance)
-            instance_in_image = c.apply(instance.copy())
+            instance_in_image = camera.apply(instance.copy())
 
             rasterized_fittings.append(rasterize_mesh(instance_in_image,
                                                       image.shape))
 
             if camera_update:
-                # Compute new view matrix
-                _, _, _, rot_t = compute_rotation_matrices(warp_parameters[1],
-                                                           warp_parameters[2],
-                                                           warp_parameters[3])
-                view_t.h_matrix[1:3, :3] = -rot_t.h_matrix[1:3, :3]
-                view_t.h_matrix[0, :3] = rot_t.h_matrix[0, :3]
-
-                # TODO we updated rasterizer here
+                camera = camera.from_vector(camera_parameters)
 
             # Increase iteration counter
             k += 1

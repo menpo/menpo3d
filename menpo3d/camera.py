@@ -1,5 +1,4 @@
 from __future__ import division
-from numbers import Number
 import numpy as np
 import cv2
 from menpo.transform import Transform, Translation, Rotation
@@ -7,10 +6,8 @@ from menpo.transform import Transform, Translation, Rotation
 
 class PerspectiveProjection(Transform):
 
-    def __init__(self, f, image_shape):
-        f = [f, f] if isinstance(f, Number) else f
-        self.f_x = f[0]
-        self.f_y = f[1]
+    def __init__(self, focal_length, image_shape):
+        self.focal_length = focal_length
         self.height = image_shape[0]
         self.width = image_shape[1]
 
@@ -19,14 +16,13 @@ class PerspectiveProjection(Transform):
         return 3
 
     def _apply(self, x, **kwargs):
+        f = self.focal_length
         c_x = self.width / 2
         c_y = self.height / 2
 
-        f_z = (self.f_x + self.f_y) / 2
-
         output = np.empty_like(x)
-        output[:, 0] = (self.f_y * x[:, 1]) / x[:, 2] + c_y
-        output[:, 1] = (self.f_x * x[:, 0]) / x[:, 2] + c_x
+        output[:, 0] = (f * x[:, 1]) / x[:, 2] + c_y
+        output[:, 1] = (f * x[:, 0]) / x[:, 2] + c_x
         output[:, 2] = x[:, 2]
 
         return output
@@ -73,6 +69,35 @@ class PerspectiveCamera(object):
 
         return PerspectiveCamera(r, t, PerspectiveProjection(focal_length,
                                                              image_shape))
+
+    def apply(self, instance, **kwargs):
+        return self.camera_transform.apply(instance)
+
+    def as_vector(self):
+        r"""
+        Function that returns a vector of camera parameters, given the camera
+        view and projection matrices.
+
+        Parameters
+        ----------
+        projection_t : `menpo.transform.Homogeneous`
+            The projection transform object.
+        view_t : `menpo.transform.Homogeneous`
+            The view transform object.
+
+        Returns
+        -------
+        params : ``(6,)`` `ndarray`
+            The camera parameters:
+            focal length, varphi, theta, phi, translation X, translation Y
+        """
+        # There are six parameters:
+        # focal length, varphi, theta, phi, translation X, translation Y
+        params = np.zeros(7)
+        params[0] = self.projection_transform.focal_length
+        params[1:4] = self.rotation_transform.as_vector()
+        params[4:] = self.translation_transform.as_vector()
+        return params
 
     @property
     def view_transform(self):

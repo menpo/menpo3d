@@ -1,10 +1,9 @@
 from menpo.transform import AlignmentAffine
 
 import menpo3d.checks as checks
+from menpo3d.camera import PerspectiveCamera
 
 from .algorithm import Simultaneous
-from .projection import compute_view_projection_transforms
-from menpo3d.camera import PerspectiveCamera
 
 
 class MMFitter(object):
@@ -109,8 +108,7 @@ class MMFitter(object):
 
         return feature_image, initial_shape, affine_transform
 
-    def _fit(self, r, t, p, c, image, view_transform, projection_transform,
-             rotation_transfrom, instance=None, camera_update=False,
+    def _fit(self, camera, image, instance=None, camera_update=False,
              max_iters=50, return_costs=False):
         # Check provided instance
         if instance is None:
@@ -125,11 +123,9 @@ class MMFitter(object):
         # Main loop at each scale level
         for i in range(self.n_scales):
             # Run algorithm
-            algorithm_result = self.algorithms[i].run(r, t, p, c,
-                image, instance, view_transform,
-                projection_transform, rotation_transfrom,
-                camera_update=camera_update, max_iters=max_iters[i],
-                return_costs=return_costs)
+            algorithm_result = self.algorithms[i].run(camera,
+                image, instance, camera_update=camera_update,
+                max_iters=max_iters[i], return_costs=return_costs)
 
             # Get current instance
             instance = algorithm_result[1][-1]
@@ -157,22 +153,11 @@ class MMFitter(object):
         # Estimate view, projection and rotation transforms from the
         # provided initial shape
         camera = PerspectiveCamera.init_from_2d_projected_shape(
-            self.mm.landmarks, initial_shape, image.shape)
-        r = camera.rotation_transform
-        t = camera.translation_transform
-        p = camera.projection_transform
-        c = camera.camera_transform
-
-        view_t, projection_t, rotation_t = compute_view_projection_transforms(
-            image=rescaled_image, mesh=self.mm.shape_model.mean(),
-            image_pointcloud=rescaled_initial_shape,
-            mesh_pointcloud=self.mm.landmarks,
+            self.mm.landmarks, initial_shape, image.shape,
             distortion_coeffs=distortion_coeffs)
 
         # Execute multi-scale fitting
-        algorithm_results = self._fit(r, t, p, c,
-            image=rescaled_image, view_transform=view_t,
-            projection_transform=projection_t, rotation_transfrom=rotation_t,
+        algorithm_results = self._fit(camera, image=rescaled_image,
             camera_update=camera_update, max_iters=max_iters,
             return_costs=return_costs)
 

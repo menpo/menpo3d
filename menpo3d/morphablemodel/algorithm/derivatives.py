@@ -29,7 +29,7 @@ def d_perspective_projection_d_shape_parameters(shape_pc_uv, focal_length,
 
     # Compute constant (focal length divided by squared Z dimension of warped
     # shape
-    w = -warped_uv[:, 2]
+    w = warped_uv[:, 2]
     const = focal_length / (w ** 2)
 
     # Compute derivative per parameter
@@ -37,7 +37,7 @@ def d_perspective_projection_d_shape_parameters(shape_pc_uv, focal_length,
         dw_da_k_uv = rotation_transform.apply(shape_pc_uv[..., k]).T
         dp_da_k_uv = np.vstack(
             (dw_da_k_uv[0] * w - warped_uv[:, 0] * dw_da_k_uv[2],
-             dw_da_k_uv[1] * w + warped_uv[:, 1] * dw_da_k_uv[2]))
+             dw_da_k_uv[1] * w - warped_uv[:, 1] * dw_da_k_uv[2]))
         dp_da[:, k, :] = const * dp_da_k_uv
 
     return dp_da
