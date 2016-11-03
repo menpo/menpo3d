@@ -4,6 +4,7 @@ import menpo3d.checks as checks
 from menpo3d.camera import PerspectiveCamera
 
 from .algorithm import Simultaneous
+from .result import MMResult
 
 
 class MMFitter(object):
@@ -93,23 +94,22 @@ class MMFitter(object):
         feature_image = self.holistic_features(tmp_image)
 
         # Get final transformed landmarks
-        initial_shape = feature_image.landmarks['__initial_shape'].lms
+        new_initial_shape = feature_image.landmarks['__initial_shape'].lms
 
         # Now we have introduced an affine transform that consists of the image
         # rescaled based on the diagonal, as well as potential rescale
         # (down-sampling) caused by features. We need to store this transform
         # (estimated by AlignmentAffine) in order to be able to revert it at
         # the final fitting result.
-        affine_transform = AlignmentAffine(
-            feature_image.landmarks['__initial_shape'].lms, initial_shape)
+        affine_transform = AlignmentAffine(new_initial_shape, initial_shape)
 
         # Detach added landmarks from image
         del image.landmarks['__initial_shape']
 
-        return feature_image, initial_shape, affine_transform
+        return feature_image, new_initial_shape, affine_transform
 
-    def _fit(self, camera, image, instance=None, camera_update=False,
-             max_iters=50, return_costs=False):
+    def _fit(self, image, camera, instance=None, gt_mesh=None,
+             camera_update=False, max_iters=50, return_costs=False):
         # Check provided instance
         if instance is None:
             instance = self.mm.instance()
@@ -123,22 +123,22 @@ class MMFitter(object):
         # Main loop at each scale level
         for i in range(self.n_scales):
             # Run algorithm
-            algorithm_result = self.algorithms[i].run(camera,
-                image, instance, camera_update=camera_update,
-                max_iters=max_iters[i], return_costs=return_costs)
+            algorithm_result = self.algorithms[i].run(
+                image, instance, camera, gt_mesh=gt_mesh,
+                camera_update=camera_update, max_iters=max_iters[i],
+                return_costs=return_costs)
 
             # Get current instance
-            instance = algorithm_result[1][-1]
+            instance = algorithm_result.final_mesh
 
             # Add algorithm result to the list
             algorithm_results.append(algorithm_result)
 
-
         return algorithm_results
 
-    def fit_from_shape(self, image, initial_shape, camera_update=False,
-                       max_iters=50, return_costs=False,
-                       distortion_coeffs=None, gt_shape=None):
+    def fit_from_shape(self, image, initial_shape, gt_mesh=None,
+                       camera_update=False, max_iters=50, return_costs=False,
+                       distortion_coeffs=None):
         # Check that the provided initial shape has the same number of points
         # as the landmarks of the model
         if initial_shape.n_points != self.mm.landmarks.n_points:
@@ -153,37 +153,24 @@ class MMFitter(object):
         # Estimate view, projection and rotation transforms from the
         # provided initial shape
         camera = PerspectiveCamera.init_from_2d_projected_shape(
-            self.mm.landmarks, initial_shape, image.shape,
+            self.mm.landmarks, rescaled_initial_shape, rescaled_image.shape,
             distortion_coeffs=distortion_coeffs)
 
         # Execute multi-scale fitting
-        algorithm_results = self._fit(camera, image=rescaled_image,
-            camera_update=camera_update, max_iters=max_iters,
-            return_costs=return_costs)
+        algorithm_results = self._fit(rescaled_image, camera, gt_mesh=gt_mesh,
+                                      camera_update=camera_update,
+                                      max_iters=max_iters,
+                                      return_costs=return_costs)
 
         # Return multi-scale fitting result
         return self._fitter_result(
             image=image, algorithm_results=algorithm_results,
-            affine_transform=affine_transform, gt_shape=gt_shape)
+            affine_transform=affine_transform, gt_mesh=gt_mesh)
 
     def _fitter_result(self, image, algorithm_results, affine_transform,
-                       gt_shape=None):
-        rasterized_results = []
-        instances = []
-        costs = []
-        a_list = []
-        b_list = []
-        r_list = []
-        telemetry = []
-        for r in algorithm_results:
-            rasterized_results += r[0]
-            telemetry += r[6]
-            instances += r[1]
-            costs += r[2]
-            a_list += r[3]
-            b_list += r[4]
-            r_list += r[5]
-        return rasterized_results, instances, costs, a_list, b_list, r_list, telemetry
+                       gt_mesh=None):
+        return MMResult(algorithm_results, [affine_transform] * self.n_scales,
+                        self.n_scales, image=image, gt_mesh=gt_mesh)
 
 
 class LucasKanadeMMFitter(MMFitter):
