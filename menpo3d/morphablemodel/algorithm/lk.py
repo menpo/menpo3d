@@ -4,14 +4,14 @@ from menpo.feature import gradient as fast_gradient
 from menpo.image import Image
 from menpo.visualize import print_dynamic
 
-from menpo3d.rasterize import (rasterize_barycentric_coordinate_images,
-                               rasterize_mesh)
+from menpo3d.rasterize import rasterize_barycentric_coordinate_images
 
 from .derivatives import (d_orthographic_projection_d_shape_parameters,
                           d_perspective_projection_d_shape_parameters,
                           d_orthographic_projection_d_warp_parameters,
                           d_perspective_projection_d_warp_parameters)
 from ..projection import compute_rotation_matrices
+from ..result import MMAlgorithmResult
 
 
 class LucasKanade(object):
@@ -200,35 +200,8 @@ class Simultaneous(LucasKanade):
     r"""
     Class for defining Simultaneous Morphable Model optimization algorithm.
     """
-    def run(self, camera, image, instance, camera_update=False,
-            max_iters=20, return_costs=False):
-        r"""
-        Execute the optimization algorithm.
-
-        Parameters
-        ----------
-        image : `menpo.image.Image`
-            The input test image.
-        initial_shape : `menpo.shape.PointCloud`
-            The initial shape from which the optimization will start.
-        camera_update : `bool`, optional
-            If ``False``, then the camera (warp) parameters are not updated.
-        max_iters : `int`, optional
-            The maximum number of iterations. Note that the algorithm may
-            converge, and thus stop, earlier.
-        return_costs : `bool`, optional
-            If ``True``, then the cost function values will be computed
-            during the fitting procedure. Then these cost values will be
-            assigned to the returned `fitting_result`. *Note that the costs
-            computation increases the computational cost of the fitting. The
-            additional computation cost depends on the fitting method. Only
-            use this option for research purposes.*
-
-        Returns
-        -------
-        fitting_result : :map:`AAMAlgorithmResult`
-            The parametric iterative fitting result.
-        """
+    def run(self, image, initial_mesh, camera, gt_mesh=None,
+            camera_update=False, max_iters=20, return_costs=False):
         # Define cost closure
         def cost_closure(x):
             return x.T.dot(x)
@@ -236,23 +209,25 @@ class Simultaneous(LucasKanade):
         # Retrieve warp (camera) parameters from the provided view and
         # projection transforms.
         camera_parameters = camera.as_vector()
-        shape_parameters = self.model.shape_model.project(instance)
-        texture_parameters = self.model.project_instance_on_texture_model(instance)
+        shape_parameters = self.model.shape_model.project(initial_mesh)
+        texture_parameters = self.model.project_instance_on_texture_model(
+            initial_mesh)
+
+        # Reconstruct provided instance
+        instance = self.model.instance(shape_weights=shape_parameters,
+                                       texture_weights=texture_parameters)
 
         # Compute input image gradient
         grad_x, grad_y = self.gradient(image)
 
+        # Initialize lists
         a_list = [shape_parameters]
         b_list = [texture_parameters]
-        r_list = [camera_parameters]
-        costs = []
-        rasterized_fittings = []
-        telemetry = []
+        r_list = [camera]
         instances = [instance]
-
-        rasterized_fittings.append(
-            rasterize_mesh(camera.apply(instance),
-                           image.shape))
+        costs = None
+        if return_costs:
+            costs = []
 
         # Initialize iteration counter and epsilon
         k = 0
@@ -263,41 +238,33 @@ class Simultaneous(LucasKanade):
             instance_in_image = camera.apply(instance)
 
             # Compute indices locations for warping
-            vertex_indices, tri_indices, b_coords, true_indices, b_img, t_img = self.compute_warp_indices(instance_in_image, image.shape)
-
-            telemetry.append({
-                'bcoords_img': b_img,
-                'tri_indices_img': t_img,
-            })
+            (vertex_indices, tri_indices, b_coords, true_indices, b_img,
+             t_img) = self.compute_warp_indices(instance_in_image, image.shape)
 
             # Warp the mesh with the view matrix
             W = camera.view_transform.apply(instance.points)
 
             # Sample all the terms we need at our sample locations.
             shape_uv = self.sample(instance.points, vertex_indices, b_coords)
-
             warped_uv = self.sample(W, vertex_indices, b_coords)
-
-
-            shape_pc_uv = self.sample(self.shape_pc, vertex_indices, b_coords)
-            # Reshape bases after sampling
-            shape_pc_uv = shape_pc_uv.reshape([self.n_samples, 3, -1])
-
             texture_uv = instance.sample_texture_with_barycentric_coordinates(
                 b_coords, tri_indices)
             texture_pc_uv = self.model.sample_texture_model(b_coords,
                                                             tri_indices)
-
-            # print('texture_uv.shape: {}, texture_pc_uv.shape: {}'.format(texture_uv.shape, texture_pc_uv.shape))
-            # print('shape_uv.shape: {}, shape_pc_uv.shape: {}'.format(shape_uv.shape, shape_pc_uv.shape))
-
+            shape_pc_uv = self.sample(self.shape_pc, vertex_indices, b_coords)
+            # Reshape shape basis after sampling
+            shape_pc_uv = shape_pc_uv.reshape([self.n_samples, 3, -1])
             img_uv = image.sample(true_indices)
             grad_x_uv = grad_x.sample(true_indices)
             grad_y_uv = grad_y.sample(true_indices)
 
+            # print('texture_uv.shape: {}, texture_pc_uv.shape: {}'.format(texture_uv.shape, texture_pc_uv.shape))
+            # print('shape_uv.shape: {}, shape_pc_uv.shape: {}'.format(shape_uv.shape, shape_pc_uv.shape))
+
             # Compute derivative of projection wrt shape parameters
             dp_da_dr = self.d_projection_d_shape_parameters(
-                warped_uv, shape_pc_uv, camera_parameters[0], camera.rotation_transform)
+                warped_uv, shape_pc_uv, camera_parameters[0],
+                camera.rotation_transform)
 
             # Compute derivative of projection wrt warp parameters
             if camera_update:
@@ -336,7 +303,6 @@ class Simultaneous(LucasKanade):
             a_list.append(shape_parameters)
             if camera_update:
                 camera_parameters += delta_s[self.n:self.n+len(camera_parameters)]
-                r_list.append(camera_parameters)
                 texture_parameters += delta_s[(self.n+len(camera_parameters)):]
             else:
                 texture_parameters += delta_s[self.n:]
@@ -362,18 +328,19 @@ class Simultaneous(LucasKanade):
                 shape_weights=shape_parameters,
                 texture_weights=texture_parameters)
             instances.append(instance)
-            instance_in_image = camera.apply(instance.copy())
-
-            rasterized_fittings.append(rasterize_mesh(instance_in_image,
-                                                      image.shape))
 
             if camera_update:
                 camera = camera.from_vector(camera_parameters)
+            r_list.append(camera)
 
             # Increase iteration counter
             k += 1
 
-        return rasterized_fittings, instances, costs, a_list, b_list, r_list, telemetry
+        return MMAlgorithmResult(
+            shape_parameters=a_list, texture_parameters=b_list,
+            meshes=instances, camera_transforms=r_list, image=image,
+            initial_mesh=initial_mesh, initial_camera_transform=r_list[0],
+            gt_mesh=gt_mesh, costs=costs)
 
     def __str__(self):
         return "Simultaneous Lucas-Kanade"
