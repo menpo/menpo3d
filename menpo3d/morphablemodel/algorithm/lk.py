@@ -4,7 +4,7 @@ from menpo.feature import gradient as fast_gradient
 from menpo.image import Image
 from menpo.visualize import print_dynamic
 
-from menpo3d.rasterize import rasterize_barycentric_coordinate_images
+from menpo3d.rasterize import rasterize_barycentric_coordinates
 
 from .derivatives import (d_orthographic_projection_d_shape_parameters,
                           d_perspective_projection_d_shape_parameters,
@@ -60,7 +60,7 @@ class LucasKanade(object):
         """
         return self.model.n_channels
 
-    def compute_warp_indices(self, instance_in_img, image_shape):
+    def visible_sample_points(self, instance_in_img, image_shape):
         r"""
         Computes the warping map.
 
@@ -75,27 +75,23 @@ class LucasKanade(object):
             The vertices indices per sample.
         b_coords : ``(n_samples, 3)`` `ndarray`
             The barycentric coordinates per sample.
-        true_indices : ``(n_samples,)`` `ndarray`
+        yx : ``(n_samples,)`` `ndarray`
             The indices of the true points.
         """
         # Inverse rendering
-        tri_index_img, b_coords_img = rasterize_barycentric_coordinate_images(
+        yx, tri_indices, b_coords = rasterize_barycentric_coordinates(
             instance_in_img, image_shape)
-
-        tri_indices = tri_index_img.as_vector()
-        b_coords = b_coords_img.as_vector(keep_channels=True).T
-        true_indices = b_coords_img.mask.true_indices()
 
         # Select triangles randomly
         rand = np.random.permutation(b_coords.shape[0])
         b_coords = b_coords[rand[:self.n_samples]]
-        true_indices = true_indices[rand[:self.n_samples]]
+        yx = yx[rand[:self.n_samples]]
         tri_indices = tri_indices[rand[:self.n_samples]]
 
         # Build the vertex indices (3 per pixel) for the visible triangles
         vertex_indices = instance_in_img.trilist[tri_indices]
 
-        return vertex_indices, tri_indices, b_coords, true_indices, b_coords_img, tri_index_img
+        return vertex_indices, tri_indices, b_coords, yx
 
     def sample(self, x, vertex_indices, b_coords):
         r"""
@@ -238,8 +234,9 @@ class Simultaneous(LucasKanade):
             instance_in_image = camera.apply(instance)
 
             # Compute indices locations for warping
-            (vertex_indices, tri_indices, b_coords, true_indices, b_img,
-             t_img) = self.compute_warp_indices(instance_in_image, image.shape)
+            (vertex_indices, tri_indices,
+             b_coords, yx) = self.visible_sample_points(instance_in_image,
+                                                        image.shape)
 
             # Warp the mesh with the view matrix
             W = camera.view_transform.apply(instance.points)
@@ -254,9 +251,10 @@ class Simultaneous(LucasKanade):
             shape_pc_uv = self.sample(self.shape_pc, vertex_indices, b_coords)
             # Reshape shape basis after sampling
             shape_pc_uv = shape_pc_uv.reshape([self.n_samples, 3, -1])
-            img_uv = image.sample(true_indices)
-            grad_x_uv = grad_x.sample(true_indices)
-            grad_y_uv = grad_y.sample(true_indices)
+            img_uv = image.sample(yx)
+            grad_x_uv = grad_x.sample(yx)
+            grad_y_uv = grad_y.sample(yx)
+
 
             # print('texture_uv.shape: {}, texture_pc_uv.shape: {}'.format(texture_uv.shape, texture_pc_uv.shape))
             # print('shape_uv.shape: {}, shape_pc_uv.shape: {}'.format(shape_uv.shape, shape_pc_uv.shape))
@@ -291,7 +289,6 @@ class Simultaneous(LucasKanade):
             sd_error_img = self.compute_sd_error(sd, img_error_uv)
 
             # Update costs
-            eps = cost_closure(sd_error_img)
             if return_costs:
                 costs.append(cost_closure(img_error_uv.ravel()))
 

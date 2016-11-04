@@ -87,7 +87,7 @@ def location_to_index(xy, width):
     return xy[:, 0] * width + xy[:, 1]
 
 
-def rasterize_barycentric_coordinate_images(mesh, image_shape):
+def rasterize_barycentric_coordinates(mesh, image_shape):
     height, width = int(image_shape[0]), int(image_shape[1])
     # 1. Find all pixel-sites that may need to be rendered to
     #    + the triangle that may partake in rendering
@@ -136,14 +136,20 @@ def rasterize_barycentric_coordinate_images(mesh, image_shape):
     # find the first instance of each pixel site by depth
     _, z_buffer_mask = np.unique(pixel_index, return_index=True)
 
-    # mask the locations again
+    # mask the locations one last time
     yx = yx[z_buffer_mask]
     bcoords = bcoords[z_buffer_mask]
     tri_indices = tri_indices[z_buffer_mask]
+    return yx, tri_indices, bcoords
 
-    tri_index_img = np.zeros((1, height, width), dtype=int)
-    bcoord_img = np.zeros((3, height, width))
-    mask = np.zeros((height, width), dtype=np.bool)
+
+def rasterize_barycentric_coordinate_images(mesh, image_shape):
+    h, w = image_shape
+    yx, tri_indices, bcoords = rasterize_barycentric_coordinates(mesh, image_shape)
+
+    tri_index_img = np.zeros((1, h, w), dtype=int)
+    bcoord_img = np.zeros((3, h, w))
+    mask = np.zeros((h, w), dtype=np.bool)
     mask[yx[:, 0], yx[:, 1]] = True
     tri_index_img[:, yx[:, 0], yx[:, 1]] = tri_indices
     bcoord_img[:, yx[:, 0], yx[:, 1]] = bcoords.T
