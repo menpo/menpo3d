@@ -191,6 +191,18 @@ class LucasKanade(object):
         shape_pc = self.model.shape_model.components.T
         self.shape_pc = shape_pc.reshape([self.n_vertices, -1])
 
+        # Parameters priors
+        self.sd_alpha_prior = np.zeros(self.n + self.m)
+        self.sd_alpha_prior[:self.n] = 1. / np.sqrt(self.model.shape_model.eigenvalues)
+        #self.sd_alpha_prior[:self.n] = 2. / (
+        # self.model.shape_model.eigenvalues ** 2)
+        self.sd_beta_prior = np.zeros(self.n + self.m)
+        self.sd_beta_prior[self.n:] = 1. / np.sqrt(self.model.texture_model.eigenvalues)
+        #self.sd_beta_prior[self.n:] = 2. / (
+        # self.model.texture_model.eigenvalues ** 2)
+        self.H_alpha_prior = np.diag(self.sd_alpha_prior)
+        self.H_beta_prior = np.diag(self.sd_beta_prior)
+
 
 class Simultaneous(LucasKanade):
     r"""
@@ -220,7 +232,7 @@ class Simultaneous(LucasKanade):
         a_list = [shape_parameters]
         b_list = [texture_parameters]
         r_list = [camera]
-        instances = [instance]
+        instances = [instance.with_clipped_texture()]
         costs = None
         if return_costs:
             costs = []
@@ -280,13 +292,22 @@ class Simultaneous(LucasKanade):
             sd = np.hstack((sd_da_dr, -dt_db))
 
             # Compute hessian
-            h = self.compute_hessian(sd)
+            h = self.compute_hessian(sd) + 1e-1 * self.H_alpha_prior + self.H_beta_prior
 
             # Compute error
             img_error_uv = img_uv - texture_uv.T
 
             # Compute steepest descent matrix
             sd_error_img = self.compute_sd_error(sd, img_error_uv)
+
+            # Apply priors
+            sd_error_alpha_prior = self.sd_alpha_prior * \
+                                   np.concatenate((shape_parameters,
+                                                   texture_parameters))
+            sd_error_beta_prior = self.sd_beta_prior * \
+                                  np.concatenate((shape_parameters,
+                                                  texture_parameters))
+            sd_error_img = sd_error_img + 1e-1 * sd_error_alpha_prior + sd_error_beta_prior
 
             # Update costs
             if return_costs:
@@ -324,7 +345,7 @@ class Simultaneous(LucasKanade):
             instance = self.model.instance(
                 shape_weights=shape_parameters,
                 texture_weights=texture_parameters)
-            instances.append(instance)
+            instances.append(instance.with_clipped_texture())
 
             if camera_update:
                 camera = camera.from_vector(camera_parameters)
@@ -336,8 +357,14 @@ class Simultaneous(LucasKanade):
         return MMAlgorithmResult(
             shape_parameters=a_list, texture_parameters=b_list,
             meshes=instances, camera_transforms=r_list, image=image,
-            initial_mesh=initial_mesh, initial_camera_transform=r_list[0],
-            gt_mesh=gt_mesh, costs=costs)
+            initial_mesh=initial_mesh.with_clipped_texture(),
+            initial_camera_transform=r_list[0], gt_mesh=gt_mesh, costs=costs)
 
     def __str__(self):
         return "Simultaneous Lucas-Kanade"
+
+
+def parameters_prior(params, eigenvalues):
+    c = params / eigenvalues
+    norm = np.sqrt(len(eigenvalues)) / c.dot(c)
+    return norm * params
