@@ -1,6 +1,7 @@
 from __future__ import division
 import numpy as np
 import cv2
+import warnings
 
 from menpo.base import Vectorizable
 from menpo.transform import Transform, Translation, Rotation
@@ -72,9 +73,12 @@ class PerspectiveCamera(Vectorizable):
         # distortion coefficients
         lm2d = points_image.points[:, ::-1]
         lm2d[: 1] = height - lm2d[: 1]
-        _, r_vec, t_vec = cv2.solvePnP(points_3d.points,
+        converged, r_vec, t_vec = cv2.solvePnP(points_3d.points,
                                        lm2d,
                                        camera_matrix, distortion_coeffs)
+
+        if not converged:
+            warnings.warn('cv2.SolvePnP did not converge to a solution')
 
         # Create rotation and translation transform objects from the vectors
         # acquired at the previous step

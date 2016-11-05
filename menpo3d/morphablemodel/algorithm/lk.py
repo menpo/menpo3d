@@ -140,15 +140,13 @@ class LucasKanade(object):
 
         return grad_x, grad_y
 
-    def d_projection_d_shape_parameters(self, warped_uv, shape_pc_uv,
-                                        focal_length, rotation_transform):
+    def d_projection_d_shape_parameters(self, warped_uv, shape_pc_uv, camera):
         if self.projection_type == 'perspective':
-            dp_da = d_perspective_projection_d_shape_parameters(
-                shape_pc_uv, focal_length, rotation_transform, warped_uv)
-        else:
-            dp_da = d_orthographic_projection_d_shape_parameters(
-                shape_pc_uv, focal_length, rotation_transform)
-        return dp_da
+            return d_perspective_projection_d_shape_parameters(
+                shape_pc_uv, warped_uv, camera)
+
+        return d_orthographic_projection_d_shape_parameters(
+                shape_pc_uv, camera)
 
     def d_projection_d_warp_parameters(self, shape_uv, warped_uv,
                                        warp_parameters):
@@ -273,8 +271,7 @@ class Simultaneous(LucasKanade):
 
             # Compute derivative of projection wrt shape parameters
             dp_da_dr = self.d_projection_d_shape_parameters(
-                warped_uv, shape_pc_uv, camera_parameters[0],
-                camera.rotation_transform)
+                warped_uv, shape_pc_uv, camera)
 
             # Compute derivative of projection wrt warp parameters
             if camera_update:
@@ -292,7 +289,7 @@ class Simultaneous(LucasKanade):
             sd = np.hstack((sd_da_dr, -dt_db))
 
             # Compute hessian
-            h = self.compute_hessian(sd) + 1e-1 * self.H_alpha_prior + self.H_beta_prior
+            hessian = self.compute_hessian(sd) + 1e-1 * self.H_alpha_prior + self.H_beta_prior
 
             # Compute error
             img_error_uv = img_uv - texture_uv.T
@@ -314,7 +311,7 @@ class Simultaneous(LucasKanade):
                 costs.append(cost_closure(img_error_uv.ravel()))
 
             # Compute increment
-            delta_s = - np.linalg.solve(h, sd_error_img)
+            delta_s = - np.linalg.solve(hessian, sd_error_img)
 
             # Update parameters
             shape_parameters += delta_s[:self.n]
