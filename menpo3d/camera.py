@@ -93,11 +93,16 @@ class PerspectiveCamera(Vectorizable):
         return self.camera_transform.apply(instance)
 
     def as_vector(self):
-        # There are six parameters:
-        # focal length, varphi, theta, phi, translation X, translation Y
+        # focal_length, qw, qx, qy, qz, tx, ty
         params = np.zeros(8)
+
+        # focal length
         params[:1] = self.projection_transform.as_vector()
+
+        # 4 parameters: qw, qx, qy, qz
         params[1:5] = self.rotation_transform.as_vector()
+
+        # 3 parameters: tx, ty
         params[5:] = self.translation_transform.as_vector()
         return params
 

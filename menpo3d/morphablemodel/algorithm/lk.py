@@ -21,8 +21,6 @@ class LucasKanade(object):
         self.n_samples = n_samples
         self.projection_type = projection_type
 
-        # Call precomputation
-        self._precompute()
 
     @property
     def n(self):
@@ -149,15 +147,13 @@ class LucasKanade(object):
                 shape_pc_uv, camera)
 
     def d_projection_d_warp_parameters(self, shape_uv, warped_uv,
-                                       warp_parameters):
-        r_phi, r_theta, r_varphi, _= compute_rotation_matrices(
-            warp_parameters[1], warp_parameters[2], warp_parameters[3])
+                                       camera):
         if self.projection_type == 'perspective':
             dp_dr = d_perspective_projection_d_warp_parameters(
-                shape_uv, warped_uv, warp_parameters, r_phi, r_theta, r_varphi)
+                shape_uv, warped_uv, camera)
         else:
             dp_dr = d_orthographic_projection_d_warp_parameters(
-                shape_uv, warped_uv, warp_parameters, r_phi, r_theta, r_varphi)
+                shape_uv, warped_uv, camera)
         return dp_dr
 
     def compute_steepest_descent(self, dp_da, grad_x_uv, grad_y_uv):
@@ -183,19 +179,20 @@ class LucasKanade(object):
             sd_error_product += np.dot(error_uv[i, :], sd[:, :, i])
         return sd_error_product.T
 
-    def _precompute(self):
+    def _precompute(self, num_of_camera_params):
         # Rescale shape and appearance components to have size:
         # n_vertices x (n_active_components * n_dims)
         shape_pc = self.model.shape_model.components.T
         self.shape_pc = shape_pc.reshape([self.n_vertices, -1])
 
         # Parameters priors
-        self.sd_alpha_prior = np.zeros(self.n + self.m)
+        self.sd_alpha_prior = np.zeros(self.n + self.m + num_of_camera_params)
         self.sd_alpha_prior[:self.n] = 1. / np.sqrt(self.model.shape_model.eigenvalues)
+
         #self.sd_alpha_prior[:self.n] = 2. / (
         # self.model.shape_model.eigenvalues ** 2)
-        self.sd_beta_prior = np.zeros(self.n + self.m)
-        self.sd_beta_prior[self.n:] = 1. / np.sqrt(self.model.texture_model.eigenvalues)
+        self.sd_beta_prior = np.zeros_like(self.sd_alpha_prior)
+        self.sd_beta_prior[self.n+num_of_camera_params:] = 1. / np.sqrt(self.model.texture_model.eigenvalues)
         #self.sd_beta_prior[self.n:] = 2. / (
         # self.model.texture_model.eigenvalues ** 2)
         self.H_alpha_prior = np.diag(self.sd_alpha_prior)
@@ -208,6 +205,10 @@ class Simultaneous(LucasKanade):
     """
     def run(self, image, initial_mesh, camera, gt_mesh=None,
             camera_update=False, max_iters=20, return_costs=False):
+
+
+        # Call precomputation
+        self._precompute(len(camera.as_vector()) if camera_update else 0)
         # Define cost closure
         def cost_closure(x):
             return x.T.dot(x)
@@ -276,7 +277,7 @@ class Simultaneous(LucasKanade):
             # Compute derivative of projection wrt warp parameters
             if camera_update:
                 dp_dr = self.d_projection_d_warp_parameters(
-                    shape_uv, warped_uv, camera_parameters)
+                    shape_uv, warped_uv, camera)
                 # Concatenate it with the derivative wrt shape parameters
                 dp_da_dr = np.hstack((dp_da_dr, dp_dr))
 
@@ -290,6 +291,8 @@ class Simultaneous(LucasKanade):
 
             # Compute hessian
             hessian = self.compute_hessian(sd) + 1e-1 * self.H_alpha_prior + self.H_beta_prior
+            if camera_update:
+                hessian += 1e-7 * np.eye(sd.shape[1])
 
             # Compute error
             img_error_uv = img_uv - texture_uv.T
@@ -298,12 +301,17 @@ class Simultaneous(LucasKanade):
             sd_error_img = self.compute_sd_error(sd, img_error_uv)
 
             # Apply priors
-            sd_error_alpha_prior = self.sd_alpha_prior * \
-                                   np.concatenate((shape_parameters,
-                                                   texture_parameters))
-            sd_error_beta_prior = self.sd_beta_prior * \
-                                  np.concatenate((shape_parameters,
+            if camera_update:
+                all_parameters =  np.concatenate((shape_parameters,
+                                                  np.zeros_like(camera_parameters),
                                                   texture_parameters))
+            else:
+                all_parameters = np.concatenate((shape_parameters,
+                                                 texture_parameters))
+
+            sd_error_alpha_prior = self.sd_alpha_prior * all_parameters
+            sd_error_beta_prior = self.sd_beta_prior * all_parameters
+
             sd_error_img = sd_error_img + 1e-1 * sd_error_alpha_prior + sd_error_beta_prior
 
             # Update costs
@@ -314,12 +322,13 @@ class Simultaneous(LucasKanade):
             delta_s = - np.linalg.solve(hessian, sd_error_img)
 
             # Update parameters
-            shape_parameters += delta_s[:self.n]
             a_list.append(shape_parameters)
             if camera_update:
+                shape_parameters += delta_s[:self.n]
                 camera_parameters += delta_s[self.n:self.n+len(camera_parameters)]
-                texture_parameters += delta_s[(self.n+len(camera_parameters)):]
+                texture_parameters += delta_s[self.n+len(camera_parameters):]
             else:
+                shape_parameters += delta_s[:self.n]
                 texture_parameters += delta_s[self.n:]
             b_list.append(texture_parameters)
 
