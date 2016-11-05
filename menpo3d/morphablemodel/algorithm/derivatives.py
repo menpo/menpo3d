@@ -2,45 +2,32 @@ import numpy as np
 
 from menpo.transform import Homogeneous
 
-
-def d_orthographic_projection_d_shape_parameters(shape_pc_uv, focal_length,
-                                                 rotation_transform):
-    # Initialize
-    n_points, _, n_parameters = shape_pc_uv.shape
-    dp_da = np.zeros((2, n_parameters, n_points))
-
-    # Compute constant (focal length)
-    const = focal_length
-
-    # Compute derivative per parameter
-    for k in range(n_parameters):
-        dw_da_k_uv = rotation_transform.apply(shape_pc_uv[..., k]).T
-        dp_da_k_uv = np.vstack((dw_da_k_uv[0], dw_da_k_uv[1]))
-        dp_da[:, k, :] = const * dp_da_k_uv
-
-    return dp_da
-
-
 def d_perspective_projection_d_shape_parameters(shape_pc_uv, focal_length,
                                                 rotation_transform, warped_uv):
     # Initialize
-    n_points, _, n_parameters = shape_pc_uv.shape
-    dp_da = np.zeros((2, n_parameters, n_points))
+    n_points, n_dims, n_parameters = shape_pc_uv.shape
+    assert n_dims == 3
 
-    # Compute constant (focal length divided by squared Z dimension of warped
-    # shape
-    w = warped_uv[:, 2]
-    const = focal_length / (w ** 2)
+    # Compute constant
+    # (focal length divided by squared Z dimension of warped shape)
+    z = warped_uv[:, 2]
 
-    # Compute derivative per parameter
-    for k in range(n_parameters):
-        dw_da_k_uv = rotation_transform.apply(shape_pc_uv[..., k]).T
-        dp_da_k_uv = np.vstack(
-            (dw_da_k_uv[0] * w - warped_uv[:, 0] * dw_da_k_uv[2],
-             dw_da_k_uv[1] * w - warped_uv[:, 1] * dw_da_k_uv[2]))
-        dp_da[:, k, :] = const * dp_da_k_uv
+    # n_dims, n_parameters, n_points
+    dw_da = rotation_transform.apply(shape_pc_uv.transpose(0, 2, 1)).T
 
-    return dp_da
+    dw_da[:2] -= warped_uv[:, :2].T[:, None] * dw_da[2] / z
+
+    return focal_length * dw_da[:2] / z
+
+def d_orthographic_projection_d_shape_parameters(shape_pc_uv, focal_length,
+                                                 rotation_transform):
+    n_points, n_dims, n_parameters = shape_pc_uv.shape
+    assert n_dims == 3
+
+    # n_dims, n_parameters, n_points
+    dp_da_uv = rotation_transform.apply(shape_pc_uv.transpose(0, 2, 1)).T
+
+    return focal_length * dp_da_uv[:2]
 
 
 def d_orthographic_projection_d_warp_parameters(shape_uv, warped_uv,
@@ -51,9 +38,11 @@ def d_orthographic_projection_d_warp_parameters(shape_uv, warped_uv,
     n_points = shape_uv.shape[0]
     dp_dr = np.zeros((2, n_parameters, n_points))
 
+    focal_length, qw, qx, qy, qz, tx, ty = warp_parameters
+
     # Compute constant
-    const = np.vstack((8 * warp_parameters[0] / 2,
-                       8 * warp_parameters[0] / 2))
+    const = np.vstack((8 * focal_length / 2,
+                       8 * focal_length / 2))
 
     # DERIVATIVE WRT FOCAL LENGTH
     dp_dr[:, 0, :] = np.vstack(([0.5 * warped_uv[0, :].T,
@@ -112,13 +101,8 @@ def d_orthographic_projection_d_warp_parameters(shape_uv, warped_uv,
 def d_perspective_projection_d_warp_parameters(shape_uv, warped_uv,
                                                warp_parameters, r_phi,
                                                r_theta, r_varphi):
-    # Initialize
-    n_parameters = len(warp_parameters)
-    n_points = shape_uv.shape[0]
-    dp_dr = np.zeros((2, n_parameters, n_points))
-
     # Compute constant
-    w = warped_uv[:, 2]
+    # w = warped_uv[:, 2] or 1
     const = 4 * warp_parameters[0] / (w ** 2)
 
     # DERIVATIVE WRT FOCAL LENGTH
