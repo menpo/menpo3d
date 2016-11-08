@@ -3,188 +3,96 @@ import numpy as np
 from menpo.transform import Homogeneous
 
 
-def d_orthographic_projection_d_shape_parameters(shape_pc_uv, focal_length,
-                                                 rotation_transform):
-    # Initialize
-    n_points, _, n_parameters = shape_pc_uv.shape
-    dp_da = np.zeros((2, n_parameters, n_points))
+def d_perspective_projection_d_shape_parameters(shape_pc_uv, warped_uv, camera):
+    """
+    Calculates the derivative of the perspective projection wrt.
+    to the shape parameters.
 
-    # Compute constant (focal length)
-    const = focal_length
+    Parameters
+    ----------
+    shape_pc_uv : ``(n_points, 3, n_parameters)`` `ndarray`
+        The (sampled) basis of the shape model.
+    warped_uv : ``(n_points, 3)`` `ndarray`
+        The view transformed shape instance.
+    camera: `PerspectiveCamera` object that is responsible of
+     projecting the model to the image plane.
 
-    # Compute derivative per parameter
-    for k in range(n_parameters):
-        dw_da_k_uv = rotation_transform.apply(shape_pc_uv[..., k]).T
-        dp_da_k_uv = np.vstack((dw_da_k_uv[0], dw_da_k_uv[1]))
-        dp_da[:, k, :] = const * dp_da_k_uv
-
-    return dp_da
-
-
-def d_perspective_projection_d_shape_parameters(shape_pc_uv, focal_length,
-                                                rotation_transform, warped_uv):
-    # Initialize
-    n_points, _, n_parameters = shape_pc_uv.shape
-    dp_da = np.zeros((2, n_parameters, n_points))
-
-    # Compute constant (focal length divided by squared Z dimension of warped
-    # shape
-    w = warped_uv[:, 2]
-    const = focal_length / (w ** 2)
-
-    # Compute derivative per parameter
-    for k in range(n_parameters):
-        dw_da_k_uv = rotation_transform.apply(shape_pc_uv[..., k]).T
-        dp_da_k_uv = np.vstack(
-            (dw_da_k_uv[0] * w - warped_uv[:, 0] * dw_da_k_uv[2],
-             dw_da_k_uv[1] * w - warped_uv[:, 1] * dw_da_k_uv[2]))
-        dp_da[:, k, :] = const * dp_da_k_uv
-
-    return dp_da
-
-
-def d_orthographic_projection_d_warp_parameters(shape_uv, warped_uv,
-                                                warp_parameters, r_phi,
-                                                r_theta, r_varphi):
-    # Initialize
-    n_parameters = len(warp_parameters)
-    n_points = shape_uv.shape[0]
-    dp_dr = np.zeros((2, n_parameters, n_points))
+    Returns
+    -------
+    dw_da: the computed derivative.
+    """
+    n_points, n_dims, n_parameters = shape_pc_uv.shape
+    assert n_dims == 3
 
     # Compute constant
-    const = np.vstack((8 * warp_parameters[0] / 2,
-                       8 * warp_parameters[0] / 2))
+    # (focal length divided by squared Z dimension of warped shape)
+    z = warped_uv[:, 2]
 
-    # DERIVATIVE WRT FOCAL LENGTH
-    dp_dr[:, 0, :] = np.vstack(([0.5 * warped_uv[0, :].T,
-                                 0.5 * warped_uv[1, :].T]))
+    # n_dims, n_parameters, n_points
+    dw_da = camera.rotation_transform.apply(shape_pc_uv.transpose(0, 2, 1)).T
 
-    # DERIVATIVE WRT PHI
-    # Derivative of phi rotation wrt angle
-    dr_phi_dphi = np.eye(4, 4)
-    phi = warp_parameters[1]
-    dr_phi_dphi[1:3, 1:3] = np.array([[-np.sin(phi), np.cos(phi)],
-                                      [-np.cos(phi), -np.sin(phi)]])
-    dr_phi_dphi = Homogeneous(dr_phi_dphi)
+    dw_da[:2] -= warped_uv[:, :2].T[:, None] * dw_da[2] / z
 
-    # Derivative of warped shape wrt phi
-    dW_dphi_uv = dr_phi_dphi.apply(r_theta.apply(r_varphi.apply(shape_uv))).T
-    dp_dr[:, 1, :] = dW_dphi_uv[:2, :] * const
-
-    # DERIVATIVE WRT THETA
-    # Derivative of theta rotation  wrt theta
-    dr_theta_dtheta = np.eye(4, 4)
-    theta = warp_parameters[2]
-    dr_theta_dtheta[:3, :3] = np.array([[-np.sin(theta), 0, -np.cos(theta)],
-                                        [             0, 0,              0],
-                                        [ np.cos(theta), 0, -np.sin(theta)]])
-    dr_theta_dtheta = Homogeneous(dr_theta_dtheta)
-
-    # Derivative of warped shape wrt theta
-    dW_dtheta_uv = r_phi.apply(
-        dr_theta_dtheta.apply(r_varphi.apply(shape_uv))).T
-    dp_dr[:, 2, :] = dW_dtheta_uv[:2, :] * const
-
-    # DERIVATIVE WRT VARPHI
-    # Derivative of varphi rotation wrt angle
-    dr_varphi_dvarphi = np.eye(4, 4)
-    varphi = warp_parameters[3]
-    dr_varphi_dvarphi[:2, :2] = np.array([[-np.sin(varphi), -np.cos(varphi)],
-                                          [ np.cos(varphi), -np.sin(varphi)]])
-    dr_varphi_dvarphi = Homogeneous(dr_varphi_dvarphi)
-
-    # Derivative of warped shape wrt varphi
-    dW_dvarphi_uv = r_phi.apply(
-        r_theta.apply(dr_varphi_dvarphi.apply(shape_uv))).T
-    dp_dr[:, 3, :] = dW_dvarphi_uv[:2, :] * const
-
-    # DERIVATIVE WRT TRANSLATION X
-    dp_dtx_uv = np.vstack((np.ones([1, n_points]), np.zeros([1, n_points])))
-    dp_dr[:, 4, :] = dp_dtx_uv * const
-
-    # DERIVATIVE WRT TRANSLATION Y
-    dp_dty_uv = np.vstack((np.zeros([1, n_points]), np.ones([1, n_points])))
-    dp_dr[:, 5, :] = dp_dty_uv * const
-
-    return dp_dr
+    return camera.projection_transform.focal_length * dw_da[:2] / z
 
 
-def d_perspective_projection_d_warp_parameters(shape_uv, warped_uv,
-                                               warp_parameters, r_phi,
-                                               r_theta, r_varphi):
-    # Initialize
-    n_parameters = len(warp_parameters)
-    n_points = shape_uv.shape[0]
-    dp_dr = np.zeros((2, n_parameters, n_points))
+def d_orthographic_projection_d_shape_parameters(shape_pc_uv, camera):
+    """
+    Calculates the derivative of the orthographic projection wrt.
+    to the shape parameters.
 
-    # Compute constant
-    w = warped_uv[:, 2]
-    const = 4 * warp_parameters[0] / (w ** 2)
+    Parameters
+    ----------
+    shape_pc_uv : ``(n_points, 3, n_parameters)`` `ndarray`
+        The (sampled) basis of the shape model.
+    camera: `PerspectiveCamera` object that is responsible of
+     projecting the model to the image plane.
 
-    # DERIVATIVE WRT FOCAL LENGTH
-    dp_dr[:, 0, :] = np.vstack(([0.5 * warped_uv[:, 0] / w,
-                                 0.5 * warped_uv[:, 1] / w]))
+    Returns
+    -------
+    dw_da: the computed derivative.
+    """
+    n_points, n_dims, n_parameters = shape_pc_uv.shape
+    assert n_dims == 3
 
-    # DERIVATIVE WRT PHI
-    # Derivative of phi rotation wrt angle
-    dr_phi_dphi = np.eye(4, 4)
-    phi = warp_parameters[1]
-    dr_phi_dphi[1:3, 1:3] = np.array([[-np.sin(phi),  np.cos(phi)],
-                                      [-np.cos(phi), -np.sin(phi)]])
-    dr_phi_dphi = Homogeneous(dr_phi_dphi)
+    # n_dims, n_parameters, n_points
+    dp_da_uv = camera.rotation_transform.apply(shape_pc_uv.transpose(0, 2, 1)).T
 
-    # Derivative of warped shape wrt phi
-    dW_dphi_uv = dr_phi_dphi.apply(r_theta.apply(r_varphi.apply(shape_uv))).T
+    return camera.projection_transform.focal_length * dp_da_uv[:2]
 
-    # Derivative of projection wrt phi
-    dp_dphi_uv = np.vstack(
-        (dW_dphi_uv[0, :] * w - warped_uv[:, 0] * dW_dphi_uv[2, :],
-         dW_dphi_uv[1, :] * w - warped_uv[:, 1] * dW_dphi_uv[2, :]))
-    dp_dr[:, 1, :] = const * dp_dphi_uv
 
-    # DERIVATIVE WRT THETA
-    # Derivative of theta rotation wrt angle
-    dr_theta_dtheta = np.eye(4, 4)
-    theta = warp_parameters[2]
-    dr_theta_dtheta[:3, :3] = np.array([[-np.sin(theta), 0, -np.cos(theta)],
-                                        [             0, 0,              0],
-                                        [ np.cos(theta), 0, -np.sin(theta)]])
-    dr_theta_dtheta = Homogeneous(dr_theta_dtheta)
+def d_orthographic_projection_d_warp_parameters(shape_uv, warped_uv, camera):
 
-    # Derivative of warped shape wrt theta
-    dW_dtheta_uv = r_phi.apply(
-        dr_theta_dtheta.apply(r_varphi.apply(shape_uv))).T
+    pt = camera.rotation_transform.apply(shape_uv).T
 
-    # Derivative of projection wrt theta
-    dp_dtheta_uv = np.vstack(
-        (dW_dtheta_uv[0, :] * w - warped_uv[:, 0] * dW_dtheta_uv[2, :],
-         dW_dtheta_uv[1, :] * w - warped_uv[:, 1] * dW_dtheta_uv[2, :]))
-    dp_dr[:, 2, :] = const * dp_dtheta_uv
+    r1 = 2 * np.array([[0, 0, 0], [0, 0, -1], [0, 1, 0]]).dot(pt)
+    r2 = 2 * np.array([[0, 0, 1], [0, 0, 0], [-1, 0, 0]]).dot(pt)
+    r3 = 2 * np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]]).dot(pt)
+    zeros = np.zeros_like(r1)
 
-    # DERIVATIVE WRT VARPHI
-    # Derivative of varphi rotation wrt angle
-    dr_varphi_dvarphi = np.eye(4, 4)
-    varphi = warp_parameters[3]
-    dr_varphi_dvarphi[:2, :2] = np.array([[-np.sin(varphi), -np.cos(varphi)],
-                                          [ np.cos(varphi), -np.sin(varphi)]])
-    dr_varphi_dvarphi = Homogeneous(dr_varphi_dvarphi)
+    tx = np.array([zeros[0] + 1, zeros[0], zeros[0]])
+    ty = np.array([zeros[0], zeros[0] + 1, zeros[0]])
+    tz = zeros
 
-    # Derivative of warped shape wrt varphi
-    dW_dvarphi_uv = r_phi.apply(
-        r_theta.apply(dr_varphi_dvarphi.apply(shape_uv))).T
+    return np.array([zeros, zeros, r1, r2, r3, tx, ty, tz]).transpose(1, 0, 2)[:2]
 
-    # Derivative of projection wrt varphi
-    dp_dvarphi_uv = np.vstack(
-        (dW_dvarphi_uv[0, :] * w - warped_uv[:, 0] * dW_dvarphi_uv[2, :],
-         dW_dvarphi_uv[1, :] * w - warped_uv[:, 1] * dW_dvarphi_uv[2, :]))
-    dp_dr[:, 3, :] = const * dp_dvarphi_uv
 
-    # DERIVATIVE WRT TRANSLATION X
-    dp_dtx_uv = np.vstack((warped_uv[:, 2], np.zeros(n_points)))
-    dp_dr[:, 4, :] = const * dp_dtx_uv
+def d_perspective_projection_d_warp_parameters(shape_uv, warped_shape, camera):
+    pt = camera.rotation_transform.apply(shape_uv).T
 
-    # DERIVATIVE WRT TRANSLATION Y
-    dp_dty_uv = np.vstack((np.zeros(n_points), w))
-    dp_dr[:, 5, :] = const * dp_dty_uv
+    z = warped_shape[:, 2]
 
-    return dp_dr
+    r1 = 2 * np.array([[0, 0, 0], [0, 0, -1], [0, 1, 0]]).dot(pt)
+    r2 = 2 * np.array([[0, 0, 1], [0, 0, 0], [-1, 0, 0]]).dot(pt)
+    r3 = 2 * np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]]).dot(pt)
+    zeros = np.zeros_like(r1)
+
+    tx = np.array([zeros[0] + 1, zeros[0], zeros[0]])
+    ty = np.array([zeros[0], zeros[0] + 1, zeros[0]])
+    tz = zeros
+
+    grad = np.array([zeros, zeros, r1, r2, r3, tx, ty, tz]).transpose(1, 0, 2)
+
+    grad[:2] -= warped_shape[:, :2].T[:, None] * grad[2] / z
+
+    return camera.projection_transform.focal_length * grad[:2]
