@@ -156,10 +156,24 @@ class MayaviPointCloudViewer3d(MayaviViewer):
         super(MayaviPointCloudViewer3d, self).__init__(figure_id, new_figure)
         self.points = points
 
-    def render(self, marker_style='sphere', marker_size=1,
+    def render(self, marker_style='sphere', marker_size=None,
                marker_colour=(1, 0, 0), marker_resolution=8, step=None,
                alpha=1.0):
         from mayavi import mlab
+
+        if marker_size is None:
+            from menpo.shape import PointCloud
+            from scipy.spatial.distance import squareform
+            pc = PointCloud(self.points, copy=False)
+            if 1 < pc.n_points < 1000:
+                print('using scale!')
+                d = squareform(pc.distance_to(pc))
+                d.sort()
+                min_10pc = d[int(d.shape[0] / 10)]
+                marker_size = min_10pc / 5
+            else:
+                marker_size = 1
+
         mlab.points3d(
             self.points[:, 0], self.points[:, 1], self.points[:, 2],
             figure=self.figure, scale_factor=marker_size,
