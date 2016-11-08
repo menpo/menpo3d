@@ -39,7 +39,35 @@ def node_arc_incidence_matrix(source):
 
 
 def non_rigid_icp(source, target, eps=1e-3, stiffness_values=None,
-                  verbose=False, landmarks=None, lm_weight=None):
+                  verbose=False, landmarks=None, lm_weight=None,
+                  generate_instances=False):
+    # call the generator version of NICP, always returning a generator
+    results = non_rigid_icp_generator(source, target, eps=eps,
+                                      stiffness_values=stiffness_values,
+                                      verbose=verbose, landmarks=landmarks,
+                                      lm_weight=lm_weight,
+                                      generate_instances=generate_instances)
+    if generate_instances:
+        # the user wants to inspect results per-iteration - return the iterator
+        # directly to them
+        return results
+    else:
+        # the user is not interested in per-iteration results. Exhaust the
+        # generator ourselves and return the last result only.
+        while True:
+            try:
+                instance = next(results)
+            except StopIteration:
+                return instance
+
+
+def nicp_result(source):
+    pass
+    return
+
+def non_rigid_icp_generator(source, target, eps=1e-3, stiffness_values=None,
+                  verbose=False, landmarks=None, lm_weight=None,
+                  generate_instances=False):
     r"""
     Deforms the source trimesh to align with to optimally the target.
     """
@@ -223,6 +251,7 @@ def non_rigid_icp(source, target, eps=1e-3, stiffness_values=None,
 
                 print(v_str)
 
+            # track the progress of the algorithm per-iteration
             info_dict = {
                 'alpha': alpha,
                 'iteration': j + 1,
@@ -240,17 +269,41 @@ def non_rigid_icp(source, target, eps=1e-3, stiffness_values=None,
             if err / np.sqrt(np.size(X_prev)) < eps:
                 break
 
-    # final result if we choose closest points
-    point_corr = closest_points_on_target(v_i)[0]
+            # only compute nice instance objects per-iteration if the user
+            # has requested them
+            if generate_instances:
+                current_instance = source.copy()
+                current_instance.points = v_i.copy()
+                if landmarks is not None:
+                    from menpo.shape import PointCloud
+                    current_instance.landmarks[landmarks] = PointCloud(src_lms)
 
-    result = {
-        'deformed_source': restore.apply(v_i),
-        'matched_target': restore.apply(point_corr),
-        'matched_tri_indices': tri_indices,
-        'info': info
-    }
-
+                yield restore.apply(current_instance), info
+                #yield nicp_result(source, v_i, )
+                print('aaaand we are back!')
+    # copy of new result computatoin
+    current_instance = source.copy()
+    current_instance.points = v_i.copy()
     if landmarks is not None:
-        result['source_lm_index'] = source_lm_index
+        from menpo.shape import PointCloud
+        current_instance.landmarks[landmarks] = PointCloud(src_lms)
 
-    return result
+    yield restore.apply(current_instance), info
+    #yield nicp_result(source, v_i, )
+
+
+    # old result compuation
+    # # final result if we choose closest points
+    # point_corr = closest_points_on_target(v_i)[0]
+    #
+    # result = {
+    #     'deformed_source': restore.apply(v_i),
+    #     'matched_target': restore.apply(point_corr),
+    #     'matched_tri_indices': tri_indices,
+    #     'info': info
+    # }
+    #
+    # if landmarks is not None:
+    #     result['source_lm_index'] = source_lm_index
+    #
+    # yield result
