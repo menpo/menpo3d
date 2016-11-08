@@ -227,12 +227,12 @@ class Simultaneous(LucasKanade):
                                                      grad_y_uv)
             sd = np.hstack((sd_da_dr, dt_db))
 
-            print()
-            print("sd_da_dr: {:.4f} - {:.4f} -> {:.4f}".format(
-                sd_da_dr.min(), sd_da_dr.max(), np.linalg.norm(
-                    sd_da_dr.ravel())))
-            print("dt_db: {:.4f} - {:.4f} -> {:.4f}".format(
-                dt_db.min(), dt_db.max(), np.linalg.norm(dt_db.ravel())))
+            # print()
+            # print("sd_da_dr: {:.4f} - {:.4f} -> {:.4f}".format(
+            #     sd_da_dr.min(), sd_da_dr.max(), np.linalg.norm(
+            #         sd_da_dr.ravel())))
+            # print("dt_db: {:.4f} - {:.4f} -> {:.4f}".format(
+            #     dt_db.min(), dt_db.max(), np.linalg.norm(dt_db.ravel())))
 
             # Compute hessian
             hessian = self.compute_hessian(sd)
