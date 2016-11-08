@@ -108,7 +108,7 @@ class MMFitter(object):
 
         return feature_image, new_initial_shape, affine_transform
 
-    def _fit(self, image, camera, instance=None, gt_mesh=None,
+    def _fit(self, image, camera, instance=None, gt_mesh=None, use_priors=True,
              camera_update=False, max_iters=50, return_costs=False):
         # Check provided instance
         if instance is None:
@@ -124,7 +124,7 @@ class MMFitter(object):
         for i in range(self.n_scales):
             # Run algorithm
             algorithm_result = self.algorithms[i].run(
-                image, instance, camera, gt_mesh=gt_mesh,
+                image, instance, camera, gt_mesh=gt_mesh, use_priors=use_priors,
                 camera_update=camera_update, max_iters=max_iters[i],
                 return_costs=return_costs)
 
@@ -137,8 +137,8 @@ class MMFitter(object):
         return algorithm_results
 
     def fit_from_shape(self, image, initial_shape, gt_mesh=None,
-                       camera_update=False, max_iters=50, return_costs=False,
-                       distortion_coeffs=None):
+                       use_priors=True, camera_update=False, max_iters=50,
+                       return_costs=False, distortion_coeffs=None):
         # Check that the provided initial shape has the same number of points
         # as the landmarks of the model
         if initial_shape.n_points != self.mm.landmarks.n_points:
@@ -159,6 +159,7 @@ class MMFitter(object):
         # Execute multi-scale fitting
         algorithm_results = self._fit(rescaled_image, camera, gt_mesh=gt_mesh,
                                       camera_update=camera_update,
+                                      use_priors=use_priors,
                                       max_iters=max_iters,
                                       return_costs=return_costs)
 

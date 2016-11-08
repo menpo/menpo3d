@@ -8,9 +8,8 @@ from menpo3d.rasterize import rasterize_barycentric_coordinates
 
 from .derivatives import (d_orthographic_projection_d_shape_parameters,
                           d_perspective_projection_d_shape_parameters,
-                          d_orthographic_projection_d_warp_parameters,
-                          d_perspective_projection_d_warp_parameters)
-from ..projection import compute_rotation_matrices
+                          d_orthographic_projection_d_camera_parameters,
+                          d_perspective_projection_d_camera_parameters)
 from ..result import MMAlgorithmResult
 
 
@@ -20,7 +19,8 @@ class LucasKanade(object):
         self.eps = eps
         self.n_samples = n_samples
         self.projection_type = projection_type
-
+        # Call precompute
+        self._precompute()
 
     @property
     def n(self):
@@ -59,23 +59,6 @@ class LucasKanade(object):
         return self.model.n_channels
 
     def visible_sample_points(self, instance_in_img, image_shape):
-        r"""
-        Computes the warping map.
-
-        Parameters
-        ----------
-        instance : `menpo.shape.ColouredTriMesh`
-            The input mesh instance.
-
-        Returns
-        -------
-        vertex_indices : ``(n_samples, 3)`` `ndarray`
-            The vertices indices per sample.
-        b_coords : ``(n_samples, 3)`` `ndarray`
-            The barycentric coordinates per sample.
-        yx : ``(n_samples,)`` `ndarray`
-            The indices of the true points.
-        """
         # Inverse rendering
         yx, tri_indices, b_coords = rasterize_barycentric_coordinates(
             instance_in_img, image_shape)
@@ -92,43 +75,10 @@ class LucasKanade(object):
         return vertex_indices, tri_indices, b_coords, yx
 
     def sample(self, x, vertex_indices, b_coords):
-        r"""
-        Method that samples an object at locations specified by the
-        barycentric coordinates.
-
-        Parameters
-        ----------
-        x : `ndarray`
-            The object to sample.
-        vertex_indices : ``(n_samples, 3)`` `ndarray`
-            The vertices indices per sample.
-        b_coords : ``(n_samples, 3)`` `ndarray`
-            The barycentric coordinates per sample.
-
-        Returns
-        -------
-        sampled_x : ``(n_samples, ...)`` `ndarray`
-            The sampled object.
-        """
         per_vert_per_pixel = x[vertex_indices]
         return np.sum(per_vert_per_pixel * b_coords[..., None], axis=1)
 
     def gradient(self, image):
-        r"""
-        Computes the gradient of an image.
-
-        Parameters
-        ----------
-        image : `menpo.image.Image` or subclass
-            The input image.
-
-        Returns
-        -------
-        gradient_X : ``(n_channels, height, width)`` `menpo.image.Image`
-            The image gradient over the X direction.
-        gradient_Y : ``(n_channels, height, width)`` `menpo.image.Image`
-            The image gradient over the Y direction.
-        """
         # Compute the gradient of the image
         grad = fast_gradient(image)
 
@@ -142,19 +92,17 @@ class LucasKanade(object):
         if self.projection_type == 'perspective':
             return d_perspective_projection_d_shape_parameters(
                 shape_pc_uv, warped_uv, camera)
-
-        return d_orthographic_projection_d_shape_parameters(
+        else:
+            return d_orthographic_projection_d_shape_parameters(
                 shape_pc_uv, camera)
 
-    def d_projection_d_warp_parameters(self, shape_uv, warped_uv,
-                                       camera):
+    def d_projection_d_camera_parameters(self, warped_uv, camera):
         if self.projection_type == 'perspective':
-            dp_dr = d_perspective_projection_d_warp_parameters(
-                shape_uv, warped_uv, camera)
+            return d_perspective_projection_d_camera_parameters(warped_uv,
+                                                                 camera)
         else:
-            dp_dr = d_orthographic_projection_d_warp_parameters(
-                shape_uv, warped_uv, camera)
-        return dp_dr
+            return d_orthographic_projection_d_camera_parameters(warped_uv,
+                                                                  camera)
 
     def compute_steepest_descent(self, dp_da, grad_x_uv, grad_y_uv):
         permuted_grad_x = np.transpose(grad_x_uv[..., None], (0, 2, 1))
@@ -179,42 +127,38 @@ class LucasKanade(object):
             sd_error_product += np.dot(error_uv[i, :], sd[:, :, i])
         return sd_error_product.T
 
-    def _precompute(self, num_of_camera_params):
+    def _precompute(self):
         # Rescale shape and appearance components to have size:
         # n_vertices x (n_active_components * n_dims)
         shape_pc = self.model.shape_model.components.T
         self.shape_pc = shape_pc.reshape([self.n_vertices, -1])
 
-        # Parameters priors
-        self.sd_alpha_prior = np.zeros(self.n + self.m + num_of_camera_params)
-        self.sd_alpha_prior[:self.n] = 1. / np.sqrt(self.model.shape_model.eigenvalues)
-
-        #self.sd_alpha_prior[:self.n] = 2. / (
-        # self.model.shape_model.eigenvalues ** 2)
-        self.sd_beta_prior = np.zeros_like(self.sd_alpha_prior)
-        self.sd_beta_prior[self.n+num_of_camera_params:] = 1. / np.sqrt(self.model.texture_model.eigenvalues)
-        #self.sd_beta_prior[self.n:] = 2. / (
-        # self.model.texture_model.eigenvalues ** 2)
-        self.H_alpha_prior = np.diag(self.sd_alpha_prior)
-        self.H_beta_prior = np.diag(self.sd_beta_prior)
+        # Priors
+        c = 1000  # SMALL VALUES FOR MORE CONSTRAINED SHAPE MODEL
+        shape_prior_weight = 1. / (c * self.model.shape_model.noise_variance())
+        texture_prior_weight = 1.
+        self.J_shape_prior = (shape_prior_weight * 1. /
+                              self.model.shape_model.eigenvalues)
+        self.J_texture_prior = (texture_prior_weight * 1. /
+                                self.model.texture_model.eigenvalues)
+        self.H_shape_prior = np.hstack(
+            (self.J_shape_prior, np.zeros_like(self.J_texture_prior)))
+        self.H_texture_prior = np.hstack(
+            (np.zeros_like(self.J_shape_prior), self.J_texture_prior))
 
 
 class Simultaneous(LucasKanade):
     r"""
     Class for defining Simultaneous Morphable Model optimization algorithm.
     """
-    def run(self, image, initial_mesh, camera, gt_mesh=None,
+    def run(self, image, initial_mesh, camera, gt_mesh=None, use_priors=True,
             camera_update=False, max_iters=20, return_costs=False):
-
-
-        # Call precomputation
-        self._precompute(len(camera.as_vector()) if camera_update else 0)
         # Define cost closure
         def cost_closure(x):
             return x.T.dot(x)
 
-        # Retrieve warp (camera) parameters from the provided view and
-        # projection transforms.
+        # Retrieve camera parameters from the provided view and projection
+        # transforms.
         camera_parameters = camera.as_vector()
         shape_parameters = self.model.shape_model.project(initial_mesh)
         texture_parameters = self.model.project_instance_on_texture_model(
@@ -253,7 +197,6 @@ class Simultaneous(LucasKanade):
             W = camera.view_transform.apply(instance.points)
 
             # Sample all the terms we need at our sample locations.
-            shape_uv = self.sample(instance.points, vertex_indices, b_coords)
             warped_uv = self.sample(W, vertex_indices, b_coords)
             texture_uv = instance.sample_texture_with_barycentric_coordinates(
                 b_coords, tri_indices)
@@ -266,33 +209,36 @@ class Simultaneous(LucasKanade):
             grad_x_uv = grad_x.sample(yx)
             grad_y_uv = grad_y.sample(yx)
 
-
-            # print('texture_uv.shape: {}, texture_pc_uv.shape: {}'.format(texture_uv.shape, texture_pc_uv.shape))
-            # print('shape_uv.shape: {}, shape_pc_uv.shape: {}'.format(shape_uv.shape, shape_pc_uv.shape))
-
             # Compute derivative of projection wrt shape parameters
-            dp_da_dr = self.d_projection_d_shape_parameters(
-                warped_uv, shape_pc_uv, camera)
+            dp_da_dr = self.d_projection_d_shape_parameters(warped_uv,
+                                                            shape_pc_uv, camera)
 
-            # Compute derivative of projection wrt warp parameters
+            # Compute derivative of projection wrt camera parameters
             if camera_update:
-                dp_dr = self.d_projection_d_warp_parameters(
-                    shape_uv, warped_uv, camera)
+                dp_dr = self.d_projection_d_camera_parameters(warped_uv, camera)
                 # Concatenate it with the derivative wrt shape parameters
                 dp_da_dr = np.hstack((dp_da_dr, dp_dr))
 
             # Derivative of texture wrt texture parameters
-            dt_db = np.rollaxis(texture_pc_uv, 0, 3)
+            dt_db = - np.rollaxis(texture_pc_uv, 0, 3)
 
             # Compute steepest descent
             sd_da_dr = self.compute_steepest_descent(dp_da_dr, grad_x_uv,
                                                      grad_y_uv)
-            sd = np.hstack((sd_da_dr, -dt_db))
+            sd = np.hstack((sd_da_dr, dt_db))
+
+            print()
+            print("sd_da_dr: {:.4f} - {:.4f} -> {:.4f}".format(
+                sd_da_dr.min(), sd_da_dr.max(), np.linalg.norm(
+                    sd_da_dr.ravel())))
+            print("dt_db: {:.4f} - {:.4f} -> {:.4f}".format(
+                dt_db.min(), dt_db.max(), np.linalg.norm(dt_db.ravel())))
 
             # Compute hessian
-            hessian = self.compute_hessian(sd) + 1e-1 * self.H_alpha_prior + self.H_beta_prior
-            if camera_update:
-                hessian += 1e-7 * np.eye(sd.shape[1])
+            hessian = self.compute_hessian(sd)
+            if use_priors:
+                hessian += (np.diag(self.H_shape_prior) +
+                            np.diag(self.H_texture_prior))
 
             # Compute error
             img_error_uv = img_uv - texture_uv.T
@@ -301,18 +247,17 @@ class Simultaneous(LucasKanade):
             sd_error_img = self.compute_sd_error(sd, img_error_uv)
 
             # Apply priors
-            if camera_update:
-                all_parameters =  np.concatenate((shape_parameters,
-                                                  np.zeros_like(camera_parameters),
-                                                  texture_parameters))
-            else:
-                all_parameters = np.concatenate((shape_parameters,
-                                                 texture_parameters))
-
-            sd_error_alpha_prior = self.sd_alpha_prior * all_parameters
-            sd_error_beta_prior = self.sd_beta_prior * all_parameters
-
-            sd_error_img = sd_error_img + 1e-1 * sd_error_alpha_prior + sd_error_beta_prior
+            if use_priors:
+                if camera_update:
+                    all_parameters = np.concatenate(
+                        (shape_parameters, camera_parameters,
+                         texture_parameters))
+                else:
+                    all_parameters = np.concatenate(
+                        (shape_parameters, texture_parameters))
+                sd_shape = self.H_shape_prior * all_parameters
+                sd_texture = self.H_texture_prior * all_parameters
+                sd_error_img += sd_shape + sd_texture
 
             # Update costs
             if return_costs:
@@ -322,40 +267,22 @@ class Simultaneous(LucasKanade):
             delta_s = - np.linalg.solve(hessian, sd_error_img)
 
             # Update parameters
-            a_list.append(shape_parameters)
+            shape_parameters += delta_s[:self.n]
             if camera_update:
-                shape_parameters += delta_s[:self.n]
                 camera_parameters += delta_s[self.n:self.n+len(camera_parameters)]
+                camera = camera.from_vector(camera_parameters)
                 texture_parameters += delta_s[self.n+len(camera_parameters):]
             else:
-                shape_parameters += delta_s[:self.n]
                 texture_parameters += delta_s[self.n:]
+            a_list.append(shape_parameters)
             b_list.append(texture_parameters)
-
-            # print("Image UV: {:.5f} - {:.5f}".format(img_uv.min(),
-            #                                          img_uv.max()))
-            # print("Instance UV: {:.5f} - {:.5f}".format(texture_uv.min(),
-            #                                             texture_uv.max()))
-            # print("Grad X: {:.5f} - {:.5f}".format(grad_x_uv.min(),
-            #                                        grad_x_uv.max()))
-            # print("Grad Y: {:.5f} - {:.5f}".format(grad_y_uv.min(),
-            #                                        grad_y_uv.max()))
-            # print("SD 1.1: {:.5f} - {:.5f}".format(sd_da_dr.min(),
-            #                                        sd_da_dr.max()))
-            # print("SD 1.2: {:.5f} - {:.5f}".format(dp_da_dr.min(),
-            #                                        dp_da_dr.max()))
-            # print("SD 2: {:.5f} - {:.5f}".format(dt_db.min(),
-            #                                      dt_db.max()))
+            r_list.append(camera)
 
             # Generate the updated instance
             instance = self.model.instance(
                 shape_weights=shape_parameters,
                 texture_weights=texture_parameters)
             instances.append(instance.with_clipped_texture())
-
-            if camera_update:
-                camera = camera.from_vector(camera_parameters)
-            r_list.append(camera)
 
             # Increase iteration counter
             k += 1
