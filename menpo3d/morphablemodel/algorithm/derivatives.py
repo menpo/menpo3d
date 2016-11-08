@@ -61,38 +61,91 @@ def d_orthographic_projection_d_shape_parameters(shape_pc_uv, camera):
     return camera.projection_transform.focal_length * dp_da_uv[:2]
 
 
-def d_orthographic_projection_d_warp_parameters(shape_uv, warped_uv, camera):
+def d_perspective_projection_d_camera_parameters(warped_uv, camera):
+    n_points, n_dims = warped_uv.shape
+    assert n_dims == 3
 
-    pt = camera.rotation_transform.apply(shape_uv).T
+    # Initialize derivative
+    dw_dp = np.zeros((2, camera.n_parameters, n_points))
 
-    r1 = 2 * np.array([[0, 0, 0], [0, 0, -1], [0, 1, 0]]).dot(pt)
-    r2 = 2 * np.array([[0, 0, 1], [0, 0, 0], [-1, 0, 0]]).dot(pt)
-    r3 = 2 * np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]]).dot(pt)
-    zeros = np.zeros_like(r1)
+    # Get z-component of warped
+    z = warped_uv[:, 2]
 
-    tx = np.array([zeros[0] + 1, zeros[0], zeros[0]])
-    ty = np.array([zeros[0], zeros[0] + 1, zeros[0]])
-    tz = zeros
+    # Focal length
+    dw_dp[:, 0] = (warped_uv[:, :2] / z[..., None]).T
 
-    return np.array([zeros, zeros, r1, r2, r3, tx, ty, tz]).transpose(1, 0, 2)[:2]
+    # Quaternions
+    centered_warped_uv = camera.translation_transform.pseudoinverse().apply(
+        warped_uv).T
+    #centered_warped_uv = camera.rotation_transform.apply(shape_uv).T
+    r0 = 2 * np.eye(3).dot(centered_warped_uv).T
+    r1 = 2 * np.array([[0, 0,  0],
+                       [0, 0, -1],
+                       [0, 1,  0]]).dot(centered_warped_uv).T
+    r2 = 2 * np.array([[ 0, 0, 1],
+                       [ 0, 0, 0],
+                       [-1, 0, 0]]).dot(centered_warped_uv).T
+    r3 = 2 * np.array([[0, -1, 0],
+                       [1,  0, 0],
+                       [0,  0, 0]]).dot(centered_warped_uv).T
+    # q_1
+    dw_dp[:, 1] = r0[:, :2].T - r0[:, 2] * warped_uv[:, :2].T / z
+    # q_2
+    dw_dp[:, 2] = r1[:, :2].T - r1[:, 2] * warped_uv[:, :2].T / z
+    # q_3
+    dw_dp[:, 3] = r2[:, :2].T - r2[:, 2] * warped_uv[:, :2].T / z
+    # q_4
+    dw_dp[:, 4] = r3[:, :2].T - r3[:, 2] * warped_uv[:, :2].T / z
+    # constant multiplication
+    dw_dp[:, 1:5] *= camera.projection_transform.focal_length / z
+
+    # Translations
+    # t_x
+    dw_dp[0, 5] = camera.projection_transform.focal_length / z
+    # t_y
+    dw_dp[1, 6] = camera.projection_transform.focal_length / z
+    # t_z
+    dw_dp[:, 7] = (- camera.projection_transform.focal_length *
+                   warped_uv[:, :2] / z[..., None] ** 2).T
+    return dw_dp
 
 
-def d_perspective_projection_d_warp_parameters(shape_uv, warped_shape, camera):
-    pt = camera.rotation_transform.apply(shape_uv).T
+def d_orthographic_projection_d_camera_parameters(warped_uv, camera):
+    n_points, n_dims = warped_uv.shape
+    assert n_dims == 3
 
-    z = warped_shape[:, 2]
+    # Initialize derivative
+    dw_dp = np.zeros((2, camera.n_parameters, n_points))
 
-    r1 = 2 * np.array([[0, 0, 0], [0, 0, -1], [0, 1, 0]]).dot(pt)
-    r2 = 2 * np.array([[0, 0, 1], [0, 0, 0], [-1, 0, 0]]).dot(pt)
-    r3 = 2 * np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]]).dot(pt)
-    zeros = np.zeros_like(r1)
+    # Focal length
+    dw_dp[:, 0] = warped_uv[:, :2].T
 
-    tx = np.array([zeros[0] + 1, zeros[0], zeros[0]])
-    ty = np.array([zeros[0], zeros[0] + 1, zeros[0]])
-    tz = zeros
+    # Quaternions
+    centered_warped_uv = camera.translation_transform.pseudoinverse().apply(
+        warped_uv).T
+    #centered_warped_uv = camera.rotation_transform.apply(shape_uv).T
+    r0 = 2 * np.eye(3).dot(centered_warped_uv).T
+    r1 = 2 * np.array([[0, 0,  0],
+                       [0, 0, -1],
+                       [0, 1,  0]]).dot(centered_warped_uv).T
+    r2 = 2 * np.array([[ 0, 0, 1],
+                       [ 0, 0, 0],
+                       [-1, 0, 0]]).dot(centered_warped_uv).T
+    r3 = 2 * np.array([[0, -1, 0],
+                       [1,  0, 0],
+                       [0,  0, 0]]).dot(centered_warped_uv).T
+    # q_1
+    dw_dp[:, 2] = camera.projection_transform.focal_length * r0[:, :2].T
+    # q_2
+    dw_dp[:, 3] = camera.projection_transform.focal_length * r1[:, :2].T
+    # q_3
+    dw_dp[:, 4] = camera.projection_transform.focal_length * r2[:, :2].T
+    # q_4
+    dw_dp[:, 5] = camera.projection_transform.focal_length * r3[:, :2].T
 
-    grad = np.array([zeros, zeros, r1, r2, r3, tx, ty, tz]).transpose(1, 0, 2)
-
-    grad[:2] -= warped_shape[:, :2].T[:, None] * grad[2] / z
-
-    return camera.projection_transform.focal_length * grad[:2]
+    # Translations
+    # t_x
+    dw_dp[0, 6] = camera.projection_transform.focal_length
+    # t_y
+    dw_dp[1, 7] = camera.projection_transform.focal_length
+    return dw_dp
