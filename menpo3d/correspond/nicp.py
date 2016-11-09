@@ -90,17 +90,23 @@ def nicp_result(source, v_i, landmarks, src_lms, restore, info):
     # yield result
 
 
-def non_rigid_icp_generator(source, target, eps=1e-3, stiffness_weights=None,
+def non_rigid_icp_generator(model, target, eps=1e-3,
+                            stiffness_weights=None,
                             landmarks=None, lm_weights=None, verbose=False,
                             generate_instances=False):
     r"""
     Deforms the source trimesh to align with to optimally the target.
     """
+
+    # Start from the mean of the model
+    source = model.mean()
+    # reshape the components to a useful shape.
+    C = model.components.reshape([model.components.shape[0], -1, 3])
+
     # Scale factors completely change the behavior of the algorithm - always
     # rescale the source down to a sensible size (so it fits inside box of
     # diagonal 1) and is centred on the origin. We'll undo this after the fit
     # so the user can use whatever scale they prefer.
-
     if landmarks is not None:
         if verbose:
             print("'{}' landmarks will be used as a landmark constraint.".format(landmarks))
@@ -143,7 +149,7 @@ def non_rigid_icp_generator(source, target, eps=1e-3, stiffness_weights=None,
 
     # init transformation
     X_prev = np.tile(np.zeros((n_dims, h_dims)), n).T
-    v_i = np.ascontiguousarray(points)
+    v_i = points
 
     if stiffness_weights is not None:
         stiffness = stiffness_weights
@@ -286,6 +292,8 @@ def non_rigid_icp_generator(source, target, eps=1e-3, stiffness_weights=None,
 
             # deform template
             v_i = D_s.dot(X)
+
+            yield data, row, col, v_i, o, X
 
             err = np.linalg.norm(X_prev - X, ord='fro')
             stop_criterion = err / np.sqrt(np.size(X_prev))
