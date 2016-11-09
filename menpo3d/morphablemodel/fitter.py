@@ -8,6 +8,7 @@ from menpo3d.camera import PerspectiveCamera
 
 from .algorithm import Simultaneous
 from .result import MMResult
+from .shapemodel import ShapeModel
 
 
 class MMFitter(object):
@@ -173,7 +174,8 @@ class MMFitter(object):
     def fit_from_shape(self, image, initial_shape, gt_mesh=None, max_iters=50,
                        landmarks_prior=True, parameters_priors=True,
                        camera_update=False, focal_length_update=False,
-                       return_costs=False, distortion_coeffs=None):
+                       return_costs=False, distortion_coeffs=None,
+                       init_shape_params_from_lms=True):
         # Check that the provided initial shape has the same number of points
         # as the landmarks of the model
         if initial_shape.n_points != self.mm.landmarks.n_points:
@@ -191,13 +193,30 @@ class MMFitter(object):
             self.mm.landmarks, rescaled_initial_shape, rescaled_image.shape,
             distortion_coeffs=distortion_coeffs)
 
+        if init_shape_params_from_lms:
+            # Wrap the shape model in a container that allows us to mask the
+            # PCA basis spatially
+            sm = ShapeModel(self.mm.shape_model)
+            # Only keep the landmark points in the basis
+            sm_lms_3d = sm.mask_points(self.mm.model_landmarks_index)
+
+            # Warp the basis with the camera and retain only the first two dims
+            sm_lms_2d = camera.apply(sm_lms_3d).mask_dims([0, 1])
+            # Project onto the first few shape components to give an initial
+            # shape
+            shape_weights = sm_lms_2d.project(rescaled_initial_shape,
+                                              n_components=10)
+            instance = self.mm.instance(shape_weights)
+        else:
+            instance = None
+
         # Set landmarks prior argument
         landmarks_prior = rescaled_initial_shape if landmarks_prior else None
 
         # Execute multi-scale fitting
         algorithm_results = self._fit(
             rescaled_image, camera, gt_mesh=gt_mesh, max_iters=max_iters,
-            landmarks_prior=landmarks_prior, instance=None,
+            landmarks_prior=landmarks_prior, instance=instance,
             parameters_priors=parameters_priors, camera_update=camera_update,
             focal_length_update=focal_length_update, return_costs=return_costs)
 
