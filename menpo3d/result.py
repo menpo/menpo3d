@@ -4,6 +4,7 @@ from collections import Iterable
 from menpo.base import LazyList
 from menpo.image import Image
 from menpo.transform import Homogeneous
+from menpo.shape import PointCloud
 
 from menpo3d.rasterize import rasterize_mesh
 
@@ -1315,9 +1316,14 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
     gt_mesh : `menpo.shape.ColouredTriMesh` or `menpo.shape.TexturedTriMesh` or ``None``, optional
         The ground truth mesh associated with the image. If ``None``, then no
         ground truth mesh is assigned.
+    model_landmarks_index : `list` or ``None``, optional
+        It `list`, then it is supposed to provide indices for vertices of the
+        model that have some kind of semantic meaning. These points will be
+        used in order to generate 2D pointclouds projected in the image plane.
+        If ``None``, then the 2D pointclouds will not be generated.
     """
     def __init__(self, results, affine_transforms, n_scales, image=None,
-                 gt_mesh=None):
+                 gt_mesh=None, model_landmarks_index=None):
         # Make sure results are iterable with the correct length
         if not isinstance(results, Iterable):
             results = [results]
@@ -1380,6 +1386,8 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
             self._costs = []
             for r in results:
                 self._costs += r.costs
+        # Assing model_landmarks_index
+        self._model_landmarks_index = model_landmarks_index
 
     @property
     def n_iters_per_scale(self):
@@ -1511,6 +1519,74 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
                       self.meshes))
         return LazyList.init_from_iterable(xs, f=rast)
 
+    def sparse_final_mesh_projected_in_2d(self):
+        r"""
+        Returns the sparse final mesh projected in 2D.
+
+        :type: `menpo.shape.PointCloud`
+            The sparse final mesh projected in the image plane.
+
+        Raises
+        ------
+        ValueError
+            There is not a sparse landmarks index mapping.
+        ValueError
+            The final camera transform does not exist.
+        """
+        if self._model_landmarks_index is None:
+            raise ValueError("There is not a sparse landmarks index mapping.")
+        if self.final_camera_transform is None:
+            raise ValueError("The final camera transform does not exist.")
+        sparse_instance = PointCloud(
+            self.final_mesh.points[self._model_landmarks_index])
+        instance_in_img = self._affine_transforms[-1].apply(
+            self.final_camera_transform.apply(sparse_instance))
+        return PointCloud(instance_in_img.points[:, :2])
+
+    def sparse_initial_mesh_projected_in_2d(self):
+        r"""
+        Returns the sparse initial mesh projected in 2D.
+
+        :type: `menpo.shape.PointCloud`
+            The sparse initial mesh projected in the image plane.
+
+        Raises
+        ------
+        ValueError
+            There is not a sparse landmarks index mapping.
+        ValueError
+            The initial camera transform does not exist.
+        """
+        if self._model_landmarks_index is None:
+            raise ValueError("There is not a sparse landmarks index mapping.")
+        if self.initial_mesh is None:
+            raise ValueError("The initial mesh does not exist.")
+        if self.initial_camera_transform is None:
+            raise ValueError("The initial camera transform does not exist.")
+        sparse_instance = PointCloud(
+            self.initial_mesh.points[self._model_landmarks_index])
+        instance_in_img = self._affine_transforms[-1].apply(
+            self.final_camera_transform.apply(sparse_instance))
+        return PointCloud(instance_in_img.points[:, :2])
+
+    def sparse_meshes_projected_in_2d(self):
+        r"""
+        Returns the list of sparse meshes projected in 2D.
+
+        :type: `list` of `menpo.shape.PointCloud`
+            The list of sparse meshes projected in the image plane.
+        """
+        def project(x):
+            mesh, affine, camera = x
+            sparse_instance = PointCloud(
+                mesh.points[self._model_landmarks_index])
+            instance_in_img = affine.apply(camera.apply(sparse_instance))
+            return PointCloud(instance_in_img.points[:, :2])
+
+        xs = list(zip(self.meshes, self._affine_transforms,
+                      self.camera_transforms))
+        return LazyList.init_from_iterable(xs, f=project)
+
 
 class MultiScaleParametricIterativeResult(MultiScaleNonParametricIterativeResult):
     r"""
@@ -1542,13 +1618,19 @@ class MultiScaleParametricIterativeResult(MultiScaleNonParametricIterativeResult
     gt_mesh : `menpo.shape.ColouredTriMesh` or `menpo.shape.TexturedTriMesh` or ``None``, optional
         The ground truth mesh associated with the image. If ``None``, then no
         ground truth mesh is assigned.
+    model_landmarks_index : `list` or ``None``, optional
+        It `list`, then it is supposed to provide indices for vertices of the
+        model that have some kind of semantic meaning. These points will be
+        used in order to generate 2D pointclouds projected in the image plane.
+        If ``None``, then the 2D pointclouds will not be generated.
     """
     def __init__(self, results, affine_transforms, n_scales, image=None,
-                 gt_mesh=None):
+                 gt_mesh=None, model_landmarks_index=None):
         # Call superclass
         super(MultiScaleParametricIterativeResult, self).__init__(
             results=results, affine_transforms=affine_transforms,
-            n_scales=n_scales, image=image, gt_mesh=gt_mesh)
+            n_scales=n_scales, image=image, gt_mesh=gt_mesh,
+            model_landmarks_index=model_landmarks_index)
         # Create shape parameters
         self._shape_parameters = []
         for r in results:

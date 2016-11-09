@@ -206,7 +206,8 @@ class MMFitter(object):
     def _fitter_result(self, image, algorithm_results, affine_transform,
                        gt_mesh=None):
         return MMResult(algorithm_results, [affine_transform] * self.n_scales,
-                        self.n_scales, image=image, gt_mesh=gt_mesh)
+                        self.n_scales, image=image, gt_mesh=gt_mesh,
+                        model_landmarks_index=self.mm.model_landmarks_index)
 
 
 class LucasKanadeMMFitter(MMFitter):
