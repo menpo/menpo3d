@@ -54,9 +54,12 @@ class MorphableModel(Copyable):
                  holistic_features, diagonal):
         self.shape_model = shape_model
         self.texture_model = texture_model
-        self.landmarks = landmarks
         self.holistic_features = holistic_features
         self.diagonal = diagonal
+        # Find mapping that brings landmarks in correspondence with shape model
+        (self.model_landmarks_index,
+         self.landmarks) = find_correspondences_between_shapes(
+            landmarks, self.shape_model.mean(), return_pointcloud=True)
 
     @property
     def n_vertices(self):
