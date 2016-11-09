@@ -1,7 +1,7 @@
 import numpy as np
 
 from menpo.base import name_of_callable, Copyable
-from menpo.shape import ColouredTriMesh, TexturedTriMesh
+from menpo.shape import ColouredTriMesh, TexturedTriMesh, PointCloud
 
 
 class MorphableModel(Copyable):
@@ -402,3 +402,43 @@ class TexturedMorphableModel(MorphableModel):
 
     def project_instance_on_texture_model(self, instance):
         return self.texture_model.project(instance.texture)
+
+
+def find_correspondences_between_shapes(source, target, return_pointcloud=True):
+    """
+    It maps the landmarks in the source pointcloud to their corresponding
+    indices in the target pointcloud. It optionally returns the source
+    pointcloud with landmarks in correspondence to the target pointcloud.
+
+    Parameters
+    ----------
+    source : `menpo.shape.PointCloud`
+        The source pointcloud.
+    target : `menpo.shape.PointCloud`
+        The target pointcloud.
+    return_pointcloud : `bool`, optional
+        If ``True``, then the source pointcloud with landmarks in correspondence
+        to the target pointcloud. It is returned only
+        if ``return_pointcloud == True``.
+
+    Returns
+    -------
+    map_source_to_target : ``(source_n_points,)`` `ndarray`
+        The mapping between the points of source and target.
+    source_in_correspondence : `menpo.shape.PointCloud`
+        The source pointcloud with landmarks in correspondence will also be
+        returned.
+    """
+    # Compute distance between source and target landmarks
+    distances = source.distance_to(target)
+
+    # Map source landmarks to target landmarks
+    map_source_to_target = np.argmin(distances, 1)
+
+    # Create pointcloud with source landmarks that are in correspondence
+    # with target
+    if return_pointcloud:
+        return map_source_to_target, PointCloud(
+            target.points[map_source_to_target, :])
+    else:
+        return map_source_to_target
