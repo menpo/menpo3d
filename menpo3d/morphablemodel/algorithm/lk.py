@@ -171,12 +171,13 @@ class Simultaneous(LucasKanade):
 
         # Get starting point of Hessian slicing for texture
         texture_slice = self.n
+        total_texture_slice = self.n
         if camera_update:
             # Note that we do not optimize with respect to the 1st quaternion
             texture_slice = self.n + camera.n_parameters - 1
             if not focal_length_update:
                 texture_slice -= 1
-        total_texture_slice = self.n + camera.n_parameters
+            total_texture_slice = self.n + camera.n_parameters
 
         # Reconstruct provided instance
         instance = self.model.instance(shape_weights=shape_parameters,
@@ -241,7 +242,7 @@ class Simultaneous(LucasKanade):
 
             # Slice off the Jacobian of focal length, if asked to not optimise
             # wrt the focal length
-            if not focal_length_update:
+            if camera_update and not focal_length_update:
                 sd = np.delete(sd, self.n, 1)
 
             # Compute hessian
@@ -270,12 +271,13 @@ class Simultaneous(LucasKanade):
             # Compute increment
             ds = - np.linalg.solve(hessian, sd_error_img)
 
-            # If focal length is not updated, then set its increment to zero
-            if not focal_length_update:
-                ds = np.insert(ds, self.n, [0.])
+            if camera_update:
+                # If focal length is not updated, then set its increment to zero
+                if not focal_length_update:
+                    ds = np.insert(ds, self.n, [0.])
 
-            # Set increment of the 1st quaternion to one
-            ds = np.insert(ds, self.n + 1, [1.])
+                # Set increment of the 1st quaternion to one
+                ds = np.insert(ds, self.n + 1, [1.])
 
             # Update parameters
             shape_parameters += ds[:self.n]
