@@ -1,7 +1,5 @@
 import numpy as np
 
-from menpo.transform import Homogeneous
-
 
 def d_perspective_projection_d_shape_parameters(shape_pc_uv, warped_uv, camera):
     """
@@ -66,7 +64,8 @@ def d_perspective_projection_d_camera_parameters(warped_uv, camera):
     assert n_dims == 3
 
     # Initialize derivative
-    dw_dp = np.zeros((2, camera.n_parameters, n_points))
+    # WE DO NOT COMPUTE THE DERIVATIVE WITH RESPECT TO THE FIRST QUATERNION
+    dw_dp = np.zeros((2, camera.n_parameters - 1, n_points))
 
     # Get z-component of warped
     z = warped_uv[:, 2]
@@ -77,8 +76,6 @@ def d_perspective_projection_d_camera_parameters(warped_uv, camera):
     # Quaternions
     centered_warped_uv = camera.translation_transform.pseudoinverse().apply(
         warped_uv).T
-    #centered_warped_uv = camera.rotation_transform.apply(shape_uv).T
-    r0 = 2 * np.eye(3).dot(centered_warped_uv).T
     r1 = 2 * np.array([[0, 0,  0],
                        [0, 0, -1],
                        [0, 1,  0]]).dot(centered_warped_uv).T
@@ -88,25 +85,25 @@ def d_perspective_projection_d_camera_parameters(warped_uv, camera):
     r3 = 2 * np.array([[0, -1, 0],
                        [1,  0, 0],
                        [0,  0, 0]]).dot(centered_warped_uv).T
-    # q_1
-    dw_dp[:, 1] = r0[:, :2].T - r0[:, 2] * warped_uv[:, :2].T / z
+    # WE DO NOT COMPUTE THE DERIVATIVE WITH RESPECT TO THE FIRST QUATERNION
     # q_2
-    dw_dp[:, 2] = r1[:, :2].T - r1[:, 2] * warped_uv[:, :2].T / z
+    dw_dp[:, 1] = r1[:, :2].T - r1[:, 2] * warped_uv[:, :2].T / z
     # q_3
-    dw_dp[:, 3] = r2[:, :2].T - r2[:, 2] * warped_uv[:, :2].T / z
+    dw_dp[:, 2] = r2[:, :2].T - r2[:, 2] * warped_uv[:, :2].T / z
     # q_4
-    dw_dp[:, 4] = r3[:, :2].T - r3[:, 2] * warped_uv[:, :2].T / z
+    dw_dp[:, 3] = r3[:, :2].T - r3[:, 2] * warped_uv[:, :2].T / z
     # constant multiplication
-    dw_dp[:, 1:5] *= camera.projection_transform.focal_length / z
+    dw_dp[:, 1:4] *= camera.projection_transform.focal_length / z
 
     # Translations
     # t_x
-    dw_dp[0, 5] = camera.projection_transform.focal_length / z
+    dw_dp[0, 4] = camera.projection_transform.focal_length / z
     # t_y
-    dw_dp[1, 6] = camera.projection_transform.focal_length / z
+    dw_dp[1, 5] = camera.projection_transform.focal_length / z
     # t_z
-    dw_dp[:, 7] = (- camera.projection_transform.focal_length *
+    dw_dp[:, 6] = (- camera.projection_transform.focal_length *
                    warped_uv[:, :2] / z[..., None] ** 2).T
+
     return dw_dp
 
 
@@ -115,7 +112,8 @@ def d_orthographic_projection_d_camera_parameters(warped_uv, camera):
     assert n_dims == 3
 
     # Initialize derivative
-    dw_dp = np.zeros((2, camera.n_parameters, n_points))
+    # WE DO NOT COMPUTE THE DERIVATIVE WITH RESPECT TO THE FIRST QUATERNION
+    dw_dp = np.zeros((2, camera.n_parameters - 1, n_points))
 
     # Focal length
     dw_dp[:, 0] = warped_uv[:, :2].T
@@ -123,8 +121,6 @@ def d_orthographic_projection_d_camera_parameters(warped_uv, camera):
     # Quaternions
     centered_warped_uv = camera.translation_transform.pseudoinverse().apply(
         warped_uv).T
-    #centered_warped_uv = camera.rotation_transform.apply(shape_uv).T
-    r0 = 2 * np.eye(3).dot(centered_warped_uv).T
     r1 = 2 * np.array([[0, 0,  0],
                        [0, 0, -1],
                        [0, 1,  0]]).dot(centered_warped_uv).T
@@ -134,18 +130,17 @@ def d_orthographic_projection_d_camera_parameters(warped_uv, camera):
     r3 = 2 * np.array([[0, -1, 0],
                        [1,  0, 0],
                        [0,  0, 0]]).dot(centered_warped_uv).T
-    # q_1
-    dw_dp[:, 2] = camera.projection_transform.focal_length * r0[:, :2].T
+    # WE DO NOT COMPUTE THE DERIVATIVE WITH RESPECT TO THE FIRST QUATERNION
     # q_2
-    dw_dp[:, 3] = camera.projection_transform.focal_length * r1[:, :2].T
+    dw_dp[:, 1] = camera.projection_transform.focal_length * r1[:, :2].T
     # q_3
-    dw_dp[:, 4] = camera.projection_transform.focal_length * r2[:, :2].T
+    dw_dp[:, 2] = camera.projection_transform.focal_length * r2[:, :2].T
     # q_4
-    dw_dp[:, 5] = camera.projection_transform.focal_length * r3[:, :2].T
+    dw_dp[:, 3] = camera.projection_transform.focal_length * r3[:, :2].T
 
     # Translations
     # t_x
-    dw_dp[0, 6] = camera.projection_transform.focal_length
+    dw_dp[0, 4] = camera.projection_transform.focal_length
     # t_y
-    dw_dp[1, 7] = camera.projection_transform.focal_length
+    dw_dp[1, 5] = camera.projection_transform.focal_length
     return dw_dp
