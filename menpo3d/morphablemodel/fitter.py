@@ -1,4 +1,7 @@
-from menpo.transform import AlignmentAffine
+import numpy as np
+
+from menpo.transform import AlignmentAffine, AlignmentSimilarity, Rotation
+from menpo.shape import PointCloud
 
 import menpo3d.checks as checks
 from menpo3d.camera import PerspectiveCamera
@@ -108,6 +111,20 @@ class MMFitter(object):
 
         return feature_image, new_initial_shape, affine_transform
 
+    def _align_mean_shape_with_bbox(self, bbox):
+        # Convert 3D landmarks to 2D by removing the Z axis
+        template_shape = PointCloud(self.mm.landmarks.points[:, [1, 0]])
+
+        # Rotation that flips over x axis
+        rot_matrix = np.eye(template_shape.n_dims)
+        rot_matrix[0, 0] = -1
+        template_shape = Rotation(rot_matrix,
+                                  skip_checks=True).apply(template_shape)
+
+        # Align the 2D landmarks' bbox with the provided bbox
+        return AlignmentSimilarity(template_shape.bounding_box(),
+                                   bbox).apply(template_shape)
+
     def _fit(self, image, camera, instance=None, gt_mesh=None, max_iters=50,
              parameters_priors=True, camera_update=False,
              focal_length_update=False, return_costs=False):
@@ -139,6 +156,18 @@ class MMFitter(object):
             algorithm_results.append(algorithm_result)
 
         return algorithm_results
+
+    def fit_from_bb(self, image, initial_bb, gt_mesh=None, max_iters=50,
+                    parameters_priors=True, camera_update=False,
+                    focal_length_update=False, return_costs=False,
+                    distortion_coeffs=None):
+        initial_shape = self._align_mean_shape_with_bbox(initial_bb)
+        return self.fit_from_shape(
+            image=image, initial_shape=initial_shape, gt_mesh=gt_mesh,
+            max_iters=max_iters, parameters_priors=parameters_priors,
+            camera_update=camera_update,
+            focal_length_update=focal_length_update,
+            return_costs=return_costs, distortion_coeffs=distortion_coeffs)
 
     def fit_from_shape(self, image, initial_shape, gt_mesh=None, max_iters=50,
                        parameters_priors=True, camera_update=False,
