@@ -156,7 +156,7 @@ class Simultaneous(LucasKanade):
     Class for defining Simultaneous Morphable Model optimization algorithm.
     """
     def run(self, image, initial_mesh, camera, gt_mesh=None, max_iters=20,
-            parameters_priors=True, camera_update=False,
+            landmarks_prior=None, parameters_priors=True, camera_update=False,
             focal_length_update=False, return_costs=False):
         # Define cost closure
         def cost_closure(x):
