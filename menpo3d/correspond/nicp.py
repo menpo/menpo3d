@@ -181,34 +181,8 @@ def non_rigid_icp_generator(model, target, eps=1e-3,
     x = np.arange(n * h_dims).reshape((n, h_dims))
     col = np.hstack((x[:, :n_dims].ravel(),
                      x[:, n_dims]))
-
     o = np.ones(n)
-    #
-    # # reshape the components to a useful shape.
-    # C = model.components[:5]
-    # r = prepare.linear_component
-    # t = prepare.translation_component
-    # C_r = C.reshape([5, -1, 3])
-    # C_r = C_r.dot(r.T) + t
-    # C = C_r.reshape([5, -1])
-    #
-    # n_c = C.shape[0]
-    # col_n = np.repeat(col, n_c)
-    # offsets = np.arange(n_c) * n
-    # row_n = (np.repeat(row, n_c).reshape([-1, n_c]) + offsets).T.ravel()
-    #
-    # # Form xyz1, xyz1 pattern for all components
-    # h_ones = np.repeat(np.ones(n)[None], n_c, axis=0)
-    # C_h = np.hstack([C, h_ones])
-    # data_c = C_h.ravel()
-    #
-    # D_c = sp.coo_matrix((data_c, (row_n, col_n)))
-    #
-    # model_mean = prepare.apply(model.mean()).points
-    # # The mean is just a single mesh - form D in the standard way
-    # data_mean = np.hstack((model_mean.ravel(), o))
-    # D_mean = sp.coo_matrix((data_mean, (row, col)))
-    #
+    
     if landmarks is not None:
         source_lm_index = source.distance_to(
             source.landmarks[landmarks].lms).argmin(axis=0)
@@ -317,21 +291,10 @@ def non_rigid_icp_generator(model, target, eps=1e-3,
             # deform template
             v_i = D_s.dot(X)
 
-            # yield data, row, col, v_i, o, X, X_prev
-
             # project onto the shape model to restrict the basis
-            # mean_i = D_mean.dot(X).ravel()
-            # C_i = D_c.dot(X).reshape([3 * n, -1])
-            #
-
             v_i = prepare.apply(model.reconstruct(
                 restore.apply(source.from_vector(v_i.ravel())))).points
-            # model_weights = np.linalg.lstsq(C_i, U_model.ravel() - mean_i)[0]
-            #
-            # model.U_model
-            #
-            # print(model_weights)
-            # v_i = model_mean + model_weights.dot(C).reshape([n, 3])
+
             err = np.linalg.norm(X_prev - X, ord='fro')
             stop_criterion = err / np.sqrt(np.size(X_prev))
 
