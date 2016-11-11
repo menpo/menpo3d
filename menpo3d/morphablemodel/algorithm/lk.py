@@ -146,7 +146,7 @@ class SimultaneousForwardAdditive(LucasKanade):
     def run(self, image, initial_mesh, camera, gt_mesh=None, max_iters=20,
             camera_update=False, focal_length_update=False,
             shape_prior_weight=1., texture_prior_weight=1., landmarks=None,
-            landmarks_prior_weight=1., return_costs=False):
+            landmarks_prior_weight=1., return_costs=False, verbose=True):
         # Parse landmarks prior options
         if landmarks is None or landmarks_prior_weight is None:
             landmarks_prior_weight = None
@@ -172,7 +172,7 @@ class SimultaneousForwardAdditive(LucasKanade):
         shape_parameters_per_iter = [shape_parameters]
         texture_parameters_per_iter = [texture_parameters]
         camera_per_iter = [camera]
-        instance_per_iter = [instance.with_clipped_texture()]
+        instance_per_iter = [instance.with_rescaled_texture(0., 1.)]
         costs = None
         if return_costs:
             costs = []
@@ -183,7 +183,9 @@ class SimultaneousForwardAdditive(LucasKanade):
 
         # Main loop
         while k < max_iters and eps > self.eps:
-            print_dynamic("{}/{}".format(k + 1, max_iters))
+            if verbose:
+                print_dynamic("{}/{}".format(k + 1, max_iters))
+                print()
             # Apply camera projection on current instance
             instance_in_image = camera.apply(instance)
 
@@ -367,7 +369,7 @@ class SimultaneousForwardAdditive(LucasKanade):
             shape_parameters_per_iter.append(shape_parameters)
             texture_parameters_per_iter.append(texture_parameters)
             camera_per_iter.append(camera)
-            instance_per_iter.append(instance.with_clipped_texture())
+            instance_per_iter.append(instance.with_rescaled_texture(0., 1.))
 
             # Increase iteration counter
             k += 1
@@ -379,7 +381,7 @@ class SimultaneousForwardAdditive(LucasKanade):
             shape_parameters=shape_parameters_per_iter,
             texture_parameters=texture_parameters_per_iter,
             meshes=instance_per_iter, camera_transforms=camera_per_iter,
-            image=image, initial_mesh=initial_mesh.with_clipped_texture(),
+            image=image, initial_mesh=initial_mesh.with_rescaled_texture(0., 1.),
             initial_camera_transform=camera_per_iter[0], gt_mesh=gt_mesh,
             costs=costs)
 
