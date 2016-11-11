@@ -1565,8 +1565,8 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
             raise ValueError("The initial camera transform does not exist.")
         sparse_instance = PointCloud(
             self.initial_mesh.points[self._model_landmarks_index])
-        instance_in_img = self._affine_transforms[-1].apply(
-            self.final_camera_transform.apply(sparse_instance))
+        instance_in_img = self._affine_transforms[0].apply(
+            self.initial_camera_transform.apply(sparse_instance))
         return PointCloud(instance_in_img.points[:, :2])
 
     def sparse_meshes_projected_in_2d(self):

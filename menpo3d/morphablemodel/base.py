@@ -145,7 +145,7 @@ class MorphableModel(Copyable):
         return self._instance(shape_instance, texture_instance, landmark_group)
 
     def view_shape_model_widget(self, n_parameters=5,
-                                parameters_bounds=(-15.0, 15.0),
+                                parameters_bounds=(-3.0, 3.0),
                                 mode='multiple'):
         r"""
         Visualizes the shape model of the Morphable Model using an interactive
@@ -178,7 +178,7 @@ class MorphableModel(Copyable):
             raise MenpowidgetsMissingError()
 
     def view_mm_widget(self, n_shape_parameters=5, n_texture_parameters=5,
-                       parameters_bounds=(-15.0, 15.0), mode='multiple'):
+                       parameters_bounds=(-3.0, 3.0), mode='multiple'):
         r"""
         Visualizes the Morphable Model using an interactive widget.
 

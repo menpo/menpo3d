@@ -4,9 +4,9 @@ from menpo.transform import AlignmentAffine, AlignmentSimilarity, Rotation
 from menpo.shape import PointCloud
 
 import menpo3d.checks as checks
-from menpo3d.camera import PerspectiveCamera
+from menpo3d.camera import PerspectiveCamera, OrthographicCamera
 
-from .algorithm import Simultaneous
+from .algorithm import SimultaneousForwardAdditive
 from .result import MMResult
 from .shapemodel import ShapeModel
 
@@ -21,12 +21,15 @@ class MMFitter(object):
         The trained Morphable Model.
     algorithms : `list` of `class`
         The list of algorithm objects that will perform the fitting per scale.
+    camera_cls : `menpo3d.camera.PerspectiveCamera` or `menpo3d.camera.OrthographicCamera`
+        The camera class to use.
     """
-    def __init__(self, mm, algorithms):
+    def __init__(self, mm, algorithms, camera_cls):
         # Assign model and algorithms
         self._model = mm
         self.algorithms = algorithms
         self.n_scales = len(self.algorithms)
+        self.camera_cls = camera_cls
 
     @property
     def mm(self):
@@ -189,7 +192,7 @@ class MMFitter(object):
 
         # Estimate view, projection and rotation transforms from the
         # provided initial shape
-        camera = PerspectiveCamera.init_from_2d_projected_shape(
+        camera = self.camera_cls.init_from_2d_projected_shape(
             self.mm.landmarks, rescaled_initial_shape, rescaled_image.shape,
             distortion_coeffs=distortion_coeffs)
 
@@ -233,9 +236,9 @@ class MMFitter(object):
 
 
 class LucasKanadeMMFitter(MMFitter):
-    def __init__(self, mm, lk_algorithm_cls=Simultaneous, n_scales=1,
-                 n_shape=1.0, n_texture=1.0, n_samples=1000,
-                 projection_type='perspective'):
+    def __init__(self, mm, lk_algorithm_cls=SimultaneousForwardAdditive,
+                 n_scales=1, n_shape=1.0, n_texture=1.0, n_samples=1000,
+                 camera_cls=PerspectiveCamera):
         # Check parameters
         n_shape = checks.check_multi_scale_param(n_scales, int, 'n_shape',
                                                  n_shape)
@@ -243,11 +246,11 @@ class LucasKanadeMMFitter(MMFitter):
                                                    'n_texture', n_texture)
         self.n_samples = checks.check_multi_scale_param(n_scales, int,
                                                         'n_samples', n_samples)
-        if projection_type in ['orthographic', 'perspective']:
-            self.projection_type = projection_type
+        if camera_cls in [PerspectiveCamera, OrthographicCamera]:
+            self.camera_cls = camera_cls
         else:
-            raise ValueError("Projection type can be either 'perspective' or "
-                             "'orthographic'")
+            raise ValueError("Camera can be either PerspectiveCamera or"
+                             "OrthographicCamera")
 
         # Create list of algorithms
         algorithms = []
@@ -255,11 +258,11 @@ class LucasKanadeMMFitter(MMFitter):
             mm_copy = mm.copy()
             set_model_components(mm_copy.shape_model, n_shape[i])
             set_model_components(mm_copy.texture_model, n_texture[i])
-            algorithms.append(lk_algorithm_cls(mm_copy, self.n_samples[i],
-                                               self.projection_type))
+            algorithms.append(lk_algorithm_cls(mm_copy, self.n_samples[i]))
 
         # Call superclass
-        super(LucasKanadeMMFitter, self).__init__(mm=mm, algorithms=algorithms)
+        super(LucasKanadeMMFitter, self).__init__(mm=mm, algorithms=algorithms,
+                                                  camera_cls=camera_cls)
 
     def __str__(self):
         scales_info = []
