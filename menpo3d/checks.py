@@ -50,9 +50,10 @@ def check_multi_scale_param(n_scales, types, param_name, param):
         The number of scales.
     types : `tuple`
         The `tuple` of variable types that the parameter is allowed to have.
+        It can also contain ``None``.
     param_name : `str`
         The name of the parameter.
-    param : `types`
+    param : `types` or `list` of `types`
         The parameter value.
 
     Returns
@@ -70,15 +71,34 @@ def check_multi_scale_param(n_scales, types, param_name, param):
                 "{1} with the same length as the number " \
                 "of scales".format(param_name, types)
 
+    none_in_types = False
+    new_types = []
+    for i in types:
+        if i is None:
+            none_in_types = True
+        else:
+            new_types.append(i)
+    new_types = tuple(new_types)
+
     # Could be a single value - or we have an error
-    if isinstance(param, types):
-        return [param] * n_scales
-    elif not isinstance(param, collections.Iterable):
-        raise ValueError(error_msg)
+    if none_in_types:
+        if isinstance(param, new_types) or param is None:
+            return [param] * n_scales
+        elif not isinstance(param, collections.Iterable):
+            raise ValueError(error_msg)
+    else:
+        if isinstance(param, new_types):
+            return [param] * n_scales
+        elif not isinstance(param, collections.Iterable):
+            raise ValueError(error_msg)
 
     # Must be an iterable object
     len_param = len(param)
-    isinstance_all_in_param = all(isinstance(p, types) for p in param)
+    if none_in_types:
+        isinstance_all_in_param = all(isinstance(p, new_types) or p is None
+                                      for p in param)
+    else:
+        isinstance_all_in_param = all(isinstance(p, new_types) for p in param)
 
     if len_param == 1 and isinstance_all_in_param:
         return list(param) * n_scales
