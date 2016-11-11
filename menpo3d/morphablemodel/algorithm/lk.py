@@ -100,26 +100,28 @@ class LucasKanade(object):
         return sd.dot(error_uv)
 
     def compute_cost(self, data_error, lms_error, shape_parameters,
-                     texture_parameters, parameters_priors, landmarks_prior):
+                     texture_parameters, shape_prior_weight,
+                     texture_prior_weight, landmarks_prior_weight):
         # Cost of data term
         tmp = data_error.ravel()
         current_cost = tmp.T.dot(tmp)
 
-        # Cost of parameters priors
-        if parameters_priors:
-            # Shape prior
-            current_cost += (
-                self.shape_prior_weight * np.sum((shape_parameters ** 2) *
-                                                 self.J_shape_prior))
-            # Texture prior
-            current_cost += (
-                self.texture_prior_weight * np.sum((texture_parameters ** 2) *
-                                                   self.J_texture_prior))
+        # Cost of shape prior
+        if shape_prior_weight is not None:
+            current_cost += (shape_prior_weight *
+                             np.sum((shape_parameters ** 2) *
+                                    self.J_shape_prior))
+
+        # Cost of texture prior
+        if texture_prior_weight is not None:
+            current_cost += (texture_prior_weight *
+                             np.sum((texture_parameters ** 2) *
+                                    self.J_texture_prior))
 
         # Cost of landmarks prior
-        if landmarks_prior is not None:
+        if landmarks_prior_weight is not None:
             tmp = lms_error.ravel()
-            current_cost += self.lms_prior_weight * tmp.T.dot(tmp)
+            current_cost += landmarks_prior_weight * tmp.T.dot(tmp)
 
         return current_cost
 
@@ -128,18 +130,12 @@ class LucasKanade(object):
         # n_vertices x (n_active_components * n_dims)
         shape_pc = self.model.shape_model.components.T
         self.shape_pc = shape_pc.reshape([self.n_vertices, -1])
-        self.shape_pc_lms = shape_pc.reshape([self.n_vertices, 3, -1])[
-            self.model.model_landmarks_index]
 
         # Priors
-        c = 300  # SMALL VALUES FOR MORE CONSTRAINED SHAPE MODEL
-        self.shape_prior_weight = 1. #/ (c *
-        # self.model.shape_model.noise_variance())
-        self.texture_prior_weight = 1.
-        self.lms_prior_weight = 1. #/ 75.
-
         self.J_shape_prior = 1. / np.array(self.model.shape_model.eigenvalues)
         self.J_texture_prior = 1. / np.array(self.model.texture_model.eigenvalues)
+        self.shape_pc_lms = shape_pc.reshape([self.n_vertices, 3, -1])[
+            self.model.model_landmarks_index]
 
 
 class SimultaneousForwardAdditive(LucasKanade):
@@ -148,8 +144,16 @@ class SimultaneousForwardAdditive(LucasKanade):
     optimization algorithm.
     """
     def run(self, image, initial_mesh, camera, gt_mesh=None, max_iters=20,
-            landmarks_prior=None, parameters_priors=True, camera_update=False,
-            focal_length_update=False, return_costs=False):
+            camera_update=False, focal_length_update=False,
+            shape_prior_weight=1., texture_prior_weight=1., landmarks=None,
+            landmarks_prior_weight=1., return_costs=False):
+        # Parse landmarks prior options
+        if landmarks is None or landmarks_prior_weight is None:
+            landmarks_prior_weight = None
+            landmarks = None
+        if landmarks is not None:
+            lms_points = landmarks.points[:, [1, 0]]
+
         # Retrieve camera parameters from the provided camera object.
         # Project provided instance to retrieve shape and texture parameters.
         camera_parameters = camera.as_vector()
@@ -180,7 +184,6 @@ class SimultaneousForwardAdditive(LucasKanade):
         # Main loop
         while k < max_iters and eps > self.eps:
             print_dynamic("{}/{}".format(k + 1, max_iters))
-            print()
             # Apply camera projection on current instance
             instance_in_image = camera.apply(instance)
 
@@ -245,55 +248,57 @@ class SimultaneousForwardAdditive(LucasKanade):
                                           np.linalg.norm(hessian[self.n:idx, self.n:idx])]
                     columns_h.append('H camera')
 
-            # Compute Jacobian, update SD and Hessian wrt parameters priors
-            if parameters_priors:
-                # Shape prior
-                sd_shape = self.shape_prior_weight * self.J_shape_prior
+            # Compute Jacobian, update SD and Hessian wrt shape prior
+            if shape_prior_weight is not None:
+                sd_shape = shape_prior_weight * self.J_shape_prior
                 hessian[:self.n, :self.n] += np.diag(sd_shape)
                 sd_error[:self.n] += sd_shape * shape_parameters
 
-                # Texture prior
+            # Compute Jacobian, update SD and Hessian wrt texture prior
+            if texture_prior_weight is not None:
                 idx = self.n + n_camera_parameters
-                sd_texture = self.texture_prior_weight * self.J_texture_prior
+                sd_texture = texture_prior_weight * self.J_texture_prior
                 hessian[idx:, idx:] += np.diag(sd_texture)
                 sd_error[idx:] += sd_texture * texture_parameters
 
             if DEBUG:
-                if parameters_priors:
+                if shape_prior_weight is not None:
                     data_j['J shape prior'] = [sd_shape.min(),
                                                sd_shape.max(),
                                                np.linalg.norm(sd_shape)]
                     columns_j.append('J shape prior')
-                    data_j['J texture prior'] = [sd_texture.min(),
-                                                 sd_texture.max(),
-                                                 np.linalg.norm(sd_texture)]
-                    columns_j.append('J texture prior')
                     data_h['H shape prior'] = [sd_shape.min(),
                                                sd_shape.max(),
                                                np.linalg.norm(sd_shape)]
                     columns_h.append('H shape prior')
+
+                if texture_prior_weight is not None:
+                    data_j['J texture prior'] = [sd_texture.min(),
+                                                 sd_texture.max(),
+                                                 np.linalg.norm(sd_texture)]
+                    columns_j.append('J texture prior')
                     data_h['H texture prior'] = [sd_texture.min(),
                                                  sd_texture.max(),
                                                  np.linalg.norm(sd_texture)]
                     columns_h.append('H texture prior')
 
             # Compute Jacobian, update SD and Hessian wrt landmarks prior
-            if landmarks_prior is not None:
+            lms_error = None
+            if landmarks_prior_weight is not None:
                 # Get projected instance on landmarks and error term
                 warped_lms = instance_in_image.points[
                     self.model.model_landmarks_index]
-                lms_error = (warped_lms[:, [1, 0]] -
-                             landmarks_prior.points[:, [1, 0]]).T
+                lms_error = (warped_lms[:, [1, 0]] - lms_points).T
 
                 # Jacobian and Hessian wrt shape parameters
                 warped_view_lms = instance_w[self.model.model_landmarks_index]
                 sd_lms_shape = d_camera_d_shape_parameters(
                     camera, warped_view_lms, self.shape_pc_lms)
                 hessian[:self.n, :self.n] += (
-                    self.lms_prior_weight * self.compute_hessian(sd_lms_shape))
+                    landmarks_prior_weight * self.compute_hessian(sd_lms_shape))
                 sd_error[:self.n] += (
-                    self.lms_prior_weight * self.compute_sd_error(sd_lms_shape,
-                                                                  lms_error))
+                    landmarks_prior_weight * self.compute_sd_error(sd_lms_shape,
+                                                                   lms_error))
 
                 # Jacobian and Hessian wrt camera parameters
                 if camera_update:
@@ -303,24 +308,25 @@ class SimultaneousForwardAdditive(LucasKanade):
                     n_camera_parameters = sd_lms_camera.shape[1]
                     idx = self.n + n_camera_parameters
                     hessian[self.n:idx, self.n:idx] += (
-                        self.lms_prior_weight *
+                        landmarks_prior_weight *
                         self.compute_hessian(sd_lms_camera))
                     sd_error[self.n:idx] += (
-                        self.lms_prior_weight *
+                        landmarks_prior_weight *
                         self.compute_sd_error(sd_lms_camera, lms_error))
 
             if return_costs:
                 costs.append(self.compute_cost(
                     img_error_uv, lms_error, shape_parameters,
-                    texture_parameters, parameters_priors, landmarks_prior))
+                    texture_parameters, shape_prior_weight,
+                    texture_prior_weight, landmarks_prior_weight))
 
             if DEBUG:
-                if landmarks_prior is not None:
+                if landmarks_prior_weight is not None:
                     data_j['J shape lms'] = [sd_lms_shape.min(),
                                              sd_lms_shape.max(),
                                              np.linalg.norm(sd_lms_shape)]
                     columns_j.append('J shape lms')
-                    tmp = self.lms_prior_weight * self.compute_hessian(sd_lms_shape)
+                    tmp = landmarks_prior_weight * self.compute_hessian(sd_lms_shape)
                     data_h['H shape lms'] = [tmp.min(),
                                              tmp.max(),
                                              np.linalg.norm(tmp)]
@@ -330,7 +336,7 @@ class SimultaneousForwardAdditive(LucasKanade):
                                                   sd_lms_camera.max(),
                                                   np.linalg.norm(sd_lms_camera)]
                         columns_j.append('J camera lms')
-                        tmp = self.lms_prior_weight * self.compute_hessian(sd_lms_camera)
+                        tmp = landmarks_prior_weight * self.compute_hessian(sd_lms_camera)
                         data_h['H camera lms'] = [tmp.min(),
                                                   tmp.max(),
                                                   np.linalg.norm(tmp)]
@@ -365,6 +371,9 @@ class SimultaneousForwardAdditive(LucasKanade):
 
             # Increase iteration counter
             k += 1
+
+            # shape_parameters, texture_parameters, camera_parameters = yield \
+            #     shape_parameters, texture_parameters, camera_parameters
 
         return MMAlgorithmResult(
             shape_parameters=shape_parameters_per_iter,
