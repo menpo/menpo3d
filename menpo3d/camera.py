@@ -26,7 +26,6 @@ def align_2d_3d(points_3d, points_image, image_shape, focal_length=None,
     # mesh, its 2D projection on the image, the camera matrix and the
     # distortion coefficients
     lm2d = points_image.points[:, ::-1].copy()
-    #lm2d[:, 1] = height - lm2d[:, 1]
     converged, r_vec, t_vec = cv2.solvePnP(points_3d.points,
                                            lm2d,
                                            camera_matrix, distortion_coeffs)
