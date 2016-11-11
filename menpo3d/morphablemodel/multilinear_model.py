@@ -21,7 +21,15 @@ class MultilinearModel(object):
                 mdl.n_active_components = value
         except TypeError:
             self.models[0].n_active_components = values
-            
+
+    def noise_variance(self):
+        return self.models[0].noise_variance()
+
+    def mean(self):
+        v = np.sum([mdl.mean_vector for mdl in self.models], 0)
+
+        return self.template_instance.from_vector(v)
+
     def instance(self, weights, normalized_weights=False):
         n_active = np.cumsum([0] + [mdl.n_active_components for mdl in self.models])
         slices = (slice(*s) for s in zip(n_active, n_active[1:]))

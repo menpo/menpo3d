@@ -2,6 +2,21 @@ import numpy as np
 from menpo.visualize.base import Renderer
 
 
+def _parse_marker_size(marker_size, points):
+    if marker_size is None:
+        from menpo.shape import PointCloud
+        from scipy.spatial.distance import squareform
+        pc = PointCloud(points, copy=False)
+        if 1 < pc.n_points < 1000:
+            d = squareform(pc.distance_to(pc))
+            d.sort()
+            min_10pc = d[int(d.shape[0] / 10)]
+            marker_size = min_10pc / 5
+        else:
+            marker_size = 1
+    return marker_size
+
+
 class MayaviViewer(Renderer):
     """
     Abstract class for performing visualizations using Mayavi.
@@ -161,19 +176,7 @@ class MayaviPointCloudViewer3d(MayaviViewer):
                alpha=1.0):
         from mayavi import mlab
 
-        if marker_size is None:
-            from menpo.shape import PointCloud
-            from scipy.spatial.distance import squareform
-            pc = PointCloud(self.points, copy=False)
-            if 1 < pc.n_points < 1000:
-                print('using scale!')
-                d = squareform(pc.distance_to(pc))
-                d.sort()
-                min_10pc = d[int(d.shape[0] / 10)]
-                marker_size = min_10pc / 5
-            else:
-                marker_size = 1
-
+        marker_size = _parse_marker_size(marker_size, self.points)
         mlab.points3d(
             self.points[:, 0], self.points[:, 1], self.points[:, 2],
             figure=self.figure, scale_factor=marker_size,
@@ -190,7 +193,7 @@ class MayaviPointGraphViewer3d(MayaviViewer):
         self.edges = edges
 
     def render(self, render_lines=True, line_colour=(1, 0, 0), line_width=4,
-               render_markers=True, marker_style='sphere', marker_size=1,
+               render_markers=True, marker_style='sphere', marker_size=None,
                marker_colour=(1, 0, 0), marker_resolution=8, step=None,
                alpha=1.0):
         from mayavi import mlab
@@ -214,6 +217,7 @@ class MayaviPointGraphViewer3d(MayaviViewer):
                                   opacity=alpha)
         # Render the markers if requested
         if render_markers:
+            marker_size = _parse_marker_size(marker_size, self.points)
             mlab.points3d(self.points[:, 0], self.points[:, 1],
                           self.points[:, 2], figure=self.figure,
                           scale_factor=marker_size, mode=marker_style,
@@ -280,9 +284,10 @@ class MayaviTriMeshViewer3d(MayaviViewer):
         self.trilist = trilist
 
     def _render_mesh(self, mesh_type='wireframe', line_width=2,
-                     colour=(1, 0, 0), marker_size=0.05, marker_resolution=8,
+                     colour=(1, 0, 0), marker_size=None, marker_resolution=8,
                      marker_style='sphere', step=None, alpha=1.0):
         import mayavi.mlab as mlab
+        marker_size = _parse_marker_size(marker_size, self.points)
         mlab.triangular_mesh(self.points[:, 0], self.points[:, 1],
                              self.points[:, 2], self.trilist,
                              figure=self.figure, line_width=line_width,
@@ -292,7 +297,7 @@ class MayaviTriMeshViewer3d(MayaviViewer):
                              opacity=alpha, tube_radius=None)
 
     def render(self, mesh_type='wireframe', line_width=2, colour=(1, 0, 0),
-               marker_size=0.05, marker_resolution=8, marker_style='sphere',
+               marker_size=None, marker_resolution=8, marker_style='sphere',
                normals=None, normals_colour=(0, 0, 0), normals_line_width=2,
                normals_marker_style='2darrow', normals_marker_resolution=8,
                normals_marker_size=0.05, step=None, alpha=1.0):

@@ -1,10 +1,14 @@
-from menpo.transform import AlignmentAffine
+import numpy as np
+
+from menpo.transform import AlignmentAffine, AlignmentSimilarity, Rotation
+from menpo.shape import PointCloud
 
 import menpo3d.checks as checks
-from menpo3d.camera import PerspectiveCamera
+from menpo3d.camera import PerspectiveCamera, OrthographicCamera
 
-from .algorithm import Simultaneous
+from .algorithm import SimultaneousForwardAdditive
 from .result import MMResult
+from .shapemodel import ShapeModel
 
 
 class MMFitter(object):
@@ -17,12 +21,15 @@ class MMFitter(object):
         The trained Morphable Model.
     algorithms : `list` of `class`
         The list of algorithm objects that will perform the fitting per scale.
+    camera_cls : `menpo3d.camera.PerspectiveCamera` or `menpo3d.camera.OrthographicCamera`
+        The camera class to use.
     """
-    def __init__(self, mm, algorithms):
+    def __init__(self, mm, algorithms, camera_cls):
         # Assign model and algorithms
         self._model = mm
         self.algorithms = algorithms
         self.n_scales = len(self.algorithms)
+        self.camera_cls = camera_cls
 
     @property
     def mm(self):
@@ -108,8 +115,23 @@ class MMFitter(object):
 
         return feature_image, new_initial_shape, affine_transform
 
-    def _fit(self, image, camera, instance=None, gt_mesh=None, use_priors=True,
-             camera_update=False, max_iters=50, return_costs=False):
+    def _align_mean_shape_with_bbox(self, bbox):
+        # Convert 3D landmarks to 2D by removing the Z axis
+        template_shape = PointCloud(self.mm.landmarks.points[:, [1, 0]])
+
+        # Rotation that flips over x axis
+        rot_matrix = np.eye(template_shape.n_dims)
+        rot_matrix[0, 0] = -1
+        template_shape = Rotation(rot_matrix,
+                                  skip_checks=True).apply(template_shape)
+
+        # Align the 2D landmarks' bbox with the provided bbox
+        return AlignmentSimilarity(template_shape.bounding_box(),
+                                   bbox).apply(template_shape)
+
+    def _fit(self, image, camera, instance=None, gt_mesh=None, max_iters=50,
+             landmarks_prior=None, parameters_priors=True, camera_update=False,
+             focal_length_update=False, return_costs=False):
         # Check provided instance
         if instance is None:
             instance = self.mm.instance()
@@ -124,21 +146,39 @@ class MMFitter(object):
         for i in range(self.n_scales):
             # Run algorithm
             algorithm_result = self.algorithms[i].run(
-                image, instance, camera, gt_mesh=gt_mesh, use_priors=use_priors,
-                camera_update=camera_update, max_iters=max_iters[i],
+                image, instance, camera, gt_mesh=gt_mesh,
+                max_iters=max_iters[i], landmarks_prior=landmarks_prior,
+                parameters_priors=parameters_priors,
+                camera_update=camera_update,
+                focal_length_update=focal_length_update,
                 return_costs=return_costs)
 
             # Get current instance
             instance = algorithm_result.final_mesh
+            camera = algorithm_result.final_camera_transform
 
             # Add algorithm result to the list
             algorithm_results.append(algorithm_result)
 
         return algorithm_results
 
-    def fit_from_shape(self, image, initial_shape, gt_mesh=None,
-                       use_priors=True, camera_update=False, max_iters=50,
-                       return_costs=False, distortion_coeffs=None):
+    def fit_from_bb(self, image, initial_bb, gt_mesh=None, max_iters=50,
+                    parameters_priors=True, camera_update=False,
+                    focal_length_update=False, return_costs=False,
+                    distortion_coeffs=None):
+        initial_shape = self._align_mean_shape_with_bbox(initial_bb)
+        return self.fit_from_shape(
+            image=image, initial_shape=initial_shape, gt_mesh=gt_mesh,
+            max_iters=max_iters, parameters_priors=parameters_priors,
+            camera_update=camera_update, landmarks_prior=False,
+            focal_length_update=focal_length_update,
+            return_costs=return_costs, distortion_coeffs=distortion_coeffs)
+
+    def fit_from_shape(self, image, initial_shape, gt_mesh=None, max_iters=50,
+                       landmarks_prior=True, parameters_priors=True,
+                       camera_update=False, focal_length_update=False,
+                       return_costs=False, distortion_coeffs=None,
+                       init_shape_params_from_lms=True):
         # Check that the provided initial shape has the same number of points
         # as the landmarks of the model
         if initial_shape.n_points != self.mm.landmarks.n_points:
@@ -152,16 +192,36 @@ class MMFitter(object):
 
         # Estimate view, projection and rotation transforms from the
         # provided initial shape
-        camera = PerspectiveCamera.init_from_2d_projected_shape(
+        camera = self.camera_cls.init_from_2d_projected_shape(
             self.mm.landmarks, rescaled_initial_shape, rescaled_image.shape,
             distortion_coeffs=distortion_coeffs)
 
+        if init_shape_params_from_lms:
+            # Wrap the shape model in a container that allows us to mask the
+            # PCA basis spatially
+            sm = ShapeModel(self.mm.shape_model)
+            # Only keep the landmark points in the basis
+            sm_lms_3d = sm.mask_points(self.mm.model_landmarks_index)
+
+            # Warp the basis with the camera and retain only the first two dims
+            sm_lms_2d = camera.apply(sm_lms_3d).mask_dims([0, 1])
+            # Project onto the first few shape components to give an initial
+            # shape
+            shape_weights = sm_lms_2d.project(rescaled_initial_shape,
+                                              n_components=10)
+            instance = self.mm.instance(shape_weights)
+        else:
+            instance = None
+
+        # Set landmarks prior argument
+        landmarks_prior = rescaled_initial_shape if landmarks_prior else None
+
         # Execute multi-scale fitting
-        algorithm_results = self._fit(rescaled_image, camera, gt_mesh=gt_mesh,
-                                      camera_update=camera_update,
-                                      use_priors=use_priors,
-                                      max_iters=max_iters,
-                                      return_costs=return_costs)
+        algorithm_results = self._fit(
+            rescaled_image, camera, gt_mesh=gt_mesh, max_iters=max_iters,
+            landmarks_prior=landmarks_prior, instance=instance,
+            parameters_priors=parameters_priors, camera_update=camera_update,
+            focal_length_update=focal_length_update, return_costs=return_costs)
 
         # Return multi-scale fitting result
         return self._fitter_result(
@@ -171,13 +231,14 @@ class MMFitter(object):
     def _fitter_result(self, image, algorithm_results, affine_transform,
                        gt_mesh=None):
         return MMResult(algorithm_results, [affine_transform] * self.n_scales,
-                        self.n_scales, image=image, gt_mesh=gt_mesh)
+                        self.n_scales, image=image, gt_mesh=gt_mesh,
+                        model_landmarks_index=self.mm.model_landmarks_index)
 
 
 class LucasKanadeMMFitter(MMFitter):
-    def __init__(self, mm, lk_algorithm_cls=Simultaneous, n_scales=1,
-                 n_shape=1.0, n_texture=1.0, n_samples=1000,
-                 projection_type='perspective'):
+    def __init__(self, mm, lk_algorithm_cls=SimultaneousForwardAdditive,
+                 n_scales=1, n_shape=1.0, n_texture=1.0, n_samples=1000,
+                 camera_cls=PerspectiveCamera):
         # Check parameters
         n_shape = checks.check_multi_scale_param(n_scales, int, 'n_shape',
                                                  n_shape)
@@ -185,11 +246,11 @@ class LucasKanadeMMFitter(MMFitter):
                                                    'n_texture', n_texture)
         self.n_samples = checks.check_multi_scale_param(n_scales, int,
                                                         'n_samples', n_samples)
-        if projection_type in ['orthographic', 'perspective']:
-            self.projection_type = projection_type
+        if camera_cls in [PerspectiveCamera, OrthographicCamera]:
+            self.camera_cls = camera_cls
         else:
-            raise ValueError("Projection type can be either 'perspective' or "
-                             "'orthographic'")
+            raise ValueError("Camera can be either PerspectiveCamera or"
+                             "OrthographicCamera")
 
         # Create list of algorithms
         algorithms = []
@@ -197,11 +258,11 @@ class LucasKanadeMMFitter(MMFitter):
             mm_copy = mm.copy()
             set_model_components(mm_copy.shape_model, n_shape[i])
             set_model_components(mm_copy.texture_model, n_texture[i])
-            algorithms.append(lk_algorithm_cls(mm_copy, self.n_samples[i],
-                                               self.projection_type))
+            algorithms.append(lk_algorithm_cls(mm_copy, self.n_samples[i]))
 
         # Call superclass
-        super(LucasKanadeMMFitter, self).__init__(mm=mm, algorithms=algorithms)
+        super(LucasKanadeMMFitter, self).__init__(mm=mm, algorithms=algorithms,
+                                                  camera_cls=camera_cls)
 
     def __str__(self):
         scales_info = []

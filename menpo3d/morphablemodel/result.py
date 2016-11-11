@@ -101,12 +101,18 @@ class MMResult(MultiScaleParametricIterativeResult):
     gt_mesh : `menpo.shape.ColouredTriMesh` or `menpo.shape.TexturedTriMesh` or ``None``, optional
         The ground truth mesh associated with the image. If ``None``, then no
         ground truth mesh is assigned.
+    model_landmarks_index : `list` or ``None``, optional
+        It `list`, then it is supposed to provide indices for vertices of the
+        model that have some kind of semantic meaning. These points will be
+        used in order to generate 2D pointclouds projected in the image plane.
+        If ``None``, then the 2D pointclouds will not be generated.
     """
     def __init__(self, results, affine_transforms, n_scales, image=None,
-                 gt_mesh=None):
+                 gt_mesh=None, model_landmarks_index=None):
         super(MMResult, self).__init__(
             results=results, affine_transforms=affine_transforms,
-            n_scales=n_scales, image=image, gt_mesh=gt_mesh)
+            n_scales=n_scales, image=image, gt_mesh=gt_mesh,
+            model_landmarks_index=model_landmarks_index)
         # Create texture parameters list
         self._texture_parameters = None
         if results[0].texture_parameters is not None:
