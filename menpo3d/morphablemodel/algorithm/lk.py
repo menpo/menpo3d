@@ -11,9 +11,6 @@ from .derivatives import (d_camera_d_camera_parameters,
 from ..result import MMAlgorithmResult
 
 
-DEBUG = False
-
-
 class LucasKanade(object):
     def __init__(self, model, n_samples, eps=1e-3):
         self.model = model
@@ -174,7 +171,6 @@ class SimultaneousForwardAdditive(LucasKanade):
         while k < max_iters and eps > self.eps:
             if verbose:
                 print_dynamic("{}/{}".format(k + 1, max_iters))
-                print()
             # Apply camera projection on current instance
             instance_in_image = camera.apply(instance)
 
@@ -223,34 +219,6 @@ class SimultaneousForwardAdditive(LucasKanade):
                                     self.n+n_camera_parameters))
                 sd_error = np.zeros(self.n+n_camera_parameters)
 
-            if DEBUG:
-                from pandas import DataFrame
-                idx = self.n + n_camera_parameters
-                data_j = {'J shape': [sd[:, :self.n, :].min(),
-                                      sd[:, :self.n, :].max(),
-                                      np.linalg.norm(sd[:, :self.n, :])],
-                          'J texture': [sd[:, idx:, :].min(),
-                                        sd[:, idx:, :].max(),
-                                        np.linalg.norm(sd[:, idx:, :])]}
-                columns_j = ['J shape', 'J texture']
-                if camera_update:
-                    data_j['J camera'] = [sd[:, self.n:idx, :].min(),
-                                          sd[:, self.n:idx, :].max(),
-                                          np.linalg.norm(sd[:, self.n:idx, :])]
-                    columns_j.append('J camera')
-                data_h = {'H shape': [hessian[:self.n, :self.n].min(),
-                                      hessian[:self.n, :self.n].max(),
-                                      np.linalg.norm(hessian[:self.n, :self.n])],
-                          'H texture': [hessian[idx:, idx:].min(),
-                                        hessian[idx:, idx:].max(),
-                                        np.linalg.norm(hessian[idx:, idx:])]}
-                columns_h = ['H shape', 'H texture']
-                if camera_update:
-                    data_h['H camera'] = [hessian[self.n:idx, self.n:idx].min(),
-                                          hessian[self.n:idx, self.n:idx].max(),
-                                          np.linalg.norm(hessian[self.n:idx, self.n:idx])]
-                    columns_h.append('H camera')
-
             # Compute Jacobian, update SD and Hessian wrt shape prior
             if shape_prior_weight is not None:
                 sd_shape = shape_prior_weight * self.J_shape_prior
@@ -263,27 +231,6 @@ class SimultaneousForwardAdditive(LucasKanade):
                 sd_texture = texture_prior_weight * self.J_texture_prior
                 hessian[idx:, idx:] += np.diag(sd_texture)
                 sd_error[idx:] += sd_texture * texture_parameters
-
-            if DEBUG:
-                if shape_prior_weight is not None:
-                    data_j['J shape prior'] = [sd_shape.min(),
-                                               sd_shape.max(),
-                                               np.linalg.norm(sd_shape)]
-                    columns_j.append('J shape prior')
-                    data_h['H shape prior'] = [sd_shape.min(),
-                                               sd_shape.max(),
-                                               np.linalg.norm(sd_shape)]
-                    columns_h.append('H shape prior')
-
-                if texture_prior_weight is not None:
-                    data_j['J texture prior'] = [sd_texture.min(),
-                                                 sd_texture.max(),
-                                                 np.linalg.norm(sd_texture)]
-                    columns_j.append('J texture prior')
-                    data_h['H texture prior'] = [sd_texture.min(),
-                                                 sd_texture.max(),
-                                                 np.linalg.norm(sd_texture)]
-                    columns_h.append('H texture prior')
 
             # Compute Jacobian, update SD and Hessian wrt landmarks prior
             lms_error = None
@@ -325,33 +272,6 @@ class SimultaneousForwardAdditive(LucasKanade):
                     img_error_uv, lms_error, shape_parameters,
                     texture_parameters, shape_prior_weight,
                     texture_prior_weight, landmarks_prior_weight))
-
-            if DEBUG:
-                if landmarks_prior_weight is not None:
-                    data_j['J shape lms'] = [sd_lms_shape.min(),
-                                             sd_lms_shape.max(),
-                                             np.linalg.norm(sd_lms_shape)]
-                    columns_j.append('J shape lms')
-                    tmp = landmarks_prior_weight * self.compute_hessian(sd_lms_shape)
-                    data_h['H shape lms'] = [tmp.min(),
-                                             tmp.max(),
-                                             np.linalg.norm(tmp)]
-                    columns_h.append('H shape lms')
-                    if camera_update:
-                        data_j['J camera lms'] = [sd_lms_camera.min(),
-                                                  sd_lms_camera.max(),
-                                                  np.linalg.norm(sd_lms_camera)]
-                        columns_j.append('J camera lms')
-                        tmp = landmarks_prior_weight * self.compute_hessian(sd_lms_camera)
-                        data_h['H camera lms'] = [tmp.min(),
-                                                  tmp.max(),
-                                                  np.linalg.norm(tmp)]
-                        columns_h.append('H camera lms')
-
-                print(DataFrame(data_j, columns=columns_j,
-                                index=['min', 'max', 'norm']))
-                print(DataFrame(data_h, columns=columns_h,
-                                index=['min', 'max', 'norm']))
 
             # Solve to find the increment of parameters
             d_shape, d_camera, d_texture = self.solve(
