@@ -6,6 +6,7 @@ from menpo.image import Image
 from menpo.transform import Homogeneous
 from menpo.shape import PointCloud
 
+from menpo3d.extractimage import extract_per_vertex_colour
 from menpo3d.rasterize import rasterize_mesh
 
 
@@ -1586,6 +1587,134 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
         xs = list(zip(self.meshes, self._affine_transforms,
                       self.camera_transforms))
         return LazyList.init_from_iterable(xs, f=project)
+
+    def final_mesh_projected_in_2d(self):
+        r"""
+        Returns the final mesh projected in the image plane.
+
+        :type: `menpo.shape.TriMesh`
+            The final mesh projected in the image plane.
+
+        Raises
+        ------
+        ValueError
+            The final camera transform does not exist.
+        """
+        if self.final_camera_transform is None:
+            raise ValueError("The final camera transform does not exist.")
+        mesh_in_img = self._affine_transforms[-1].apply(
+            self.final_camera_transform.apply(self.final_mesh))
+        return mesh_in_img.with_dims([0, 1]).as_trimesh()
+
+    def initial_mesh_projected_in_2d(self):
+        r"""
+        Returns the initial mesh projected in the image plane.
+
+        :type: `menpo.shape.TriMesh`
+            The initial mesh projected in the image plane.
+
+        Raises
+        ------
+        ValueError
+            The initial camera transform does not exist.
+        """
+        if self.initial_camera_transform is None:
+            raise ValueError("The initial camera transform does not exist.")
+        mesh_in_img = self._affine_transforms[0].apply(
+            self.initial_camera_transform.apply(self.initial_mesh))
+        return mesh_in_img.with_dims([0, 1]).as_trimesh()
+
+    def meshes_projected_in_2d(self):
+        r"""
+        Returns the list of meshes projected in the image plane.
+
+        :type: `list` of `menpo.shape.TriMesh`
+            The list of meshes projected in the image plane.
+        """
+        def project(x):
+            mesh, affine, camera = x
+            mesh_in_img = affine.apply(camera.apply(mesh))
+            return mesh_in_img.with_dims([0, 1]).as_trimesh()
+
+        xs = list(zip(self.meshes, self._affine_transforms,
+                      self.camera_transforms))
+        return LazyList.init_from_iterable(xs, f=project)
+
+    def final_mesh_with_image_texture(self):
+        r"""
+        Returns the final mesh with texture that is sampled from the image.
+
+        :type: `menpo.shape.ColouredTriMesh`
+            The final mesh with texture sampled from the image.
+
+        Raises
+        ------
+        ValueError
+            The final camera transform does not exist.
+        ValueError
+            The image does not exist.
+        """
+        if self.final_camera_transform is None:
+            raise ValueError("The final camera transform does not exist.")
+        if self.image is None:
+            raise ValueError("The image does not exist.")
+        mesh_in_img = self._affine_transforms[-1].apply(
+            self.final_camera_transform.apply(self.final_mesh))
+        colours = extract_per_vertex_colour(mesh_in_img, self.image)
+        return self.final_mesh.as_colouredtrimesh(colours=colours)
+
+    def initial_mesh_with_image_texture(self):
+        r"""
+        Returns the initial mesh with texture that is sampled from the image.
+
+        :type: `menpo.shape.ColouredTriMesh`
+            The initial mesh with texture sampled from the image.
+
+        Raises
+        ------
+        ValueError
+            The initial mesh does not exist.
+        ValueError
+            The initial camera transform does not exist.
+        ValueError
+            The image does not exist.
+        """
+        if self.initial_mesh is None:
+            raise ValueError("The initial mesh does not exist.")
+        if self.initial_camera_transform is None:
+            raise ValueError("The initial camera transform does not exist.")
+        if self.image is None:
+            raise ValueError("The image does not exist.")
+        mesh_in_img = self._affine_transforms[0].apply(
+            self.initial_camera_transform.apply(self.initial_mesh))
+        colours = extract_per_vertex_colour(mesh_in_img, self.image)
+        return self.initial_mesh.as_colouredtrimesh(colours=colours)
+
+    def meshes_with_image_texture(self):
+        r"""
+        Returns the list of meshes per iteration with texture that is sampled
+        from the image.
+
+        :type: `list` of `menpo.shape.ColouredTriMesh`
+            The list of meshes with texture sampled from the image.
+
+        Raises
+        ------
+        ValueError
+            The image does not exist.
+        """
+        if self.image is None:
+            raise ValueError("The image does not exist.")
+
+        def mesh_with_image_texture(x):
+            mesh, affine, camera = x
+            mesh_in_img = affine.apply(camera.apply(mesh))
+            colours = extract_per_vertex_colour(mesh_in_img, self.image)
+            return mesh.as_colouredtrimesh(colours=colours)
+
+        xs = list(zip(self.meshes, self._affine_transforms,
+                      self.camera_transforms))
+        return LazyList.init_from_iterable(xs, f=mesh_with_image_texture)
 
 
 class MultiScaleParametricIterativeResult(MultiScaleNonParametricIterativeResult):
