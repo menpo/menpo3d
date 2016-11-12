@@ -1,1 +1,1 @@
-from .lk import SimultaneousForwardAdditive
+from .lk import SimultaneousForwardAdditive, WibergForwardAdditive

@@ -164,6 +164,18 @@ class MayaviViewer(Renderer):
         from mayavi import mlab
         mlab.clf(figure=self.figure)
 
+    def force_draw(self):
+        r"""
+        Method for forcing the current figure to render. This is useful for
+        the widgets animation.
+        """
+        from pyface.api import GUI
+        _gui = GUI()
+        orig_val = _gui.busy
+        _gui.set_busy(busy=True)
+        _gui.set_busy(busy=orig_val)
+        _gui.process_events()
+
 
 class MayaviPointCloudViewer3d(MayaviViewer):
 
