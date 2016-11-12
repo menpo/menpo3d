@@ -131,23 +131,33 @@ class MMFitter(object):
 
     def _fit(self, image, camera, instance=None, gt_mesh=None, max_iters=50,
              camera_update=False, focal_length_update=False,
-             shape_prior_weight=None, texture_prior_weight=None,
-             landmarks_prior_weight=None, landmarks=None, return_costs=False):
+             reconstruction_weight=1., shape_prior_weight=None,
+             texture_prior_weight=None, landmarks_prior_weight=None,
+             landmarks=None, return_costs=False):
         # Check provided instance
         if instance is None:
             instance = self.mm.instance()
 
         # Check arguments
         max_iters = checks.check_max_iters(max_iters, self.n_scales)
+        reconstruction_weight = checks.check_multi_scale_param(
+            self.n_scales, (float, int, None), 'reconstruction_prior_weight',
+            reconstruction_weight)
         shape_prior_weight = checks.check_multi_scale_param(
-            self.n_scales, (float, None), 'shape_prior_weight',
+            self.n_scales, (float, int, None), 'shape_prior_weight',
             shape_prior_weight)
         texture_prior_weight = checks.check_multi_scale_param(
-            self.n_scales, (float, None), 'texture_prior_weight',
+            self.n_scales, (float, int, None), 'texture_prior_weight',
             texture_prior_weight)
         landmarks_prior_weight = checks.check_multi_scale_param(
-            self.n_scales, (float, None), 'landmarks_prior_weight',
+            self.n_scales, (float, int, None), 'landmarks_prior_weight',
             landmarks_prior_weight)
+        for i in range(self.n_scales):
+            if (reconstruction_weight[i] is None and
+                    landmarks_prior_weight[i] is None):
+                reconstruction_weight[i] = 1.
+            if reconstruction_weight[i] is None:
+                texture_prior_weight[i] = None
 
         # Initialize list of algorithm results
         algorithm_results = []
@@ -159,6 +169,7 @@ class MMFitter(object):
                 image, instance, camera, gt_mesh=gt_mesh,
                 max_iters=max_iters[i], camera_update=camera_update,
                 focal_length_update=focal_length_update,
+                reconstruction_weight=reconstruction_weight[i],
                 shape_prior_weight=shape_prior_weight[i],
                 texture_prior_weight=texture_prior_weight[i],
                 landmarks_prior_weight=landmarks_prior_weight[i],
@@ -182,6 +193,7 @@ class MMFitter(object):
             image, camera, instance=instance, gt_mesh=gt_mesh,
             max_iters=max_iters, camera_update=camera_update,
             focal_length_update=focal_length_update,
+            reconstruction_weight=1.,
             shape_prior_weight=shape_prior_weight,
             texture_prior_weight=texture_prior_weight,
             landmarks_prior_weight=None, landmarks=None,
@@ -195,13 +207,15 @@ class MMFitter(object):
 
     def fit_from_bb(self, image, initial_bb, gt_mesh=None, max_iters=50,
                     camera_update=False, focal_length_update=False,
-                    shape_prior_weight=1., texture_prior_weight=1.,
-                    return_costs=False, distortion_coeffs=None):
+                    reconstruction_weight=1., shape_prior_weight=1.,
+                    texture_prior_weight=1., return_costs=False,
+                    distortion_coeffs=None):
         initial_shape = self._align_mean_shape_with_bbox(initial_bb)
         return self.fit_from_shape(
             image=image, initial_shape=initial_shape, gt_mesh=gt_mesh,
             max_iters=max_iters, camera_update=camera_update,
             focal_length_update=focal_length_update,
+            reconstruction_weight=reconstruction_weight,
             shape_prior_weight=shape_prior_weight,
             texture_prior_weight=texture_prior_weight,
             landmarks_prior_weight=None, return_costs=return_costs,
@@ -210,9 +224,9 @@ class MMFitter(object):
 
     def fit_from_shape(self, image, initial_shape, gt_mesh=None, max_iters=50,
                        camera_update=True, focal_length_update=False,
-                       shape_prior_weight=1., texture_prior_weight=1.,
-                       landmarks_prior_weight=0.25, return_costs=False,
-                       distortion_coeffs=None,
+                       reconstruction_weight=1., shape_prior_weight=1.,
+                       texture_prior_weight=1., landmarks_prior_weight=1.,
+                       return_costs=False, distortion_coeffs=None,
                        init_shape_params_from_lms=False):
         # Check that the provided initial shape has the same number of points
         # as the landmarks of the model
@@ -253,6 +267,7 @@ class MMFitter(object):
             rescaled_image, camera, instance=instance, gt_mesh=gt_mesh,
             max_iters=max_iters, camera_update=camera_update,
             focal_length_update=focal_length_update,
+            reconstruction_weight=reconstruction_weight,
             shape_prior_weight=shape_prior_weight,
             texture_prior_weight=texture_prior_weight,
             landmarks_prior_weight=landmarks_prior_weight,

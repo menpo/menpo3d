@@ -132,8 +132,9 @@ class SimultaneousForwardAdditive(LucasKanade):
     """
     def run(self, image, initial_mesh, camera, gt_mesh=None, max_iters=20,
             camera_update=False, focal_length_update=False,
-            shape_prior_weight=1., texture_prior_weight=1., landmarks=None,
-            landmarks_prior_weight=1., return_costs=False, verbose=True):
+            reconstruction_weight=1., shape_prior_weight=1.,
+            texture_prior_weight=1., landmarks=None, landmarks_prior_weight=1.,
+            return_costs=False, verbose=True):
         # Parse landmarks prior options
         if landmarks is None or landmarks_prior_weight is None:
             landmarks_prior_weight = None
@@ -204,11 +205,23 @@ class SimultaneousForwardAdditive(LucasKanade):
             img_error_uv = (img_uv - texture_uv.T).ravel()
 
             # Compute Jacobian, SD and Hessian of data term
-            sd, n_camera_parameters = self.J_data(
-                camera, warped_uv, shape_pc_uv, texture_pc_uv, grad_x_uv,
-                grad_y_uv, camera_update, focal_length_update)
-            hessian = sd.dot(sd.T)
-            sd_error = sd.dot(img_error_uv)
+            if reconstruction_weight is not None:
+                sd, n_camera_parameters = self.J_data(
+                    camera, warped_uv, shape_pc_uv, texture_pc_uv, grad_x_uv,
+                    grad_y_uv, camera_update, focal_length_update,
+                    reconstruction_weight)
+                hessian = sd.dot(sd.T)
+                sd_error = sd.dot(img_error_uv)
+            else:
+                n_camera_parameters = 0
+                if camera_update:
+                    if focal_length_update:
+                        n_camera_parameters = camera.n_parameters - 1
+                    else:
+                        n_camera_parameters = camera.n_parameters - 2
+                hessian = np.zeros((self.n+n_camera_parameters,
+                                    self.n+n_camera_parameters))
+                sd_error = np.zeros(self.n+n_camera_parameters)
 
             if DEBUG:
                 from pandas import DataFrame
@@ -342,7 +355,8 @@ class SimultaneousForwardAdditive(LucasKanade):
 
             # Solve to find the increment of parameters
             d_shape, d_camera, d_texture = self.solve(
-                hessian, sd_error, camera_update, focal_length_update, camera)
+                hessian, sd_error, reconstruction_weight, camera_update,
+                focal_length_update, camera)
 
             # Update parameters
             shape_parameters += d_shape
@@ -376,13 +390,16 @@ class SimultaneousForwardAdditive(LucasKanade):
             initial_camera_transform=camera_per_iter[0], gt_mesh=gt_mesh,
             costs=costs)
 
-    def solve(self, hessian, sd_error, camera_update, focal_length_update,
-              camera):
+    def solve(self, hessian, sd_error, reconstruction_prior_weight,
+              camera_update, focal_length_update, camera):
         # Solve
         ds = - np.linalg.solve(hessian, sd_error)
 
         # Get shape parameters increment
         d_shape = ds[:self.n]
+
+        # Initialize texture parameters update
+        d_texture = np.zeros(self.m)
 
         # Get camera parameters increment
         if camera_update:
@@ -400,15 +417,18 @@ class SimultaneousForwardAdditive(LucasKanade):
             d_camera = ds[:camera.n_parameters]
 
             # Get texture parameters increment
-            d_texture = ds[camera.n_parameters:]
+            if reconstruction_prior_weight is not None:
+                d_texture = ds[camera.n_parameters:]
         else:
             d_camera = None
-            d_texture = ds[self.n:]
+            if reconstruction_prior_weight is not None:
+                d_texture = ds[self.n:]
 
         return d_shape, d_camera, d_texture
 
     def J_data(self, camera, warped_uv, shape_pc_uv, texture_pc_uv, grad_x_uv,
-               grad_y_uv, camera_update, focal_length_update):
+               grad_y_uv, camera_update, focal_length_update,
+               reconstruction_prior_weight):
         # Compute derivative of camera wrt shape and camera parameters
         dp_da_dr = d_camera_d_shape_parameters(camera, warped_uv, shape_pc_uv)
         n_camera_parameters = 0
@@ -432,7 +452,7 @@ class SimultaneousForwardAdditive(LucasKanade):
         # Reshape to : n_params x (2 * N)
         n_params = J.shape[1]
         J = np.transpose(J, (1, 0, 2)).reshape(n_params, -1)
-        return J, n_camera_parameters
+        return reconstruction_prior_weight * J, n_camera_parameters
 
     def __str__(self):
         return "Simultaneous Forward Additive"
