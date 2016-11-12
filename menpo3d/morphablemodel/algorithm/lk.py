@@ -88,23 +88,11 @@ class LucasKanade(object):
 
         return grad_x, grad_y
 
-    def compute_hessian(self, sd):
-        n_params = sd.shape[1]
-        sd = np.transpose(sd, (1, 0, 2)).reshape(n_params, -1)
-        return sd.dot(sd.T)
-
-    def compute_sd_error(self, sd, error_uv):
-        n_params = sd.shape[1]
-        sd = np.transpose(sd, (1, 0, 2)).reshape(n_params, -1)
-        error_uv = error_uv.ravel()
-        return sd.dot(error_uv)
-
     def compute_cost(self, data_error, lms_error, shape_parameters,
                      texture_parameters, shape_prior_weight,
                      texture_prior_weight, landmarks_prior_weight):
         # Cost of data term
-        tmp = data_error.ravel()
-        current_cost = tmp.T.dot(tmp)
+        current_cost = data_error.T.dot(data_error)
 
         # Cost of shape prior
         if shape_prior_weight is not None:
@@ -120,8 +108,7 @@ class LucasKanade(object):
 
         # Cost of landmarks prior
         if landmarks_prior_weight is not None:
-            tmp = lms_error.ravel()
-            current_cost += landmarks_prior_weight * tmp.T.dot(tmp)
+            current_cost += landmarks_prior_weight * lms_error.T.dot(lms_error)
 
         return current_cost
 
@@ -151,6 +138,7 @@ class SimultaneousForwardAdditive(LucasKanade):
         if landmarks is None or landmarks_prior_weight is None:
             landmarks_prior_weight = None
             landmarks = None
+        lms_points = None
         if landmarks is not None:
             lms_points = landmarks.points[:, [1, 0]]
 
@@ -213,14 +201,14 @@ class SimultaneousForwardAdditive(LucasKanade):
             grad_y_uv = grad_y.sample(yx)
 
             # Compute error
-            img_error_uv = img_uv - texture_uv.T
+            img_error_uv = (img_uv - texture_uv.T).ravel()
 
             # Compute Jacobian, SD and Hessian of data term
             sd, n_camera_parameters = self.J_data(
                 camera, warped_uv, shape_pc_uv, texture_pc_uv, grad_x_uv,
                 grad_y_uv, camera_update, focal_length_update)
-            hessian = self.compute_hessian(sd)
-            sd_error = self.compute_sd_error(sd, img_error_uv)
+            hessian = sd.dot(sd.T)
+            sd_error = sd.dot(img_error_uv)
 
             if DEBUG:
                 from pandas import DataFrame
@@ -290,17 +278,18 @@ class SimultaneousForwardAdditive(LucasKanade):
                 # Get projected instance on landmarks and error term
                 warped_lms = instance_in_image.points[
                     self.model.model_landmarks_index]
-                lms_error = (warped_lms[:, [1, 0]] - lms_points).T
+                lms_error = (warped_lms[:, [1, 0]] - lms_points).T.ravel()
 
                 # Jacobian and Hessian wrt shape parameters
                 warped_view_lms = instance_w[self.model.model_landmarks_index]
                 sd_lms_shape = d_camera_d_shape_parameters(
                     camera, warped_view_lms, self.shape_pc_lms)
-                hessian[:self.n, :self.n] += (
-                    landmarks_prior_weight * self.compute_hessian(sd_lms_shape))
-                sd_error[:self.n] += (
-                    landmarks_prior_weight * self.compute_sd_error(sd_lms_shape,
-                                                                   lms_error))
+                sd_lms_shape = np.transpose(sd_lms_shape,
+                                            (1, 0, 2)).reshape(self.n, -1)
+                hessian[:self.n, :self.n] += (landmarks_prior_weight *
+                                              sd_lms_shape.dot(sd_lms_shape.T))
+                sd_error[:self.n] += (landmarks_prior_weight *
+                                      sd_lms_shape.dot(lms_error))
 
                 # Jacobian and Hessian wrt camera parameters
                 if camera_update:
@@ -308,13 +297,15 @@ class SimultaneousForwardAdditive(LucasKanade):
                         camera, warped_view_lms,
                         with_focal_length=focal_length_update)
                     n_camera_parameters = sd_lms_camera.shape[1]
+                    sd_lms_camera = np.transpose(
+                        sd_lms_camera, (1, 0, 2)).reshape(
+                        n_camera_parameters, -1)
                     idx = self.n + n_camera_parameters
                     hessian[self.n:idx, self.n:idx] += (
                         landmarks_prior_weight *
-                        self.compute_hessian(sd_lms_camera))
-                    sd_error[self.n:idx] += (
-                        landmarks_prior_weight *
-                        self.compute_sd_error(sd_lms_camera, lms_error))
+                        sd_lms_camera.dot(sd_lms_camera.T))
+                    sd_error[self.n:idx] += (landmarks_prior_weight *
+                                             sd_lms_camera.dot(lms_error))
 
             if return_costs:
                 costs.append(self.compute_cost(
@@ -436,7 +427,12 @@ class SimultaneousForwardAdditive(LucasKanade):
         dt_db = - np.rollaxis(texture_pc_uv, 0, 3)
 
         # Concatenate to create the data term steepest descent
-        return np.hstack((J, dt_db)), n_camera_parameters
+        J = np.hstack((J, dt_db))
+
+        # Reshape to : n_params x (2 * N)
+        n_params = J.shape[1]
+        J = np.transpose(J, (1, 0, 2)).reshape(n_params, -1)
+        return J, n_camera_parameters
 
     def __str__(self):
         return "Simultaneous Forward Additive"
