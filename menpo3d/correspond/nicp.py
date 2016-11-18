@@ -40,13 +40,14 @@ def node_arc_incidence_matrix(source):
 
 def non_rigid_icp(source, target, eps=1e-3, stiffness_weights=None,
                   verbose=False, landmarks=None, lm_weight=None,
-                  generate_instances=False):
+                  generate_instances=False, vertex_data_mask=None):
     # call the generator version of NICP, always returning a generator
     results = non_rigid_icp_generator(source, target, eps=eps,
                                       stiffness_weights=stiffness_weights,
                                       verbose=verbose, landmarks=landmarks,
                                       lm_weights=lm_weight,
-                                      generate_instances=generate_instances)
+                                      generate_instances=generate_instances,
+                                      vertex_data_mask=vertex_data_mask)
     if generate_instances:
         # the user wants to inspect results per-iteration - return the iterator
         # directly to them
@@ -89,10 +90,25 @@ def nicp_result(source, v_i, landmarks, src_lms, restore, info):
     #
     # yield result
 
+def validate_stiffness_weights(stiffness_weights, n_points, verbose=False):
+    invalid = []
+    for i, alpha in enumerate(stiffness_weights):
+        alpha_is_per_vertex = isinstance(stiffness_weights, np.ndarray)
+        if alpha_is_per_vertex:
+            if verbose:
+                print('Using per-vertex stiffness weights')
+            # stiffness is provided per-vertex
+            if alpha.shape != (n_points,):
+                invalid.append('({}): {}'.format(i, alpha.shape[0]))
+    if len(invalid) != 0:
+        raise ValueError('Invalid stiffness_weights: expected shape ({},) '
+                         'got: {}'.format(n_points,
+                                          '{}'.format(', '.join(invalid))))
+
 
 def non_rigid_icp_generator(source, target, eps=1e-3, stiffness_weights=None,
                             landmarks=None, lm_weights=None, verbose=False,
-                            generate_instances=False):
+                            generate_instances=False, vertex_data_mask=None):
     r"""
     Deforms the source trimesh to align with to optimally the target.
     """
@@ -149,6 +165,8 @@ def non_rigid_icp_generator(source, target, eps=1e-3, stiffness_weights=None,
         stiffness = stiffness_weights
         if verbose:
             print('using user defined stiffness weights')
+            validate_stiffness_weights(stiffness, source.n_points,
+                                       verbose=verbose)
     else:
         # these values have been empirically found to perform well for well
         # rigidly aligned facial meshes
@@ -198,6 +216,8 @@ def non_rigid_icp_generator(source, target, eps=1e-3, stiffness_weights=None,
         alpha_is_per_vertex = isinstance(alpha, np.ndarray)
         if alpha_is_per_vertex:
             # stiffness is provided per-vertex
+            if alpha.shape[0] != source.n_points:
+                raise ValueError()
             alpha_per_edge = alpha[unique_edge_pairs].mean(axis=1)
             alpha_M_s = sp.diags(alpha_per_edge).dot(M_s)
             alpha_M_kron_G_s = sp.kron(alpha_M_s, G)
@@ -254,6 +274,10 @@ def non_rigid_icp_generator(source, target, eps=1e-3, stiffness_weights=None,
 
             # Form the overall w_i from the normals, edge case
             w_i = np.logical_and(w_i_n, w_i_e)
+
+            if vertex_data_mask is not None:
+                w_i = np.logical_or(w_i, vertex_data_mask)
+
             # we could add self intersection at a later date too...
             # w_i = np.logical_and(np.logical_and(w_i_n, w_i_e), w_i_i)
 
