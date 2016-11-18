@@ -3,6 +3,8 @@ import scipy.sparse as sp
 from menpo.shape import TriMesh, PointCloud
 from menpo.transform import Translation, UniformScale, AlignmentSimilarity
 from menpo3d.vtkutils import trimesh_to_vtk, VTKClosestPointLocator
+from menpo3d.morphablemodel.shapemodel import ShapeModel
+
 
 try:
     
@@ -40,13 +42,14 @@ def node_arc_incidence_matrix(source):
 
 def non_rigid_icp(source, target, eps=1e-3, stiffness_weights=None,
                   verbose=False, landmarks=None, lm_weight=None,
-                  generate_instances=False):
+                  generate_instances=False, model_landmarks=None):
     # call the generator version of NICP, always returning a generator
     results = non_rigid_icp_generator(source, target, eps=eps,
                                       stiffness_weights=stiffness_weights,
                                       verbose=verbose, landmarks=landmarks,
                                       lm_weights=lm_weight,
-                                      generate_instances=generate_instances)
+                                      generate_instances=True,
+                                      model_mean_landmarks=model_landmarks)
     if generate_instances:
         # the user wants to inspect results per-iteration - return the iterator
         # directly to them
@@ -58,47 +61,58 @@ def non_rigid_icp(source, target, eps=1e-3, stiffness_weights=None,
             try:
                 instance = next(results)
             except StopIteration:
-                return instance
+                return instance[0]
 
 
-def nicp_result(source, v_i, landmarks, src_lms, restore, info):
-    current_instance = source.copy()
-    current_instance.points = v_i.copy()
-    if landmarks is not None:
-        current_instance.landmarks[landmarks] = PointCloud(src_lms)
-    return restore.apply(current_instance), info
-
-
-#yield nicp_result(source, v_i, )
-
-
-    # old result compuation
-    # # final result if we choose closest points
-    # point_corr = closest_points_on_target(v_i)[0]
-    #
-    # result = {
-    #     'deformed_source': restore.apply(v_i),
-    #     'matched_target': restore.apply(point_corr),
-    #     'matched_tri_indices': tri_indices,
-    #     'info': info
-    # }
-    #
-    # if landmarks is not None:
-    #     result['source_lm_index'] = source_lm_index
-    #
-    # yield result
-
-
-def non_rigid_icp_generator(model, target, eps=1e-3,
+def non_rigid_icp_generator(source, target, eps=1e-3,
                             stiffness_weights=None,
                             landmarks=None, lm_weights=None, verbose=False,
-                            generate_instances=False):
+                            generate_instances=False,
+                            model_mean_landmarks=None):
     r"""
     Deforms the source trimesh to align with to optimally the target.
     """
+    # If the source is a PCA model, perform active NICP.
+    active = hasattr(source, 'components')
 
-    # Start from the mean of the model
-    source = model.mean()
+    if active:
+        if verbose:
+            print("PCAModel provided as source - performing Active NICP")
+        model = source
+        model_mean = model.mean()
+
+        if landmarks is not None:
+
+            # user better have provided model landmarks!
+            if model_mean_landmarks is None:
+                raise ValueError(
+                    'For Active NICP with landmarks the model_mean_landmarks '
+                    'need to be provided.')
+
+            shape_model = ShapeModel(model)
+            source_lms = model_mean_landmarks
+            target_lms = target.landmarks[landmarks].lms
+            model_lms_index = model_mean.distance_to(source_lms).argmin(axis=0)
+            shape_model_lms = shape_model.mask_points(model_lms_index)
+
+            # Sim align the target lms to the mean before projecting
+            target_lms_aligned = AlignmentSimilarity(target_lms,
+                                                     source_lms).apply(
+                target_lms)
+
+            # project to learn the weights for the landmark model
+            weights = shape_model_lms.project(target_lms_aligned,
+                                              n_components=20)
+            # use these weights on the dense shape model to generate an improved
+            # instance
+
+            source = model.instance(weights)
+            # update the source landmarks (for the alignment below)
+            source.landmarks[landmarks] = PointCloud(source.points[
+                                                      model_lms_index])
+        else:
+            # Start from the mean of the model
+            source = model_mean
 
     # Scale factors completely change the behavior of the algorithm - always
     # rescale the source down to a sensible size (so it fits inside box of
@@ -170,9 +184,6 @@ def non_rigid_icp_generator(model, target, eps=1e-3,
         if verbose:
             print('using default lm_weight values: {}'.format(lm_weights))
 
-    # to store per iteration information
-    info = []
-
     # we need to prepare some indices for efficient construction of the D
     # sparse matrix.
     row = np.hstack((np.repeat(np.arange(n)[:, None], n_dims, axis=1).ravel(),
@@ -182,10 +193,9 @@ def non_rigid_icp_generator(model, target, eps=1e-3,
     col = np.hstack((x[:, :n_dims].ravel(),
                      x[:, n_dims]))
     o = np.ones(n)
-    
+
     if landmarks is not None:
-        source_lm_index = source.distance_to(
-            source.landmarks[landmarks].lms).argmin(axis=0)
+        source_lm_index = source.distance_to(source.landmarks[landmarks].lms).argmin(axis=0)
         target_lms = target.landmarks[landmarks].lms
         U_L = target_lms.points
         n_landmarks = target_lms.n_points
@@ -271,12 +281,9 @@ def non_rigid_icp_generator(model, target, eps=1e-3,
             data = np.hstack((v_i.ravel(), o))
             D_s = sp.coo_matrix((data, (row, col)))
 
-            # nullify the masked U values
-            U_model = U.copy()
-            U[~w_i] = 0
-
             to_stack_A = [alpha_M_kron_G_s, W_s.dot(D_s)]
-            to_stack_B = [np.zeros((alpha_M_kron_G_s.shape[0], n_dims)), U]
+            to_stack_B = [np.zeros((alpha_M_kron_G_s.shape[0], n_dims)),
+                          U * w_i[:, None]]  # nullify nearest points by w_i
 
             if landmarks is not None:
                 D_L = sp.coo_matrix((data[lm_mask], (row_lm, col_lm)),
@@ -292,8 +299,9 @@ def non_rigid_icp_generator(model, target, eps=1e-3,
             v_i = D_s.dot(X)
 
             # project onto the shape model to restrict the basis
-            v_i = prepare.apply(model.reconstruct(
-                restore.apply(source.from_vector(v_i.ravel())))).points
+            if active:
+                v_i = prepare.apply(model.reconstruct(
+                    restore.apply(source.from_vector(v_i.ravel())))).points
 
             err = np.linalg.norm(X_prev - X, ord='fro')
             stop_criterion = err / np.sqrt(np.size(X_prev))
@@ -313,6 +321,8 @@ def non_rigid_icp_generator(model, target, eps=1e-3,
 
                 print(v_str)
 
+            X_prev = X
+
             # track the progress of the algorithm per-iteration
             info_dict = {
                 'alpha': alpha,
@@ -320,31 +330,22 @@ def non_rigid_icp_generator(model, target, eps=1e-3,
                 'prop_omitted': prop_w_i,
                 'prop_omitted_norms': prop_w_i_n,
                 'prop_omitted_edges': prop_w_i_e,
-                'delta': err
+                'delta': err,
+                'mask_normals': w_i_n,
+                'mask_edges': w_i_e,
+                'mask_all': w_i,
+                'nearest_points': restore.apply(U)
             }
+
+            current_instance = source.copy()
+            current_instance.points = v_i.copy()
+
             if landmarks:
                 info_dict['beta'] = beta
                 info_dict['lm_err'] = lm_err
-            info.append(info_dict)
-            X_prev = X
+                current_instance.landmarks[landmarks] = PointCloud(src_lms)
+
+            yield restore.apply(current_instance), info_dict
 
             if stop_criterion < eps:
                 break
-
-            # only compute nice instance objects per-iteration if the user
-            # has requested them
-            if generate_instances:
-                current_instance = source.copy()
-                current_instance.points = v_i.copy()
-                if landmarks is not None:
-                    current_instance.landmarks[landmarks] = PointCloud(src_lms)
-
-                yield restore.apply(current_instance), info
-                #yield nicp_result(source, v_i, )
-    # copy of new result computatoin
-    current_instance = source.copy()
-    current_instance.points = v_i.copy()
-    if landmarks is not None:
-        current_instance.landmarks[landmarks] = PointCloud(src_lms)
-
-    yield restore.apply(current_instance), info
