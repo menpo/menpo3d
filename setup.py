@@ -3,6 +3,7 @@ import versioneer
 import os
 import pkg_resources
 import platform
+import site
 
 SYS_PLATFORM = platform.system().lower()
 IS_LINUX = 'linux' in SYS_PLATFORM
