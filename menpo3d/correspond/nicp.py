@@ -296,7 +296,9 @@ def non_rigid_icp_generator(source, target, eps=1e-3,
             X = spsolve(A_s, B_s)
 
             # deform template
+            v_i_prev = v_i
             v_i = D_s.dot(X)
+            delta_v_i = v_i - v_i_prev
 
             # project onto the shape model to restrict the basis
             if active:
@@ -334,7 +336,8 @@ def non_rigid_icp_generator(source, target, eps=1e-3,
                 'mask_normals': w_i_n,
                 'mask_edges': w_i_e,
                 'mask_all': w_i,
-                'nearest_points': restore.apply(U)
+                'nearest_points': restore.apply(U),
+                'deformation_per_step': delta_v_i
             }
 
             current_instance = source.copy()
