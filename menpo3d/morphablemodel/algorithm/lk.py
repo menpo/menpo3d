@@ -109,6 +109,22 @@ class LucasKanade(object):
 
         return current_cost
 
+    def J_lms(self, camera, warped_uv, shape_pc_uv, camera_update,
+              focal_length_update):
+        # Compute derivative of camera wrt shape and camera parameters
+        J = d_camera_d_shape_parameters(camera, warped_uv, shape_pc_uv)
+        n_camera_parameters = 0
+        if camera_update:
+            dp_dr = d_camera_d_camera_parameters(
+                camera, warped_uv, with_focal_length=focal_length_update)
+            J = np.hstack((J, dp_dr))
+            n_camera_parameters = dp_dr.shape[1]
+
+        # Reshape to : n_params x (2 * N)
+        n_params = J.shape[1]
+        J = np.transpose(J, (1, 0, 2)).reshape(n_params, -1)
+        return J, n_camera_parameters
+
     def _precompute(self):
         # Rescale shape and appearance components to have size:
         # n_vertices x (n_active_components * n_dims)
@@ -239,33 +255,16 @@ class SimultaneousForwardAdditive(LucasKanade):
                 warped_lms = instance_in_image.points[
                     self.model.model_landmarks_index]
                 lms_error = (warped_lms[:, [1, 0]] - lms_points).T.ravel()
+                warped_view_lms = instance_w[self.model.model_landmarks_index]
 
                 # Jacobian and Hessian wrt shape parameters
-                warped_view_lms = instance_w[self.model.model_landmarks_index]
-                sd_lms_shape = d_camera_d_shape_parameters(
-                    camera, warped_view_lms, self.shape_pc_lms)
-                sd_lms_shape = np.transpose(sd_lms_shape,
-                                            (1, 0, 2)).reshape(self.n, -1)
-                hessian[:self.n, :self.n] += (landmarks_prior_weight *
-                                              sd_lms_shape.dot(sd_lms_shape.T))
-                sd_error[:self.n] += (landmarks_prior_weight *
-                                      sd_lms_shape.dot(lms_error))
-
-                # Jacobian and Hessian wrt camera parameters
-                if camera_update:
-                    sd_lms_camera = d_camera_d_camera_parameters(
-                        camera, warped_view_lms,
-                        with_focal_length=focal_length_update)
-                    n_camera_parameters = sd_lms_camera.shape[1]
-                    sd_lms_camera = np.transpose(
-                        sd_lms_camera, (1, 0, 2)).reshape(
-                        n_camera_parameters, -1)
-                    idx = self.n + n_camera_parameters
-                    hessian[self.n:idx, self.n:idx] += (
-                        landmarks_prior_weight *
-                        sd_lms_camera.dot(sd_lms_camera.T))
-                    sd_error[self.n:idx] += (landmarks_prior_weight *
-                                             sd_lms_camera.dot(lms_error))
+                sd_lms, n_camera_parameters = self.J_lms(
+                    camera, warped_view_lms, self.shape_pc_lms, camera_update,
+                    focal_length_update)
+                idx = self.n + n_camera_parameters
+                hessian[:idx, :idx] += (landmarks_prior_weight *
+                                        sd_lms.dot(sd_lms.T))
+                sd_error[:idx] = landmarks_prior_weight * sd_lms.dot(lms_error)
 
             if return_costs:
                 costs.append(self.compute_cost(
@@ -385,12 +384,14 @@ class WibergForwardAdditive(LucasKanade):
     """
     def run(self, image, initial_mesh, camera, gt_mesh=None, max_iters=20,
             camera_update=False, focal_length_update=False,
-            shape_prior_weight=1., texture_prior_weight=1., landmarks=None,
+            reconstruction_weight=1., shape_prior_weight=1.,
+            texture_prior_weight=1., landmarks=None,
             landmarks_prior_weight=1., return_costs=False, verbose=True):
         # Parse landmarks prior options
         if landmarks is None or landmarks_prior_weight is None:
             landmarks_prior_weight = None
             landmarks = None
+        lms_points = None
         if landmarks is not None:
             lms_points = landmarks.points[:, [1, 0]]
 
@@ -425,7 +426,6 @@ class WibergForwardAdditive(LucasKanade):
         while k < max_iters and eps > self.eps:
             if verbose:
                 print_dynamic("{}/{}".format(k + 1, max_iters))
-                print()
             # Apply camera projection on current instance
             instance_in_image = camera.apply(instance)
 
@@ -439,7 +439,12 @@ class WibergForwardAdditive(LucasKanade):
 
             # Sample all the terms from the model part at the sample locations
             warped_uv = self.sample(instance_w, vertex_indices, b_coords)
-            m_texture_uv = self.model.instance().sample_texture_with_barycentric_coordinates(b_coords, tri_indices)
+            texture_pc_uv = self.model.sample_texture_model(b_coords,
+                                                            tri_indices)
+            texture_pc_uv = texture_pc_uv.reshape((-1, self.m))
+            m_texture_uv = self.model.instance().\
+                sample_texture_with_barycentric_coordinates(b_coords,
+                                                            tri_indices)
             shape_pc_uv = self.sample(self.shape_pc, vertex_indices, b_coords)
             # Reshape shape basis after sampling
             shape_pc_uv = shape_pc_uv.reshape([self.n_samples, 3, -1])
@@ -450,14 +455,26 @@ class WibergForwardAdditive(LucasKanade):
             grad_y_uv = grad_y.sample(yx)
 
             # Compute error
-            img_error_uv = img_uv - m_texture_uv.T
+            img_error_uv = (img_uv - m_texture_uv.T).ravel()
 
             # Compute Jacobian, SD and Hessian of data term
-            sd, n_camera_parameters = self.J_data(
-                camera, warped_uv, shape_pc_uv, grad_x_uv, grad_y_uv,
-                camera_update, focal_length_update)
-            hessian = sd.T.dot(sd)
-            sd_error = sd.T.dot(img_error_uv.ravel())
+            if reconstruction_weight is not None:
+                sd, n_camera_parameters = self.J_data(
+                    camera, warped_uv, shape_pc_uv, texture_pc_uv, grad_x_uv,
+                    grad_y_uv, camera_update, focal_length_update,
+                    reconstruction_weight)
+                hessian = sd.dot(sd.T)
+                sd_error = sd.dot(img_error_uv)
+            else:
+                n_camera_parameters = 0
+                if camera_update:
+                    if focal_length_update:
+                        n_camera_parameters = camera.n_parameters - 1
+                    else:
+                        n_camera_parameters = camera.n_parameters - 2
+                hessian = np.zeros((self.n+n_camera_parameters,
+                                    self.n+n_camera_parameters))
+                sd_error = np.zeros(self.n+n_camera_parameters)
 
             # Compute Jacobian, update SD and Hessian wrt shape prior
             if shape_prior_weight is not None:
@@ -471,29 +488,17 @@ class WibergForwardAdditive(LucasKanade):
                 # Get projected instance on landmarks and error term
                 warped_lms = instance_in_image.points[
                     self.model.model_landmarks_index]
-                lms_error = (warped_lms[:, [1, 0]] - lms_points).T
+                lms_error = (warped_lms[:, [1, 0]] - lms_points).T.ravel()
+                warped_view_lms = instance_w[self.model.model_landmarks_index]
 
                 # Jacobian and Hessian wrt shape parameters
-                warped_view_lms = instance_w[self.model.model_landmarks_index]
-                sd_lms_shape = d_camera_d_shape_parameters(
-                    camera, warped_view_lms, self.shape_pc_lms)
-                hessian[:self.n, :self.n] += (
-                    landmarks_prior_weight * self.compute_hessian(sd_lms_shape))
-                sd_error[:self.n] += (
-                    landmarks_prior_weight * self.compute_sd_error(sd_lms_shape,
-                                                                   lms_error))
-
-                # Jacobian and Hessian wrt camera parameters
-                if camera_update:
-                    sd_lms_camera = d_camera_d_camera_parameters(
-                        camera, warped_view_lms,
-                        with_focal_length=focal_length_update)
-                    hessian[self.n:, self.n:] += (
-                        landmarks_prior_weight *
-                        self.compute_hessian(sd_lms_camera))
-                    sd_error[self.n:] += (
-                        landmarks_prior_weight *
-                        self.compute_sd_error(sd_lms_camera, lms_error))
+                sd_lms, n_camera_parameters = self.J_lms(
+                    camera, warped_view_lms, self.shape_pc_lms, camera_update,
+                    focal_length_update)
+                idx = self.n + n_camera_parameters
+                hessian[:idx, :idx] += (landmarks_prior_weight *
+                                        sd_lms.dot(sd_lms.T))
+                sd_error[:idx] = landmarks_prior_weight * sd_lms.dot(lms_error)
 
             if return_costs:
                 costs.append(self.compute_cost(
@@ -536,17 +541,18 @@ class WibergForwardAdditive(LucasKanade):
             initial_camera_transform=camera_per_iter[0], gt_mesh=gt_mesh,
             costs=costs)
 
-    def project_out(self, J):
-        tmp = self.model.texture_model.components.dot(J)
-        return J - self.texture_T.dot(tmp)
+    def project_out(self, J, U):
+        tmp = J.dot(U)
+        return J - tmp.dot(U.T)
 
     def compute_hessian(self, sd):
         n_params = sd.shape[1]
         sd = np.transpose(sd, (1, 0, 2)).reshape(n_params, -1)
         return sd.dot(sd.T)
 
-    def J_data(self, camera, warped_uv, shape_pc_uv, grad_x_uv, grad_y_uv,
-               camera_update, focal_length_update):
+    def J_data(self, camera, warped_uv, shape_pc_uv, texture_pc_uv, grad_x_uv,
+               grad_y_uv, camera_update, focal_length_update,
+               reconstruction_prior_weight):
         # Compute derivative of camera wrt shape and camera parameters
         dp_da_dr = d_camera_d_shape_parameters(camera, warped_uv, shape_pc_uv)
         n_camera_parameters = 0
@@ -564,10 +570,10 @@ class WibergForwardAdditive(LucasKanade):
         # Project-out
         n_params = J.shape[1]
         J = np.transpose(J, (1, 0, 2)).reshape(n_params, -1)
-        PJ = self.project_out(J)
+        PJ = self.project_out(J, texture_pc_uv)
 
         # Concatenate to create the data term steepest descent
-        return PJ, n_camera_parameters
+        return reconstruction_prior_weight * PJ, n_camera_parameters
 
     def solve(self, hessian, sd_error, camera_update, focal_length_update):
         # Solve
