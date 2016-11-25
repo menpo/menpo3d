@@ -23,6 +23,25 @@ def _parse_colour(colour):
     return ColorConverter().to_rgb(colour)
 
 
+def _check_colours_list(render_flag, colours_list, n_objects, error_str):
+    from menpo.visualize.viewmatplotlib import sample_colours_from_colourmap
+    if render_flag:
+        if colours_list is None:
+            # sample colours from jet colour map
+            colours_list = sample_colours_from_colourmap(n_objects, 'jet')
+        if isinstance(colours_list, list):
+            if len(colours_list) == 1:
+                colours_list[0] = _parse_colour(colours_list[0])
+                colours_list *= n_objects
+            elif len(colours_list) != n_objects:
+                raise ValueError(error_str)
+        else:
+            colours_list = [_parse_colour(colours_list)] * n_objects
+    else:
+        colours_list = [None] * n_objects
+    return colours_list
+
+
 class MayaviRenderer(Renderer):
     """
     Abstract class for performing visualizations using Mayavi.
@@ -423,35 +442,53 @@ class MayaviSurfaceViewer3d(MayaviRenderer):
 
 
 class MayaviLandmarkViewer3d(MayaviRenderer):
-
-    def __init__(self, figure_id, new_figure, pointcloud, lmark_group):
+    def __init__(self, figure_id, new_figure, group, pointcloud,
+                 labels_to_masks):
         super(MayaviLandmarkViewer3d, self).__init__(figure_id, new_figure)
+        self.group = group
         self.pointcloud = pointcloud
-        self.lmark_group = lmark_group
+        self.labels_to_masks = labels_to_masks
 
-    def render(self, scale_factor=1.0, text_scale=1.0, **kwargs):
-        import mayavi.mlab as mlab
+    def render(self, render_lines=True, line_colour='r', line_width=4,
+               render_markers=True, marker_style='sphere', marker_size=None,
+               marker_colour='r', marker_resolution=8, step=None, alpha=1.0):
+        # Regarding the labels colours, we may get passed either no colours (in
+        # which case we generate random colours) or a single colour to colour
+        # all the labels with
+        # TODO: All marker and line options could be defined as lists...
+        n_labels = len(self.labels_to_masks)
+        line_colour = _check_colours_list(
+            render_lines, line_colour, n_labels,
+            'Must pass a list of line colours with length n_labels or a single '
+            'line colour for all labels.')
+        marker_colour = _check_colours_list(
+            render_markers, marker_colour, n_labels,
+            'Must pass a list of marker colours with length n_labels or a '
+            'single marker face colour for all labels.')
+        marker_size = _parse_marker_size(marker_size, self.pointcloud.points)
+
+        # get pointcloud of each label
+        sub_pointclouds = self._build_sub_pointclouds()
+
+        # for each pointcloud
         # disabling the rendering greatly speeds up this for loop
         self.figure.scene.disable_render = True
-        positions = []
-        for label in self.lmark_group:
-            p = self.lmark_group[label]
-            for i, p in enumerate(p.points):
-                positions.append(p)
-                l = '%s_%d' % (label, i)
-                # TODO: This is due to a bug in mayavi that won't allow
-                # rendering text to an empty figure
-                mlab.points3d(p[0], p[1], p[2], scale_factor=scale_factor)
-                mlab.text3d(p[0], p[1], p[2], l, figure=self.figure,
-                            scale=text_scale)
-        positions = np.array(positions)
-        os = np.zeros_like(positions)
-        os[:, 2] = 1
-        mlab.quiver3d(positions[:, 0], positions[:, 1], positions[:, 2],
-                      os[:, 0], os[:, 1], os[:, 2], figure=self.figure)
+        for i, (label, pc) in enumerate(sub_pointclouds):
+            # render pointcloud
+            pc.view(figure_id=self.figure_id, new_figure=False,
+                    render_lines=render_lines, line_colour=line_colour[i],
+                    line_width=line_width, render_markers=render_markers,
+                    marker_style=marker_style, marker_size=marker_size,
+                    marker_colour=marker_colour[i],
+                    marker_resolution=marker_resolution, step=step, alpha=alpha)
+
         self.figure.scene.disable_render = False
 
-        # Ensure everything fits inside the camera viewport
-        mlab.get_engine().current_scene.scene.reset_zoom()
-
         return self
+
+    def _build_sub_pointclouds(self):
+        sub_pointclouds = []
+        for label, indices in self.labels_to_masks.items():
+            mask = self.labels_to_masks[label]
+            sub_pointclouds.append((label, self.pointcloud.from_mask(mask)))
+        return sub_pointclouds
