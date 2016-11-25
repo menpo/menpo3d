@@ -54,7 +54,6 @@ class MayaviRenderer(Renderer):
     new_figure : bool
         If `True`, creates a new figure to render on.
     """
-
     def __init__(self, figure_id, new_figure):
         try:
             import mayavi.mlab as mlab
@@ -70,6 +69,8 @@ class MayaviRenderer(Renderer):
         func_list = [lambda obj, fp, **kwargs: mlab.savefig(fp.name, **obj)] * n_ext
         self._extensions_map = dict(zip(['.' + s for s in self._supported_ext],
                                     func_list))
+        # To store actors for clearing
+        self._actors = []
 
     def get_figure(self):
         r"""
@@ -201,6 +202,8 @@ class MayaviRenderer(Renderer):
         """
         from mayavi import mlab
         mlab.clf(figure=self.figure)
+        if len(self._actors) > 0:
+            self.figure.scene.remove_actors(self._actors)
 
     def force_draw(self):
         r"""
@@ -322,7 +325,6 @@ class MayaviTexturedTriMeshViewer3d(MayaviRenderer):
         self.trilist = trilist
         self.texture = texture
         self.tcoords_per_point = tcoords_per_point
-        self._actors = []
 
     def _render_mesh(self, mesh_type='surface', ambient_light=0.0,
                      specular_light=0.0, alpha=1.0):
@@ -367,17 +369,8 @@ class MayaviTexturedTriMeshViewer3d(MayaviRenderer):
                           specular_light=specular_light, alpha=alpha)
         return self
 
-    def clear_figure(self):
-        r"""
-        Method for clearing the current figure.
-        """
-        from mayavi import mlab
-        mlab.clf(figure=self.figure)
-        self.figure.scene.remove_actors(self._actors)
-
 
 class MayaviColouredTriMeshViewer3d(MayaviRenderer):
-
     def __init__(self, figure_id, new_figure, points, trilist,
                  colour_per_point):
         super(MayaviColouredTriMeshViewer3d, self).__init__(figure_id,
@@ -385,7 +378,6 @@ class MayaviColouredTriMeshViewer3d(MayaviRenderer):
         self.points = points
         self.trilist = trilist
         self.colour_per_point = colour_per_point
-        self._actors = []
 
     def _render_mesh(self, mesh_type='surface', ambient_light=0.0,
                      specular_light=0.0, alpha=1.0):
@@ -417,17 +409,8 @@ class MayaviColouredTriMeshViewer3d(MayaviRenderer):
                           specular_light=specular_light, alpha=alpha)
         return self
 
-    def clear_figure(self):
-        r"""
-        Method for clearing the current figure.
-        """
-        from mayavi import mlab
-        mlab.clf(figure=self.figure)
-        self.figure.scene.remove_actors(self._actors)
-
 
 class MayaviSurfaceViewer3d(MayaviRenderer):
-
     def __init__(self, figure_id, new_figure, values, mask=None):
         super(MayaviSurfaceViewer3d, self).__init__(figure_id, new_figure)
         if mask is not None:
