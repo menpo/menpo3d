@@ -2,6 +2,9 @@ import numpy as np
 
 from menpo.visualize import Renderer
 
+# The colour map used for all lines and markers
+GLOBAL_CMAP = 'jet'
+
 
 def _parse_marker_size(marker_size, points):
     if marker_size is None:
@@ -28,7 +31,7 @@ def _check_colours_list(render_flag, colours_list, n_objects, error_str):
     if render_flag:
         if colours_list is None:
             # sample colours from jet colour map
-            colours_list = sample_colours_from_colourmap(n_objects, 'jet')
+            colours_list = sample_colours_from_colourmap(n_objects, GLOBAL_CMAP)
         if isinstance(colours_list, list):
             if len(colours_list) == 1:
                 colours_list[0] = _parse_colour(colours_list[0])
