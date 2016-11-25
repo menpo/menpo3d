@@ -18,6 +18,11 @@ def _parse_marker_size(marker_size, points):
     return marker_size
 
 
+def _parse_colour(colour):
+    from matplotlib.colors import ColorConverter
+    return ColorConverter().to_rgb(colour)
+
+
 class MayaviRenderer(Renderer):
     """
     Abstract class for performing visualizations using Mayavi.
@@ -106,24 +111,38 @@ class MayaviRenderer(Renderer):
 
     @property
     def width(self):
-        r"""The width scene in pixels
+        r"""
+        The width of the scene in pixels.
+
+        :type: `int`
         """
         return self.figure.scene.get_size()[0]
 
     @property
     def height(self):
+        r"""
+        The height of the scene in pixels.
+
+        :type: `int`
+        """
         return self.figure.scene.get_size()[1]
 
     @property
     def modelview_matrix(self):
-        r"""Retrieves the modelview matrix for this scene.
+        r"""
+        Retrieves the modelview matrix for this scene.
+
+        :type: ``(4, 4)`` `ndarray`
         """
         camera = self.figure.scene.camera
         return camera.view_transform_matrix.to_array().astype(np.float32)
 
     @property
     def projection_matrix(self):
-        r"""Retrieves the projection matrix for this scene.
+        r"""
+        Retrieves the projection matrix for this scene.
+
+        :type: ``(4, 4)`` `ndarray`
         """
         scene = self.figure.scene
         camera = scene.camera
@@ -135,22 +154,21 @@ class MayaviRenderer(Renderer):
 
     @property
     def renderer_settings(self):
-        r"""Returns all the information required to construct an identical
-        renderer to this one
+        r"""
+        Returns all the information required to construct an identical
+        renderer to this one.
 
         Returns
+        -------
+        settings : `dict`
+            The dictionary with the following keys:
 
-        width: int
-            The width of the render window
+                * ``'width'`` (`int`) : The width of the scene.
+                * ``'height'`` (`int`) : The height of the scene.
+                * ``'model_matrix'`` (`ndarray`) : The model array (identity).
+                * ``'view_matrix'`` (`ndarray`) : The view array.
+                * ``'projection_matrix'`` (`ndarray`) : The projection array.
 
-        height: int
-            The height of the render window
-        model_matrix: ndarray of shape (4,4)
-            The model array - always identity
-        view_matrix: ndarray of shape (4,4)
-            The view array - actually combined modelview
-        projection_matrix: ndarray of shape (4,4)
-            The projection array.
         """
         return {'width': self.width,
                 'height': self.height,
@@ -178,40 +196,20 @@ class MayaviRenderer(Renderer):
         _gui.process_events()
 
 
-class MayaviPointCloudViewer3d(MayaviRenderer):
-
-    def __init__(self, figure_id, new_figure, points):
-        super(MayaviPointCloudViewer3d, self).__init__(figure_id, new_figure)
-        self.points = points
-
-    def render(self, marker_style='sphere', marker_size=None,
-               marker_colour=(1, 0, 0), marker_resolution=8, step=None,
-               alpha=1.0):
-        from mayavi import mlab
-
-        marker_size = _parse_marker_size(marker_size, self.points)
-        mlab.points3d(
-            self.points[:, 0], self.points[:, 1], self.points[:, 2],
-            figure=self.figure, scale_factor=marker_size,
-            mode=marker_style, color=marker_colour, opacity=alpha,
-            resolution=marker_resolution, mask_points=step)
-        return self
-
-
 class MayaviPointGraphViewer3d(MayaviRenderer):
-
     def __init__(self, figure_id, new_figure, points, edges):
         super(MayaviPointGraphViewer3d, self).__init__(figure_id, new_figure)
         self.points = points
         self.edges = edges
 
-    def render(self, render_lines=True, line_colour=(1, 0, 0), line_width=4,
+    def render(self, render_lines=True, line_colour='r', line_width=4,
                render_markers=True, marker_style='sphere', marker_size=None,
-               marker_colour=(1, 0, 0), marker_resolution=8, step=None,
-               alpha=1.0):
+               marker_colour='r', marker_resolution=8, step=None, alpha=1.0):
         from mayavi import mlab
+
         # Render the lines if requested
         if render_lines:
+            line_colour = _parse_colour(line_colour)
             # TODO: Make step work for lines as well
             # Create the points
             if step is None:
@@ -225,12 +223,13 @@ class MayaviPointGraphViewer3d(MayaviRenderer):
             lines = mlab.pipeline.stripper(src)
 
             # Finally, display the set of lines
-            mlab.pipeline.surface(lines, figure=self.figure,
-                                  line_width=line_width, color=line_colour,
-                                  opacity=alpha)
+            mlab.pipeline.surface(lines, figure=self.figure, opacity=alpha,
+                                  line_width=line_width, color=line_colour)
+
         # Render the markers if requested
         if render_markers:
             marker_size = _parse_marker_size(marker_size, self.points)
+            marker_colour = _parse_colour(marker_colour)
             mlab.points3d(self.points[:, 0], self.points[:, 1],
                           self.points[:, 2], figure=self.figure,
                           scale_factor=marker_size, mode=marker_style,
