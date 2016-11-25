@@ -472,6 +472,7 @@ class MayaviLandmarkViewer3d(MayaviRenderer):
             'Must pass a list of marker colours with length n_labels or a '
             'single marker face colour for all labels.')
         marker_size = _parse_marker_size(marker_size, self.pointcloud.points)
+        numbers_size = _parse_marker_size(numbers_size, self.pointcloud.points)
 
         # get pointcloud of each label
         sub_pointclouds = self._build_sub_pointclouds()
@@ -486,7 +487,9 @@ class MayaviLandmarkViewer3d(MayaviRenderer):
                     line_width=line_width, render_markers=render_markers,
                     marker_style=marker_style, marker_size=marker_size,
                     marker_colour=marker_colour[i],
-                    marker_resolution=marker_resolution, step=step, alpha=alpha)
+                    marker_resolution=marker_resolution, step=step,
+                    alpha=alpha, render_numbering=render_numbering,
+                    numbers_colour=numbers_colour, numbers_size=numbers_size)
 
         self.figure.scene.disable_render = False
 
