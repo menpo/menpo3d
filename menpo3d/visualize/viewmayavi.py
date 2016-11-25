@@ -1,5 +1,6 @@
 import numpy as np
-from menpo.visualize.base import Renderer
+
+from menpo.visualize import Renderer
 
 
 def _parse_marker_size(marker_size, points):
@@ -17,7 +18,7 @@ def _parse_marker_size(marker_size, points):
     return marker_size
 
 
-class MayaviViewer(Renderer):
+class MayaviRenderer(Renderer):
     """
     Abstract class for performing visualizations using Mayavi.
 
@@ -36,7 +37,7 @@ class MayaviViewer(Renderer):
         except ImportError:
             raise ImportError("mayavi is required for viewing 3D objects "
                               "(consider 'conda/pip install mayavi')")
-        super(MayaviViewer, self).__init__(figure_id, new_figure)
+        super(MayaviRenderer, self).__init__(figure_id, new_figure)
 
         self._supported_ext = ['png', 'jpg', 'bmp', 'tiff',  # 2D
                                'ps', 'eps', 'pdf',  # 2D
@@ -177,7 +178,7 @@ class MayaviViewer(Renderer):
         _gui.process_events()
 
 
-class MayaviPointCloudViewer3d(MayaviViewer):
+class MayaviPointCloudViewer3d(MayaviRenderer):
 
     def __init__(self, figure_id, new_figure, points):
         super(MayaviPointCloudViewer3d, self).__init__(figure_id, new_figure)
@@ -197,7 +198,7 @@ class MayaviPointCloudViewer3d(MayaviViewer):
         return self
 
 
-class MayaviPointGraphViewer3d(MayaviViewer):
+class MayaviPointGraphViewer3d(MayaviRenderer):
 
     def __init__(self, figure_id, new_figure, points, edges):
         super(MayaviPointGraphViewer3d, self).__init__(figure_id, new_figure)
@@ -238,7 +239,7 @@ class MayaviPointGraphViewer3d(MayaviViewer):
         return self
 
 
-class MayaviSurfaceViewer3d(MayaviViewer):
+class MayaviSurfaceViewer3d(MayaviRenderer):
 
     def __init__(self, figure_id, new_figure, values, mask=None):
         super(MayaviSurfaceViewer3d, self).__init__(figure_id, new_figure)
@@ -253,7 +254,7 @@ class MayaviSurfaceViewer3d(MayaviViewer):
         return self
 
 
-class MayaviLandmarkViewer3d(MayaviViewer):
+class MayaviLandmarkViewer3d(MayaviRenderer):
 
     def __init__(self, figure_id, new_figure, pointcloud, lmark_group):
         super(MayaviLandmarkViewer3d, self).__init__(figure_id, new_figure)
@@ -288,7 +289,7 @@ class MayaviLandmarkViewer3d(MayaviViewer):
         return self
 
 
-class MayaviTriMeshViewer3d(MayaviViewer):
+class MayaviTriMeshViewer3d(MayaviRenderer):
 
     def __init__(self, figure_id, new_figure, points, trilist):
         super(MayaviTriMeshViewer3d, self).__init__(figure_id, new_figure)
@@ -327,7 +328,7 @@ class MayaviTriMeshViewer3d(MayaviViewer):
         return self
 
 
-class MayaviTexturedTriMeshViewer3d(MayaviViewer):
+class MayaviTexturedTriMeshViewer3d(MayaviRenderer):
 
     def __init__(self, figure_id, new_figure, points, trilist, texture,
                  tcoords_per_point):
@@ -382,8 +383,16 @@ class MayaviTexturedTriMeshViewer3d(MayaviViewer):
                           specular_light=specular_light, alpha=alpha)
         return self
 
+    def clear_figure(self):
+        r"""
+        Method for clearing the current figure.
+        """
+        from mayavi import mlab
+        mlab.clf(figure=self.figure)
+        self.figure.scene.remove_actors(self._actors)
 
-class MayaviColouredTriMeshViewer3d(MayaviViewer):
+
+class MayaviColouredTriMeshViewer3d(MayaviRenderer):
 
     def __init__(self, figure_id, new_figure, points,
                  trilist, colour_per_point):
@@ -433,7 +442,7 @@ class MayaviColouredTriMeshViewer3d(MayaviViewer):
         self.figure.scene.remove_actors(self._actors)
 
 
-class MayaviVectorViewer3d(MayaviViewer):
+class MayaviVectorViewer3d(MayaviRenderer):
 
     def __init__(self, figure_id, new_figure, points, vectors):
         super(MayaviVectorViewer3d, self).__init__(figure_id,
