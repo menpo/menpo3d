@@ -294,6 +294,119 @@ class MayaviTriMeshViewer3d(MayaviRenderer):
         return self
 
 
+class MayaviTexturedTriMeshViewer3d(MayaviRenderer):
+    def __init__(self, figure_id, new_figure, points, trilist, texture,
+                 tcoords_per_point):
+        super(MayaviTexturedTriMeshViewer3d, self).__init__(figure_id,
+                                                            new_figure)
+        self.points = points
+        self.trilist = trilist
+        self.texture = texture
+        self.tcoords_per_point = tcoords_per_point
+        self._actors = []
+
+    def _render_mesh(self, mesh_type='surface', ambient_light=0.0,
+                     specular_light=0.0, alpha=1.0):
+        from tvtk.api import tvtk
+        pd = tvtk.PolyData()
+        pd.points = self.points
+        pd.polys = self.trilist
+        pd.point_data.t_coords = self.tcoords_per_point
+        mapper = tvtk.PolyDataMapper()
+        mapper.set_input_data(pd)
+        p = tvtk.Property(representation=mesh_type, opacity=alpha,
+                          ambient=ambient_light, specular=specular_light)
+        actor = tvtk.Actor(mapper=mapper, property=p)
+        # Get the pixels from our image class which are [0, 1] and scale
+        # back to valid pixels. Then convert to tvtk ImageData.
+        texture = self.texture.pixels_with_channels_at_back(out_dtype=np.uint8)
+        if self.texture.n_channels == 1:
+            texture = np.stack([texture] * 3, axis=-1)
+        image_data = np.flipud(texture).ravel()
+        image_data = image_data.reshape([-1, 3])
+        image = tvtk.ImageData()
+        image.point_data.scalars = image_data
+        image.dimensions = self.texture.width, self.texture.height, 1
+        texture = tvtk.Texture()
+        texture.set_input_data(image)
+        actor.texture = texture
+        self.figure.scene.add_actors(actor)
+        self._actors.append(actor)
+
+    def render(self, mesh_type='surface', ambient_light=0.0, specular_light=0.0,
+               normals=None, normals_colour='k', normals_line_width=2,
+               normals_marker_style='2darrow', normals_marker_resolution=8,
+               normals_marker_size=None, step=None, alpha=1.0):
+        if normals is not None:
+            MayaviVectorViewer3d(self.figure_id, False,
+                                 self.points, normals).render(
+                colour=normals_colour, line_width=normals_line_width, step=step,
+                marker_style=normals_marker_style,
+                marker_resolution=normals_marker_resolution,
+                marker_size=normals_marker_size, alpha=alpha)
+        self._render_mesh(mesh_type=mesh_type, ambient_light=ambient_light,
+                          specular_light=specular_light, alpha=alpha)
+        return self
+
+    def clear_figure(self):
+        r"""
+        Method for clearing the current figure.
+        """
+        from mayavi import mlab
+        mlab.clf(figure=self.figure)
+        self.figure.scene.remove_actors(self._actors)
+
+
+class MayaviColouredTriMeshViewer3d(MayaviRenderer):
+
+    def __init__(self, figure_id, new_figure, points, trilist,
+                 colour_per_point):
+        super(MayaviColouredTriMeshViewer3d, self).__init__(figure_id,
+                                                            new_figure)
+        self.points = points
+        self.trilist = trilist
+        self.colour_per_point = colour_per_point
+        self._actors = []
+
+    def _render_mesh(self, mesh_type='surface', ambient_light=0.0,
+                     specular_light=0.0, alpha=1.0):
+        from tvtk.api import tvtk
+        pd = tvtk.PolyData()
+        pd.points = self.points
+        pd.polys = self.trilist
+        pd.point_data.scalars = (self.colour_per_point * 255.).astype(np.uint8)
+        mapper = tvtk.PolyDataMapper()
+        mapper.set_input_data(pd)
+        p = tvtk.Property(representation=mesh_type, opacity=alpha,
+                          ambient=ambient_light, specular=specular_light)
+        actor = tvtk.Actor(mapper=mapper, property=p)
+        self.figure.scene.add_actors(actor)
+        self._actors.append(actor)
+
+    def render(self, mesh_type='surface', ambient_light=0.0, specular_light=0.0,
+               normals=None, normals_colour='k', normals_line_width=2,
+               normals_marker_style='2darrow', normals_marker_resolution=8,
+               normals_marker_size=None, step=None, alpha=1.0):
+        if normals is not None:
+            MayaviVectorViewer3d(self.figure_id, False,
+                                 self.points, normals).render(
+                colour=normals_colour, line_width=normals_line_width, step=step,
+                marker_style=normals_marker_style,
+                marker_resolution=normals_marker_resolution,
+                marker_size=normals_marker_size, alpha=alpha)
+        self._render_mesh(mesh_type=mesh_type, ambient_light=ambient_light,
+                          specular_light=specular_light, alpha=alpha)
+        return self
+
+    def clear_figure(self):
+        r"""
+        Method for clearing the current figure.
+        """
+        from mayavi import mlab
+        mlab.clf(figure=self.figure)
+        self.figure.scene.remove_actors(self._actors)
+
+
 class MayaviSurfaceViewer3d(MayaviRenderer):
 
     def __init__(self, figure_id, new_figure, values, mask=None):
@@ -342,117 +455,3 @@ class MayaviLandmarkViewer3d(MayaviRenderer):
         mlab.get_engine().current_scene.scene.reset_zoom()
 
         return self
-
-
-class MayaviTexturedTriMeshViewer3d(MayaviRenderer):
-
-    def __init__(self, figure_id, new_figure, points, trilist, texture,
-                 tcoords_per_point):
-        super(MayaviTexturedTriMeshViewer3d, self).__init__(figure_id,
-                                                            new_figure)
-        self.points = points
-        self.trilist = trilist
-        self.texture = texture
-        self.tcoords_per_point = tcoords_per_point
-        self._actors = []
-
-    def _render_mesh(self, mesh_type='surface', ambient_light=0.0,
-                     specular_light=0.0, alpha=1.0):
-        from tvtk.api import tvtk
-        pd = tvtk.PolyData()
-        pd.points = self.points
-        pd.polys = self.trilist
-        pd.point_data.t_coords = self.tcoords_per_point
-        mapper = tvtk.PolyDataMapper()
-        mapper.set_input_data(pd)
-        p = tvtk.Property(representation=mesh_type, opacity=alpha,
-                          ambient=ambient_light, specular=specular_light)
-        actor = tvtk.Actor(mapper=mapper, property=p)
-        # Get the pixels from our image class which are [0, 1] and scale
-        # back to valid pixels. Then convert to tvtk ImageData.
-        texture = self.texture.pixels_with_channels_at_back(out_dtype=np.uint8)
-        if self.texture.n_channels == 1:
-            texture = np.stack([texture] * 3, axis=-1)
-        image_data = np.flipud(texture).ravel()
-        image_data = image_data.reshape([-1, 3])
-        image = tvtk.ImageData()
-        image.point_data.scalars = image_data
-        image.dimensions = self.texture.width, self.texture.height, 1
-        texture = tvtk.Texture()
-        texture.set_input_data(image)
-        actor.texture = texture
-        self.figure.scene.add_actors(actor)
-        self._actors.append(actor)
-
-    def render(self, mesh_type='surface', ambient_light=0.0, specular_light=0.0,
-               normals=None, normals_colour=(0, 0, 0), normals_line_width=2,
-               normals_marker_style='2darrow', normals_marker_resolution=8,
-               normals_marker_size=0.05, step=None, alpha=1.0):
-        if normals is not None:
-            MayaviVectorViewer3d(self.figure_id, False,
-                                 self.points, normals).render(
-                colour=normals_colour, line_width=normals_line_width, step=step,
-                marker_style=normals_marker_style,
-                marker_resolution=normals_marker_resolution,
-                marker_size=normals_marker_size, alpha=alpha)
-        self._render_mesh(mesh_type=mesh_type, ambient_light=ambient_light,
-                          specular_light=specular_light, alpha=alpha)
-        return self
-
-    def clear_figure(self):
-        r"""
-        Method for clearing the current figure.
-        """
-        from mayavi import mlab
-        mlab.clf(figure=self.figure)
-        self.figure.scene.remove_actors(self._actors)
-
-
-class MayaviColouredTriMeshViewer3d(MayaviRenderer):
-
-    def __init__(self, figure_id, new_figure, points,
-                 trilist, colour_per_point):
-        super(MayaviColouredTriMeshViewer3d, self).__init__(figure_id,
-                                                            new_figure)
-        self.points = points
-        self.trilist = trilist
-        self.colour_per_point = colour_per_point
-        self._actors = []
-
-    def _render_mesh(self, mesh_type='surface', ambient_light=0.0,
-                     specular_light=0.0, alpha=1.0):
-        from tvtk.api import tvtk
-        pd = tvtk.PolyData()
-        pd.points = self.points
-        pd.polys = self.trilist
-        pd.point_data.scalars = (self.colour_per_point * 255.).astype(np.uint8)
-        mapper = tvtk.PolyDataMapper()
-        mapper.set_input_data(pd)
-        p = tvtk.Property(representation=mesh_type, opacity=alpha,
-                          ambient=ambient_light, specular=specular_light)
-        actor = tvtk.Actor(mapper=mapper, property=p)
-        self.figure.scene.add_actors(actor)
-        self._actors.append(actor)
-
-    def render(self, mesh_type='surface', ambient_light=0.0, specular_light=0.0,
-               normals=None, normals_colour=(0, 0, 0), normals_line_width=2,
-               normals_marker_style='2darrow', normals_marker_resolution=8,
-               normals_marker_size=0.05, step=None, alpha=1.0):
-        if normals is not None:
-            MayaviVectorViewer3d(self.figure_id, False,
-                                 self.points, normals).render(
-                colour=normals_colour, line_width=normals_line_width, step=step,
-                marker_style=normals_marker_style,
-                marker_resolution=normals_marker_resolution,
-                marker_size=normals_marker_size, alpha=alpha)
-        self._render_mesh(mesh_type=mesh_type, ambient_light=ambient_light,
-                          specular_light=specular_light, alpha=alpha)
-        return self
-
-    def clear_figure(self):
-        r"""
-        Method for clearing the current figure.
-        """
-        from mayavi import mlab
-        mlab.clf(figure=self.figure)
-        self.figure.scene.remove_actors(self._actors)
