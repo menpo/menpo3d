@@ -14,7 +14,7 @@ def _parse_marker_size(marker_size, points):
             min_10pc = d[int(d.shape[0] / 10)]
             marker_size = min_10pc / 5
         else:
-            marker_size = 1
+            marker_size = 0.1
     return marker_size
 
 
@@ -196,6 +196,26 @@ class MayaviRenderer(Renderer):
         _gui.process_events()
 
 
+class MayaviVectorViewer3d(MayaviRenderer):
+    def __init__(self, figure_id, new_figure, points, vectors):
+        super(MayaviVectorViewer3d, self).__init__(figure_id, new_figure)
+        self.points = points
+        self.vectors = vectors
+
+    def render(self, colour='r', line_width=2, marker_style='2darrow',
+               marker_resolution=8, marker_size=None, step=None, alpha=1.0):
+        from mayavi import mlab
+        marker_size = _parse_marker_size(marker_size, self.points)
+        colour = _parse_colour(colour)
+        mlab.quiver3d(self.points[:, 0], self.points[:, 1], self.points[:, 2],
+                      self.vectors[:, 0], self.vectors[:, 1], self.vectors[:, 2],
+                      figure=self.figure, color=colour, mask_points=step,
+                      line_width=line_width, mode=marker_style,
+                      resolution=marker_resolution, opacity=alpha,
+                      scale_factor=marker_size)
+        return self
+
+
 class MayaviPointGraphViewer3d(MayaviRenderer):
     def __init__(self, figure_id, new_figure, points, edges):
         super(MayaviPointGraphViewer3d, self).__init__(figure_id, new_figure)
@@ -235,6 +255,42 @@ class MayaviPointGraphViewer3d(MayaviRenderer):
                           scale_factor=marker_size, mode=marker_style,
                           color=marker_colour, opacity=alpha,
                           resolution=marker_resolution, mask_points=step)
+        return self
+
+
+class MayaviTriMeshViewer3d(MayaviRenderer):
+    def __init__(self, figure_id, new_figure, points, trilist):
+        super(MayaviTriMeshViewer3d, self).__init__(figure_id, new_figure)
+        self.points = points
+        self.trilist = trilist
+
+    def _render_mesh(self, mesh_type, line_width, colour, marker_size,
+                     marker_resolution, marker_style, step, alpha):
+        import mayavi.mlab as mlab
+        marker_size = _parse_marker_size(marker_size, self.points)
+        colour = _parse_colour(colour)
+        mlab.triangular_mesh(self.points[:, 0], self.points[:, 1],
+                             self.points[:, 2], self.trilist,
+                             figure=self.figure, line_width=line_width,
+                             representation=mesh_type, color=colour,
+                             scale_factor=marker_size, mask_points=step,
+                             resolution=marker_resolution, mode=marker_style,
+                             opacity=alpha, tube_radius=None)
+
+    def render(self, mesh_type='wireframe', line_width=2, colour='r',
+               marker_style='sphere', marker_size=None, marker_resolution=8,
+               normals=None, normals_colour='k', normals_line_width=2,
+               normals_marker_style='2darrow', normals_marker_size=None,
+               normals_marker_resolution=8, step=None, alpha=1.0):
+        if normals is not None:
+            MayaviVectorViewer3d(self.figure_id, False,
+                                 self.points, normals).render(
+                colour=normals_colour, line_width=normals_line_width, step=step,
+                marker_style=normals_marker_style,
+                marker_resolution=normals_marker_resolution,
+                marker_size=normals_marker_size, alpha=alpha)
+        self._render_mesh(mesh_type, line_width, colour, marker_size,
+                          marker_resolution, marker_style, step, alpha)
         return self
 
 
@@ -285,45 +341,6 @@ class MayaviLandmarkViewer3d(MayaviRenderer):
         # Ensure everything fits inside the camera viewport
         mlab.get_engine().current_scene.scene.reset_zoom()
 
-        return self
-
-
-class MayaviTriMeshViewer3d(MayaviRenderer):
-
-    def __init__(self, figure_id, new_figure, points, trilist):
-        super(MayaviTriMeshViewer3d, self).__init__(figure_id, new_figure)
-        self.points = points
-        self.trilist = trilist
-
-    def _render_mesh(self, mesh_type='wireframe', line_width=2,
-                     colour=(1, 0, 0), marker_size=None, marker_resolution=8,
-                     marker_style='sphere', step=None, alpha=1.0):
-        import mayavi.mlab as mlab
-        marker_size = _parse_marker_size(marker_size, self.points)
-        mlab.triangular_mesh(self.points[:, 0], self.points[:, 1],
-                             self.points[:, 2], self.trilist,
-                             figure=self.figure, line_width=line_width,
-                             representation=mesh_type, color=colour,
-                             scale_factor=marker_size, mask_points=step,
-                             resolution=marker_resolution, mode=marker_style,
-                             opacity=alpha, tube_radius=None)
-
-    def render(self, mesh_type='wireframe', line_width=2, colour=(1, 0, 0),
-               marker_size=None, marker_resolution=8, marker_style='sphere',
-               normals=None, normals_colour=(0, 0, 0), normals_line_width=2,
-               normals_marker_style='2darrow', normals_marker_resolution=8,
-               normals_marker_size=0.05, step=None, alpha=1.0):
-        if normals is not None:
-            MayaviVectorViewer3d(self.figure_id, False,
-                                 self.points, normals).render(
-                colour=normals_colour, line_width=normals_line_width, step=step,
-                marker_style=normals_marker_style,
-                marker_resolution=normals_marker_resolution,
-                marker_size=normals_marker_size, alpha=alpha)
-        self._render_mesh(mesh_type=mesh_type, line_width=line_width,
-                          colour=colour, marker_size=marker_size,
-                          marker_resolution=marker_resolution, step=step,
-                          marker_style=marker_style, alpha=alpha)
         return self
 
 
@@ -439,24 +456,3 @@ class MayaviColouredTriMeshViewer3d(MayaviRenderer):
         from mayavi import mlab
         mlab.clf(figure=self.figure)
         self.figure.scene.remove_actors(self._actors)
-
-
-class MayaviVectorViewer3d(MayaviRenderer):
-
-    def __init__(self, figure_id, new_figure, points, vectors):
-        super(MayaviVectorViewer3d, self).__init__(figure_id,
-                                                   new_figure)
-        self.points = points
-        self.vectors = vectors
-
-    def render(self, colour=(1, 0, 0), line_width=2, step=None,
-               marker_style='2darrow', marker_resolution=8, marker_size=0.05,
-               alpha=1.0):
-        from mayavi import mlab
-        mlab.quiver3d(self.points[:, 0], self.points[:, 1], self.points[:, 2],
-                      self.vectors[:, 0], self.vectors[:, 1], self.vectors[:, 2],
-                      figure=self.figure, color=colour, mask_points=step,
-                      line_width=line_width, mode=marker_style,
-                      resolution=marker_resolution, opacity=alpha,
-                      scale_factor=marker_size)
-        return self
