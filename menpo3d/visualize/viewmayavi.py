@@ -45,6 +45,18 @@ def _check_colours_list(render_flag, colours_list, n_objects, error_str):
     return colours_list
 
 
+def _set_numbering(figure, centers, render_numbering=True, numbers_size=None,
+                   numbers_colour='k'):
+    import mayavi.mlab as mlab
+    numbers_colour = _parse_colour(numbers_colour)
+    numbers_size = _parse_marker_size(numbers_size, centers)
+    if render_numbering:
+        for k, p in enumerate(centers):
+            mlab.text3d(p[0], p[1], p[2], str(k), figure=figure,
+                        scale=numbers_size, orient_to_camera=True,
+                        color=numbers_colour, line_width=2)
+
+
 class MayaviRenderer(Renderer):
     """
     Abstract class for performing visualizations using Mayavi.
@@ -249,7 +261,8 @@ class MayaviPointGraphViewer3d(MayaviRenderer):
 
     def render(self, render_lines=True, line_colour='r', line_width=4,
                render_markers=True, marker_style='sphere', marker_size=None,
-               marker_colour='r', marker_resolution=8, step=None, alpha=1.0):
+               marker_colour='r', marker_resolution=8, step=None, alpha=1.0,
+               render_numbering=False, numbers_colour='k', numbers_size=None):
         from mayavi import mlab
 
         # Render the lines if requested
@@ -280,6 +293,12 @@ class MayaviPointGraphViewer3d(MayaviRenderer):
                           scale_factor=marker_size, mode=marker_style,
                           color=marker_colour, opacity=alpha,
                           resolution=marker_resolution, mask_points=step)
+
+        # set numbering
+        _set_numbering(self.figure, self.points, numbers_size=numbers_size,
+                       render_numbering=render_numbering,
+                       numbers_colour=numbers_colour)
+
         return self
 
 
@@ -437,7 +456,8 @@ class MayaviLandmarkViewer3d(MayaviRenderer):
 
     def render(self, render_lines=True, line_colour='r', line_width=4,
                render_markers=True, marker_style='sphere', marker_size=None,
-               marker_colour='r', marker_resolution=8, step=None, alpha=1.0):
+               marker_colour='r', marker_resolution=8, step=None, alpha=1.0,
+               render_numbering=False, numbers_colour='k', numbers_size=None):
         # Regarding the labels colours, we may get passed either no colours (in
         # which case we generate random colours) or a single colour to colour
         # all the labels with
