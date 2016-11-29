@@ -497,7 +497,7 @@ class MayaviLandmarkViewer3d(MayaviRenderer):
 
     def _build_sub_pointclouds(self):
         sub_pointclouds = []
-        for label, indices in self.labels_to_masks.items():
+        for label, _ in self.labels_to_masks.items():
             mask = self.labels_to_masks[label]
             sub_pointclouds.append((label, self.pointcloud.from_mask(mask)))
         return sub_pointclouds
