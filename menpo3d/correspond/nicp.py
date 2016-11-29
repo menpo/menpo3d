@@ -42,16 +42,15 @@ def node_arc_incidence_matrix(source):
 
 def non_rigid_icp(source, target, eps=1e-3, stiffness_weights=None,
                   verbose=False, landmarks=None, lm_weight=None,
-                  generate_instances=False, vertex_data_mask=None,
+                  generate_instances=False, vertex_data_weight=None,
                   model_landmarks=None):
     # call the generator version of NICP, always returning a generator
     results = non_rigid_icp_generator(source, target, eps=eps,
                                       stiffness_weights=stiffness_weights,
                                       verbose=verbose, landmarks=landmarks,
                                       lm_weights=lm_weight,
-                                      generate_instances=True,
                                       model_mean_landmarks=model_landmarks,
-                                      vertex_data_mask=vertex_data_mask)
+                                      vertex_data_weight=vertex_data_weight)
     if generate_instances:
         # the user wants to inspect results per-iteration - return the iterator
         # directly to them
@@ -84,8 +83,7 @@ def validate_stiffness_weights(stiffness_weights, n_points, verbose=False):
 
 def non_rigid_icp_generator(source, target, eps=1e-3, stiffness_weights=None,
                             landmarks=None, lm_weights=None, verbose=False,
-                            generate_instances=False, vertex_data_mask=None,
-                            model_mean_landmarks=None):
+                            vertex_data_weight=None, model_mean_landmarks=None):
     r"""
     Deforms the source trimesh to align with to optimally the target.
     """
@@ -251,6 +249,8 @@ def non_rigid_icp_generator(source, target, eps=1e-3, stiffness_weights=None,
 
         j = 0
         while True:  # iterate until convergence
+            j += 1  # track the iterations for this alpha/landmark weight
+
             # find nearest neighbour and the normals
             U, tri_indices = closest_points_on_target(v_i)
 
@@ -287,18 +287,22 @@ def non_rigid_icp_generator(source, target, eps=1e-3, stiffness_weights=None,
             # w_i_i[problematic] = False
 
             # Form the overall w_i from the normals, edge case
-            w_i = np.logical_and(w_i_n, w_i_e)
+            # for now disable the edge constraint (it was noisy anyway)
+            w_i = w_i_n
 
-            if vertex_data_mask is not None:
-                w_i = np.logical_or(w_i, vertex_data_mask)
+            # w_i = np.logical_and(w_i_n, w_i_e).astype(np.float)
 
             # we could add self intersection at a later date too...
-            # w_i = np.logical_and(np.logical_and(w_i_n, w_i_e), w_i_i)
+            # w_i = np.logical_and(np.logical_and(w_i_n,
+            #                                     w_i_e,
+            #                                     w_i_i).astype(np.float)
 
             prop_w_i = (n - w_i.sum() * 1.0) / n
             prop_w_i_n = (n - w_i_n.sum() * 1.0) / n
             prop_w_i_e = (n - w_i_e.sum() * 1.0) / n
-            j += 1
+
+            if vertex_data_weight is not None:
+                w_i = w_i * vertex_data_weight
 
             # Build the sparse diagonal weight matrix
             W_s = sp.diags(w_i.astype(np.float)[None, :], [0])
@@ -353,7 +357,7 @@ def non_rigid_icp_generator(source, target, eps=1e-3, stiffness_weights=None,
             # track the progress of the algorithm per-iteration
             info_dict = {
                 'alpha': alpha,
-                'iteration': j + 1,
+                'iteration': j,
                 'prop_omitted': prop_w_i,
                 'prop_omitted_norms': prop_w_i_n,
                 'prop_omitted_edges': prop_w_i_e,
