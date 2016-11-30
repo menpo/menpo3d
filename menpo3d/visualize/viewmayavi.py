@@ -1,5 +1,9 @@
 import numpy as np
-from menpo.visualize.base import Renderer
+
+from menpo.visualize import Renderer
+
+# The colour map used for all lines and markers
+GLOBAL_CMAP = 'jet'
 
 
 def _parse_marker_size(marker_size, points):
@@ -13,11 +17,47 @@ def _parse_marker_size(marker_size, points):
             min_10pc = d[int(d.shape[0] / 10)]
             marker_size = min_10pc / 5
         else:
-            marker_size = 1
+            marker_size = 0.1
     return marker_size
 
 
-class MayaviViewer(Renderer):
+def _parse_colour(colour):
+    from matplotlib.colors import ColorConverter
+    return ColorConverter().to_rgb(colour)
+
+
+def _check_colours_list(render_flag, colours_list, n_objects, error_str):
+    from menpo.visualize.viewmatplotlib import sample_colours_from_colourmap
+    if render_flag:
+        if colours_list is None:
+            # sample colours from jet colour map
+            colours_list = sample_colours_from_colourmap(n_objects, GLOBAL_CMAP)
+        if isinstance(colours_list, list):
+            if len(colours_list) == 1:
+                colours_list[0] = _parse_colour(colours_list[0])
+                colours_list *= n_objects
+            elif len(colours_list) != n_objects:
+                raise ValueError(error_str)
+        else:
+            colours_list = [_parse_colour(colours_list)] * n_objects
+    else:
+        colours_list = [None] * n_objects
+    return colours_list
+
+
+def _set_numbering(figure, centers, render_numbering=True, numbers_size=None,
+                   numbers_colour='k'):
+    import mayavi.mlab as mlab
+    numbers_colour = _parse_colour(numbers_colour)
+    numbers_size = _parse_marker_size(numbers_size, centers)
+    if render_numbering:
+        for k, p in enumerate(centers):
+            mlab.text3d(p[0], p[1], p[2], str(k), figure=figure,
+                        scale=numbers_size, orient_to_camera=True,
+                        color=numbers_colour, line_width=2)
+
+
+class MayaviRenderer(Renderer):
     """
     Abstract class for performing visualizations using Mayavi.
 
@@ -29,14 +69,13 @@ class MayaviViewer(Renderer):
     new_figure : bool
         If `True`, creates a new figure to render on.
     """
-
     def __init__(self, figure_id, new_figure):
         try:
             import mayavi.mlab as mlab
         except ImportError:
             raise ImportError("mayavi is required for viewing 3D objects "
                               "(consider 'conda/pip install mayavi')")
-        super(MayaviViewer, self).__init__(figure_id, new_figure)
+        super(MayaviRenderer, self).__init__(figure_id, new_figure)
 
         self._supported_ext = ['png', 'jpg', 'bmp', 'tiff',  # 2D
                                'ps', 'eps', 'pdf',  # 2D
@@ -45,6 +84,8 @@ class MayaviViewer(Renderer):
         func_list = [lambda obj, fp, **kwargs: mlab.savefig(fp.name, **obj)] * n_ext
         self._extensions_map = dict(zip(['.' + s for s in self._supported_ext],
                                     func_list))
+        # To store actors for clearing
+        self._actors = []
 
     def get_figure(self):
         r"""
@@ -105,24 +146,38 @@ class MayaviViewer(Renderer):
 
     @property
     def width(self):
-        r"""The width scene in pixels
+        r"""
+        The width of the scene in pixels.
+
+        :type: `int`
         """
         return self.figure.scene.get_size()[0]
 
     @property
     def height(self):
+        r"""
+        The height of the scene in pixels.
+
+        :type: `int`
+        """
         return self.figure.scene.get_size()[1]
 
     @property
     def modelview_matrix(self):
-        r"""Retrieves the modelview matrix for this scene.
+        r"""
+        Retrieves the modelview matrix for this scene.
+
+        :type: ``(4, 4)`` `ndarray`
         """
         camera = self.figure.scene.camera
         return camera.view_transform_matrix.to_array().astype(np.float32)
 
     @property
     def projection_matrix(self):
-        r"""Retrieves the projection matrix for this scene.
+        r"""
+        Retrieves the projection matrix for this scene.
+
+        :type: ``(4, 4)`` `ndarray`
         """
         scene = self.figure.scene
         camera = scene.camera
@@ -134,22 +189,21 @@ class MayaviViewer(Renderer):
 
     @property
     def renderer_settings(self):
-        r"""Returns all the information required to construct an identical
-        renderer to this one
+        r"""
+        Returns all the information required to construct an identical
+        renderer to this one.
 
         Returns
+        -------
+        settings : `dict`
+            The dictionary with the following keys:
 
-        width: int
-            The width of the render window
+                * ``'width'`` (`int`) : The width of the scene.
+                * ``'height'`` (`int`) : The height of the scene.
+                * ``'model_matrix'`` (`ndarray`) : The model array (identity).
+                * ``'view_matrix'`` (`ndarray`) : The view array.
+                * ``'projection_matrix'`` (`ndarray`) : The projection array.
 
-        height: int
-            The height of the render window
-        model_matrix: ndarray of shape (4,4)
-            The model array - always identity
-        view_matrix: ndarray of shape (4,4)
-            The view array - actually combined modelview
-        projection_matrix: ndarray of shape (4,4)
-            The projection array.
         """
         return {'width': self.width,
                 'height': self.height,
@@ -163,6 +217,8 @@ class MayaviViewer(Renderer):
         """
         from mayavi import mlab
         mlab.clf(figure=self.figure)
+        if len(self._actors) > 0:
+            self.figure.scene.remove_actors(self._actors)
 
     def force_draw(self):
         r"""
@@ -177,40 +233,41 @@ class MayaviViewer(Renderer):
         _gui.process_events()
 
 
-class MayaviPointCloudViewer3d(MayaviViewer):
-
-    def __init__(self, figure_id, new_figure, points):
-        super(MayaviPointCloudViewer3d, self).__init__(figure_id, new_figure)
+class MayaviVectorViewer3d(MayaviRenderer):
+    def __init__(self, figure_id, new_figure, points, vectors):
+        super(MayaviVectorViewer3d, self).__init__(figure_id, new_figure)
         self.points = points
+        self.vectors = vectors
 
-    def render(self, marker_style='sphere', marker_size=None,
-               marker_colour=(1, 0, 0), marker_resolution=8, step=None,
-               alpha=1.0):
+    def render(self, colour='r', line_width=2, marker_style='2darrow',
+               marker_resolution=8, marker_size=None, step=None, alpha=1.0):
         from mayavi import mlab
-
         marker_size = _parse_marker_size(marker_size, self.points)
-        mlab.points3d(
-            self.points[:, 0], self.points[:, 1], self.points[:, 2],
-            figure=self.figure, scale_factor=marker_size,
-            mode=marker_style, color=marker_colour, opacity=alpha,
-            resolution=marker_resolution, mask_points=step)
+        colour = _parse_colour(colour)
+        mlab.quiver3d(self.points[:, 0], self.points[:, 1], self.points[:, 2],
+                      self.vectors[:, 0], self.vectors[:, 1], self.vectors[:, 2],
+                      figure=self.figure, color=colour, mask_points=step,
+                      line_width=line_width, mode=marker_style,
+                      resolution=marker_resolution, opacity=alpha,
+                      scale_factor=marker_size)
         return self
 
 
-class MayaviPointGraphViewer3d(MayaviViewer):
-
+class MayaviPointGraphViewer3d(MayaviRenderer):
     def __init__(self, figure_id, new_figure, points, edges):
         super(MayaviPointGraphViewer3d, self).__init__(figure_id, new_figure)
         self.points = points
         self.edges = edges
 
-    def render(self, render_lines=True, line_colour=(1, 0, 0), line_width=4,
+    def render(self, render_lines=True, line_colour='r', line_width=4,
                render_markers=True, marker_style='sphere', marker_size=None,
-               marker_colour=(1, 0, 0), marker_resolution=8, step=None,
-               alpha=1.0):
+               marker_colour='r', marker_resolution=8, step=None, alpha=1.0,
+               render_numbering=False, numbers_colour='k', numbers_size=None):
         from mayavi import mlab
+
         # Render the lines if requested
         if render_lines:
+            line_colour = _parse_colour(line_colour)
             # TODO: Make step work for lines as well
             # Create the points
             if step is None:
@@ -224,82 +281,38 @@ class MayaviPointGraphViewer3d(MayaviViewer):
             lines = mlab.pipeline.stripper(src)
 
             # Finally, display the set of lines
-            mlab.pipeline.surface(lines, figure=self.figure,
-                                  line_width=line_width, color=line_colour,
-                                  opacity=alpha)
+            mlab.pipeline.surface(lines, figure=self.figure, opacity=alpha,
+                                  line_width=line_width, color=line_colour)
+
         # Render the markers if requested
         if render_markers:
             marker_size = _parse_marker_size(marker_size, self.points)
+            marker_colour = _parse_colour(marker_colour)
             mlab.points3d(self.points[:, 0], self.points[:, 1],
                           self.points[:, 2], figure=self.figure,
                           scale_factor=marker_size, mode=marker_style,
                           color=marker_colour, opacity=alpha,
                           resolution=marker_resolution, mask_points=step)
-        return self
 
-
-class MayaviSurfaceViewer3d(MayaviViewer):
-
-    def __init__(self, figure_id, new_figure, values, mask=None):
-        super(MayaviSurfaceViewer3d, self).__init__(figure_id, new_figure)
-        if mask is not None:
-            values[~mask] = np.nan
-        self.values = values
-
-    def render(self, **kwargs):
-        from mayavi import mlab
-        warp_scale = kwargs.get('warp_scale', 'auto')
-        mlab.surf(self.values, warp_scale=warp_scale)
-        return self
-
-
-class MayaviLandmarkViewer3d(MayaviViewer):
-
-    def __init__(self, figure_id, new_figure, pointcloud, lmark_group):
-        super(MayaviLandmarkViewer3d, self).__init__(figure_id, new_figure)
-        self.pointcloud = pointcloud
-        self.lmark_group = lmark_group
-
-    def render(self, scale_factor=1.0, text_scale=1.0, **kwargs):
-        import mayavi.mlab as mlab
-        # disabling the rendering greatly speeds up this for loop
-        self.figure.scene.disable_render = True
-        positions = []
-        for label in self.lmark_group:
-            p = self.lmark_group[label]
-            for i, p in enumerate(p.points):
-                positions.append(p)
-                l = '%s_%d' % (label, i)
-                # TODO: This is due to a bug in mayavi that won't allow
-                # rendering text to an empty figure
-                mlab.points3d(p[0], p[1], p[2], scale_factor=scale_factor)
-                mlab.text3d(p[0], p[1], p[2], l, figure=self.figure,
-                            scale=text_scale)
-        positions = np.array(positions)
-        os = np.zeros_like(positions)
-        os[:, 2] = 1
-        mlab.quiver3d(positions[:, 0], positions[:, 1], positions[:, 2],
-                      os[:, 0], os[:, 1], os[:, 2], figure=self.figure)
-        self.figure.scene.disable_render = False
-
-        # Ensure everything fits inside the camera viewport
-        mlab.get_engine().current_scene.scene.reset_zoom()
+        # set numbering
+        _set_numbering(self.figure, self.points, numbers_size=numbers_size,
+                       render_numbering=render_numbering,
+                       numbers_colour=numbers_colour)
 
         return self
 
 
-class MayaviTriMeshViewer3d(MayaviViewer):
-
+class MayaviTriMeshViewer3d(MayaviRenderer):
     def __init__(self, figure_id, new_figure, points, trilist):
         super(MayaviTriMeshViewer3d, self).__init__(figure_id, new_figure)
         self.points = points
         self.trilist = trilist
 
-    def _render_mesh(self, mesh_type='wireframe', line_width=2,
-                     colour=(1, 0, 0), marker_size=None, marker_resolution=8,
-                     marker_style='sphere', step=None, alpha=1.0):
+    def _render_mesh(self, mesh_type, line_width, colour, marker_size,
+                     marker_resolution, marker_style, step, alpha):
         import mayavi.mlab as mlab
         marker_size = _parse_marker_size(marker_size, self.points)
+        colour = _parse_colour(colour)
         mlab.triangular_mesh(self.points[:, 0], self.points[:, 1],
                              self.points[:, 2], self.trilist,
                              figure=self.figure, line_width=line_width,
@@ -308,11 +321,11 @@ class MayaviTriMeshViewer3d(MayaviViewer):
                              resolution=marker_resolution, mode=marker_style,
                              opacity=alpha, tube_radius=None)
 
-    def render(self, mesh_type='wireframe', line_width=2, colour=(1, 0, 0),
-               marker_size=None, marker_resolution=8, marker_style='sphere',
-               normals=None, normals_colour=(0, 0, 0), normals_line_width=2,
-               normals_marker_style='2darrow', normals_marker_resolution=8,
-               normals_marker_size=0.05, step=None, alpha=1.0):
+    def render(self, mesh_type='wireframe', line_width=2, colour='r',
+               marker_style='sphere', marker_size=None, marker_resolution=8,
+               normals=None, normals_colour='k', normals_line_width=2,
+               normals_marker_style='2darrow', normals_marker_size=None,
+               normals_marker_resolution=8, step=None, alpha=1.0):
         if normals is not None:
             MayaviVectorViewer3d(self.figure_id, False,
                                  self.points, normals).render(
@@ -320,15 +333,12 @@ class MayaviTriMeshViewer3d(MayaviViewer):
                 marker_style=normals_marker_style,
                 marker_resolution=normals_marker_resolution,
                 marker_size=normals_marker_size, alpha=alpha)
-        self._render_mesh(mesh_type=mesh_type, line_width=line_width,
-                          colour=colour, marker_size=marker_size,
-                          marker_resolution=marker_resolution, step=step,
-                          marker_style=marker_style, alpha=alpha)
+        self._render_mesh(mesh_type, line_width, colour, marker_size,
+                          marker_resolution, marker_style, step, alpha)
         return self
 
 
-class MayaviTexturedTriMeshViewer3d(MayaviViewer):
-
+class MayaviTexturedTriMeshViewer3d(MayaviRenderer):
     def __init__(self, figure_id, new_figure, points, trilist, texture,
                  tcoords_per_point):
         super(MayaviTexturedTriMeshViewer3d, self).__init__(figure_id,
@@ -368,9 +378,9 @@ class MayaviTexturedTriMeshViewer3d(MayaviViewer):
         self._actors.append(actor)
 
     def render(self, mesh_type='surface', ambient_light=0.0, specular_light=0.0,
-               normals=None, normals_colour=(0, 0, 0), normals_line_width=2,
+               normals=None, normals_colour='k', normals_line_width=2,
                normals_marker_style='2darrow', normals_marker_resolution=8,
-               normals_marker_size=0.05, step=None, alpha=1.0):
+               normals_marker_size=None, step=None, alpha=1.0):
         if normals is not None:
             MayaviVectorViewer3d(self.figure_id, False,
                                  self.points, normals).render(
@@ -383,10 +393,9 @@ class MayaviTexturedTriMeshViewer3d(MayaviViewer):
         return self
 
 
-class MayaviColouredTriMeshViewer3d(MayaviViewer):
-
-    def __init__(self, figure_id, new_figure, points,
-                 trilist, colour_per_point):
+class MayaviColouredTriMeshViewer3d(MayaviRenderer):
+    def __init__(self, figure_id, new_figure, points, trilist,
+                 colour_per_point):
         super(MayaviColouredTriMeshViewer3d, self).__init__(figure_id,
                                                             new_figure)
         self.points = points
@@ -410,9 +419,9 @@ class MayaviColouredTriMeshViewer3d(MayaviViewer):
         self._actors.append(actor)
 
     def render(self, mesh_type='surface', ambient_light=0.0, specular_light=0.0,
-               normals=None, normals_colour=(0, 0, 0), normals_line_width=2,
+               normals=None, normals_colour='k', normals_line_width=2,
                normals_marker_style='2darrow', normals_marker_resolution=8,
-               normals_marker_size=0.05, step=None, alpha=1.0):
+               normals_marker_size=None, step=None, alpha=1.0):
         if normals is not None:
             MayaviVectorViewer3d(self.figure_id, False,
                                  self.points, normals).render(
@@ -424,31 +433,75 @@ class MayaviColouredTriMeshViewer3d(MayaviViewer):
                           specular_light=specular_light, alpha=alpha)
         return self
 
-    def clear_figure(self):
-        r"""
-        Method for clearing the current figure.
-        """
-        from mayavi import mlab
-        mlab.clf(figure=self.figure)
-        self.figure.scene.remove_actors(self._actors)
 
-
-class MayaviVectorViewer3d(MayaviViewer):
-
-    def __init__(self, figure_id, new_figure, points, vectors):
-        super(MayaviVectorViewer3d, self).__init__(figure_id,
-                                                   new_figure)
-        self.points = points
-        self.vectors = vectors
+class MayaviSurfaceViewer3d(MayaviRenderer):
+    def __init__(self, figure_id, new_figure, values, mask=None):
+        super(MayaviSurfaceViewer3d, self).__init__(figure_id, new_figure)
+        if mask is not None:
+            values[~mask] = np.nan
+        self.values = values
 
     def render(self, colour=(1, 0, 0), line_width=2, step=None,
                marker_style='2darrow', marker_resolution=8, marker_size=0.05,
                alpha=1.0):
         from mayavi import mlab
-        mlab.quiver3d(self.points[:, 0], self.points[:, 1], self.points[:, 2],
-                      self.vectors[:, 0], self.vectors[:, 1], self.vectors[:, 2],
-                      figure=self.figure, color=colour, mask_points=step,
-                      line_width=line_width, mode=marker_style,
-                      resolution=marker_resolution, opacity=alpha,
-                      scale_factor=marker_size)
+        warp_scale = kwargs.get('warp_scale', 'auto')
+        mlab.surf(self.values, warp_scale=warp_scale)
         return self
+
+
+class MayaviLandmarkViewer3d(MayaviRenderer):
+    def __init__(self, figure_id, new_figure, group, pointcloud,
+                 labels_to_masks):
+        super(MayaviLandmarkViewer3d, self).__init__(figure_id, new_figure)
+        self.group = group
+        self.pointcloud = pointcloud
+        self.labels_to_masks = labels_to_masks
+
+    def render(self, render_lines=True, line_colour='r', line_width=4,
+               render_markers=True, marker_style='sphere', marker_size=None,
+               marker_colour='r', marker_resolution=8, step=None, alpha=1.0,
+               render_numbering=False, numbers_colour='k', numbers_size=None):
+        # Regarding the labels colours, we may get passed either no colours (in
+        # which case we generate random colours) or a single colour to colour
+        # all the labels with
+        # TODO: All marker and line options could be defined as lists...
+        n_labels = len(self.labels_to_masks)
+        line_colour = _check_colours_list(
+            render_lines, line_colour, n_labels,
+            'Must pass a list of line colours with length n_labels or a single '
+            'line colour for all labels.')
+        marker_colour = _check_colours_list(
+            render_markers, marker_colour, n_labels,
+            'Must pass a list of marker colours with length n_labels or a '
+            'single marker face colour for all labels.')
+        marker_size = _parse_marker_size(marker_size, self.pointcloud.points)
+        numbers_size = _parse_marker_size(numbers_size, self.pointcloud.points)
+
+        # get pointcloud of each label
+        sub_pointclouds = self._build_sub_pointclouds()
+
+        # for each pointcloud
+        # disabling the rendering greatly speeds up this for loop
+        self.figure.scene.disable_render = True
+        for i, (label, pc) in enumerate(sub_pointclouds):
+            # render pointcloud
+            pc.view(figure_id=self.figure_id, new_figure=False,
+                    render_lines=render_lines, line_colour=line_colour[i],
+                    line_width=line_width, render_markers=render_markers,
+                    marker_style=marker_style, marker_size=marker_size,
+                    marker_colour=marker_colour[i],
+                    marker_resolution=marker_resolution, step=step,
+                    alpha=alpha, render_numbering=render_numbering,
+                    numbers_colour=numbers_colour, numbers_size=numbers_size)
+
+        self.figure.scene.disable_render = False
+
+        return self
+
+    def _build_sub_pointclouds(self):
+        sub_pointclouds = []
+        for label, _ in self.labels_to_masks.items():
+            mask = self.labels_to_masks[label]
+            sub_pointclouds.append((label, self.pointcloud.from_mask(mask)))
+        return sub_pointclouds
