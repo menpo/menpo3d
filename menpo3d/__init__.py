@@ -1,3 +1,7 @@
+# We need to explicitly perform this import in order to ensure that the correct
+# QT API is set
+from pyface.qt import QtGui, QtCore
+
 from . import io
 from . import rasterize
 from . import unwrap
