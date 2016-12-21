@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 import versioneer
 
-install_requires = ['menpo>=0.7,<0.8',
+install_requires = ['menpo>=0.7.6,<0.8',
                     'cyrasterize>=0.3,<0.4',
                     'mayavi>=4.5.0']
 
