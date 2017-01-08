@@ -224,7 +224,9 @@ def non_rigid_icp_generator(source, target, eps=1e-3, stiffness_weights=None,
         source_lm_index_l = list(source_lm_index)
         row_lm = np.array([source_lm_index_l.index(r) for r in row_lm_to_fix])
 
-    for i, (alpha, beta) in enumerate(zip(stiffness, lm_weights), 1):
+    for i, (alpha, beta, d_weight) in enumerate(zip(stiffness,
+                                                    lm_weights,
+                                                    vertex_data_weight), 1):
         alpha_is_per_vertex = isinstance(alpha, np.ndarray)
         if alpha_is_per_vertex:
             # stiffness is provided per-vertex
@@ -302,7 +304,7 @@ def non_rigid_icp_generator(source, target, eps=1e-3, stiffness_weights=None,
             prop_w_i_e = (n - w_i_e.sum() * 1.0) / n
 
             if vertex_data_weight is not None:
-                w_i = w_i * vertex_data_weight
+                w_i = w_i * d_weight
 
             # Build the sparse diagonal weight matrix
             W_s = sp.diags(w_i.astype(np.float)[None, :], [0])

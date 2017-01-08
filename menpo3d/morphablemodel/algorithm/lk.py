@@ -174,7 +174,7 @@ class SimultaneousForwardAdditive(LucasKanade):
         shape_parameters_per_iter = [shape_parameters]
         texture_parameters_per_iter = [texture_parameters]
         camera_per_iter = [camera]
-        instance_per_iter = [instance.with_rescaled_texture(0., 1.)]
+        instance_per_iter = [instance.rescale_texture(0., 1.)]
         costs = None
         if return_costs:
             costs = []
@@ -293,7 +293,7 @@ class SimultaneousForwardAdditive(LucasKanade):
             shape_parameters_per_iter.append(shape_parameters)
             texture_parameters_per_iter.append(texture_parameters)
             camera_per_iter.append(camera)
-            instance_per_iter.append(instance.with_rescaled_texture(0., 1.))
+            instance_per_iter.append(instance.rescale_texture(0., 1.))
 
             # Increase iteration counter
             k += 1
@@ -305,7 +305,7 @@ class SimultaneousForwardAdditive(LucasKanade):
             shape_parameters=shape_parameters_per_iter,
             texture_parameters=texture_parameters_per_iter,
             meshes=instance_per_iter, camera_transforms=camera_per_iter,
-            image=image, initial_mesh=initial_mesh.with_rescaled_texture(0., 1.),
+            image=image, initial_mesh=initial_mesh.rescale_texture(0., 1.),
             initial_camera_transform=camera_per_iter[0], gt_mesh=gt_mesh,
             costs=costs)
 
@@ -413,7 +413,7 @@ class WibergForwardAdditive(LucasKanade):
         shape_parameters_per_iter = [shape_parameters]
         texture_parameters_per_iter = [texture_parameters]
         camera_per_iter = [camera]
-        instance_per_iter = [instance.with_rescaled_texture(0., 1.)]
+        instance_per_iter = [instance.rescale_texture(0., 1.)]
         costs = None
         if return_costs:
             costs = []
@@ -525,7 +525,7 @@ class WibergForwardAdditive(LucasKanade):
             shape_parameters_per_iter.append(shape_parameters)
             texture_parameters_per_iter.append(texture_parameters)
             camera_per_iter.append(camera)
-            instance_per_iter.append(instance.with_rescaled_texture(0., 1.))
+            instance_per_iter.append(instance.rescale_texture(0., 1.))
 
             # Increase iteration counter
             k += 1
@@ -537,7 +537,7 @@ class WibergForwardAdditive(LucasKanade):
             shape_parameters=shape_parameters_per_iter,
             texture_parameters=texture_parameters_per_iter,
             meshes=instance_per_iter, camera_transforms=camera_per_iter,
-            image=image, initial_mesh=initial_mesh.with_rescaled_texture(0., 1.),
+            image=image, initial_mesh=initial_mesh.rescale_texture(0., 1.),
             initial_camera_transform=camera_per_iter[0], gt_mesh=gt_mesh,
             costs=costs)
 
