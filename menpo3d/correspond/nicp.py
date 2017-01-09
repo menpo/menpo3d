@@ -6,6 +6,40 @@ from menpo3d.vtkutils import trimesh_to_vtk, VTKClosestPointLocator
 from menpo3d.morphablemodel.shapemodel import ShapeModel
 
 
+import os
+import sys
+from contextlib import contextmanager
+import warnings
+
+@contextmanager
+def stdout_redirected(to=os.devnull):
+    r"""
+    import os
+
+    with stdout_redirected(to=filename):
+        print("from Python")
+        os.system("echo non-Python applications are also supported")
+    """
+    fd = sys.stdout.fileno()
+
+    #  assert that Python and C stdio write using the same file descriptor
+    ####assert libc.fileno(ctypes.c_void_p.in_dll(libc, "stdout")) == fd == 1
+
+    def redirect_stdout(to):
+        sys.stdout.close()  # + implicit flush()
+        os.dup2(to.fileno(), fd)  # fd writes to 'to' file
+        sys.stdout = os.fdopen(fd, 'w')  # Python writes to fd
+
+    with os.fdopen(os.dup(fd), 'w') as old_stdout:
+        with open(to, 'w') as file:
+            redirect_stdout(to=file)
+        try:
+            yield  # allow code to be run with the redirected stdout
+        finally:
+            # restore stdout.
+            # buffering and flags such as CLOEXEC may be different
+            redirect_stdout(to=old_stdout)
+
 try:
     
     try:
@@ -17,7 +51,11 @@ try:
 
     # user has cholesky available - provide a fast solve
     def spsolve(sparse_X, dense_b):
-        factor = cholesky_AAt(sparse_X.T)
+        # wrap the cholesky call in a context manager that swallows the
+        # low-level std-out to stop it from swamping our stdout (these low-level
+        # prints come from METIS, but the solution behaves as normal)
+        with stdout_redirected():
+            factor = cholesky_AAt(sparse_X.T)
         return factor(sparse_X.T.dot(dense_b)).toarray()
 
 except ImportError:
@@ -25,6 +63,9 @@ except ImportError:
     from scipy.sparse.linalg import spsolve as scipy_spsolve
 
     def spsolve(sparse_X, dense_b):
+        warnings.warn("suitesparse is not installed - NICP will run "
+                      "considerably (~5-10x) slower. If possible install "
+                      "suitesparse.")
         return scipy_spsolve(sparse_X.T.dot(sparse_X),
                              sparse_X.T.dot(dense_b)).toarray()
 
