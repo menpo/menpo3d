@@ -92,15 +92,16 @@ def validate_weights(label, weights, n_points, n_iterations=None,
     invalid = []
     for i, weight in enumerate(weights):
         is_per_vertex = isinstance(weight, np.ndarray)
-        if is_per_vertex:
-            if verbose:
-                print('Using per-vertex {label}'.format(label=label))
-            # value is provided per-vertex
-            if weight.shape != (n_points,):
+        if is_per_vertex and weight.shape != (n_points,):
                 invalid.append('({}): {}'.format(i, weight.shape[0]))
+
+    if verbose and len(weights) >= 1:
+        is_per_vertex = isinstance(weights[0], np.ndarray)
+        if is_per_vertex:
+            print('Using per-vertex {label}'.format(label=label))
         else:
-            if verbose:
-                print('Using global {label}'.format(label=label))
+            print('Using global {label}'.format(label=label))
+
     if len(invalid) != 0:
         raise ValueError('Invalid {label}: expected shape ({n_points},) '
                          'got: {invalid_cases}'.format(
