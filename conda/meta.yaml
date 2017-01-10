@@ -6,6 +6,8 @@ requirements:
   build:
     - python
     - setuptools
+    - numpy >=1.10,<2.0
+    - cython >=0.23
 
   run:
     - python
