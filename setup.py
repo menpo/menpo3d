@@ -1,24 +1,28 @@
-from setuptools import setup, find_packages, Extension
-import versioneer
 import os
-import pkg_resources
 import platform
 import site
+from setuptools import setup, find_packages, Extension
+import versioneer
+
 
 SYS_PLATFORM = platform.system().lower()
 IS_LINUX = 'linux' in SYS_PLATFORM
 IS_OSX = 'darwin' == SYS_PLATFORM
 IS_WIN = 'windows' == SYS_PLATFORM
 # Get Numpy include path without importing it
-NUMPY_INC_PATHS = [os.path.join(r, 'numpy', 'core', 'include') 
-                   for r in site.getsitepackages() if 
+NUMPY_INC_PATHS = [os.path.join(r, 'numpy', 'core', 'include')
+                   for r in site.getsitepackages() if
                    os.path.isdir(os.path.join(r, 'numpy', 'core', 'include'))]
-if len(NUMPY_INC_PATHS) != 1:
-    print("Warning expected a single numpy include dir and found "
-          "{}: {}".format(len(NUMPY_INC_PATHS), ', '.join(NUMPY_INC_PATHS)))
-    NUMPY_INC_PATH = ''
-else:
-    NUMPY_INC_PATH = NUMPY_INC_PATHS[0]
+if len(NUMPY_INC_PATHS) == 0:
+    raise ValueError("Could not find numpy include dir - cannot proceed with "
+                     "compilation of cython modules.")
+elif len(NUMPY_INC_PATHS) > 1:
+    print("Found {} numpy include dirs: "
+          "{}".format(len(NUMPY_INC_PATHS), ', '.join(NUMPY_INC_PATHS)))
+    print("Taking first (highest precedence on path): {}".format(
+        NUMPY_INC_PATHS[0]))
+NUMPY_INC_PATH = NUMPY_INC_PATHS[0]
+
 
 # ---- C/C++ EXTENSIONS ---- #
 # Stolen (and modified) from the Cython documentation:
