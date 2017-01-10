@@ -57,23 +57,23 @@ class LucasKanade(object):
 
     def visible_sample_points(self, instance_in_img, image_shape):
         # Inverse rendering
-        yx, tri_indices, b_coords = rasterize_barycentric_coordinates(
+        yx, bcoords, tri_indices = rasterize_barycentric_coordinates(
             instance_in_img, image_shape)
 
         # Select triangles randomly
-        rand = np.random.permutation(b_coords.shape[0])
-        b_coords = b_coords[rand[:self.n_samples]]
+        rand = np.random.permutation(bcoords.shape[0])
+        bcoords = bcoords[rand[:self.n_samples]]
         yx = yx[rand[:self.n_samples]]
         tri_indices = tri_indices[rand[:self.n_samples]]
 
         # Build the vertex indices (3 per pixel) for the visible triangles
         vertex_indices = instance_in_img.trilist[tri_indices]
 
-        return vertex_indices, tri_indices, b_coords, yx
+        return vertex_indices, bcoords, tri_indices, yx
 
-    def sample(self, x, vertex_indices, b_coords):
+    def sample(self, x, bcoords, vertex_indices):
         per_vert_per_pixel = x[vertex_indices]
-        return np.sum(per_vert_per_pixel * b_coords[..., None], axis=1)
+        return np.sum(per_vert_per_pixel * bcoords[..., None], axis=1)
 
     def gradient(self, image):
         # Compute the gradient of the image
@@ -191,20 +191,19 @@ class SimultaneousForwardAdditive(LucasKanade):
             instance_in_image = camera.apply(instance)
 
             # Compute indices locations for sampling
-            (vertex_indices, tri_indices,
-             b_coords, yx) = self.visible_sample_points(instance_in_image,
-                                                        image.shape)
+            (vertex_indices, bcoords, tri_indices,
+             yx) = self.visible_sample_points(instance_in_image, image.shape)
 
             # Warp the mesh with the view matrix (rotation + translation)
             instance_w = camera.view_transform.apply(instance.points)
 
             # Sample all the terms from the model part at the sample locations
-            warped_uv = self.sample(instance_w, vertex_indices, b_coords)
+            warped_uv = self.sample(instance_w, bcoords, vertex_indices)
             texture_uv = instance.sample_texture_with_barycentric_coordinates(
-                b_coords, tri_indices)
-            texture_pc_uv = self.model.sample_texture_model(b_coords,
+                bcoords, tri_indices)
+            texture_pc_uv = self.model.sample_texture_model(bcoords,
                                                             tri_indices)
-            shape_pc_uv = self.sample(self.shape_pc, vertex_indices, b_coords)
+            shape_pc_uv = self.sample(self.shape_pc, bcoords, vertex_indices)
             # Reshape shape basis after sampling
             shape_pc_uv = shape_pc_uv.reshape([self.n_samples, 3, -1])
 
@@ -430,22 +429,21 @@ class WibergForwardAdditive(LucasKanade):
             instance_in_image = camera.apply(instance)
 
             # Compute indices locations for sampling
-            (vertex_indices, tri_indices,
-             b_coords, yx) = self.visible_sample_points(instance_in_image,
-                                                        image.shape)
+            (vertex_indices, bcoords, tri_indices,
+             yx) = self.visible_sample_points(instance_in_image, image.shape)
 
             # Warp the mesh with the view matrix (rotation + translation)
             instance_w = camera.view_transform.apply(instance.points)
 
             # Sample all the terms from the model part at the sample locations
-            warped_uv = self.sample(instance_w, vertex_indices, b_coords)
-            texture_pc_uv = self.model.sample_texture_model(b_coords,
+            warped_uv = self.sample(instance_w, bcoords, vertex_indices)
+            texture_pc_uv = self.model.sample_texture_model(bcoords,
                                                             tri_indices)
             texture_pc_uv = texture_pc_uv.reshape((-1, self.m))
             m_texture_uv = self.model.instance().\
-                sample_texture_with_barycentric_coordinates(b_coords,
+                sample_texture_with_barycentric_coordinates(bcoords,
                                                             tri_indices)
-            shape_pc_uv = self.sample(self.shape_pc, vertex_indices, b_coords)
+            shape_pc_uv = self.sample(self.shape_pc, bcoords, vertex_indices)
             # Reshape shape basis after sampling
             shape_pc_uv = shape_pc_uv.reshape([self.n_samples, 3, -1])
 

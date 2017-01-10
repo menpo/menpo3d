@@ -140,12 +140,13 @@ def rasterize_barycentric_coordinates(mesh, image_shape):
     yx = yx[z_buffer_mask]
     bcoords = bcoords[z_buffer_mask]
     tri_indices = tri_indices[z_buffer_mask]
-    return yx, tri_indices, bcoords
+    return yx, bcoords, tri_indices
 
 
 def rasterize_barycentric_coordinate_images(mesh, image_shape):
     h, w = image_shape
-    yx, tri_indices, bcoords = rasterize_barycentric_coordinates(mesh, image_shape)
+    yx, bcoords, tri_indices = rasterize_barycentric_coordinates(mesh,
+                                                                 image_shape)
 
     tri_index_img = np.zeros((1, h, w), dtype=int)
     bcoord_img = np.zeros((3, h, w))
