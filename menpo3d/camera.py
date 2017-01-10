@@ -1,14 +1,17 @@
 from __future__ import division
 import numpy as np
-import cv2
 import warnings
 
-from menpo.base import Vectorizable
+from menpo.base import Vectorizable, MenpoMissingDependencyError
 from menpo.transform import Transform, Translation, Rotation
 
 
 def align_2d_3d(points_3d, points_image, image_shape, focal_length=None,
                 distortion_coeffs=None):
+    try:
+        import cv2
+    except ImportError:
+        raise MenpoMissingDependencyError('opencv3')
     height, width = image_shape
     # Create camera matrix
     focal_length = (max(height, width)
