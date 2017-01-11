@@ -10,6 +10,58 @@ from menpo3d.extractimage import extract_per_vertex_colour
 from menpo3d.rasterize import rasterize_mesh
 
 
+# The below two functions are only temporarily in menpo3d. menpo will soon
+# have a PR which adds these convenience methods on mesh subclasses.
+#
+# Once those are in we can remove these functions.
+
+from menpo.base import copy_landmarks_and_path
+from menpo.shape import TriMesh, ColouredTriMesh
+
+
+def as_trimesh(self, copy=True):
+    r"""
+    Convert this :map:`TexturedTriMesh` to a :map:`TriMesh`, discarding the
+    texture and tcoords.
+
+    Parameters
+    ----------
+    copy : `bool`, optional
+        If ``False``, the produced :map:`TriMesh` will share points and
+        trilist with ``self``. Only suggested to be used for performance.
+
+    Returns
+    -------
+    trimesh : :map:`TriMesh`
+        A trimesh with the same points trilist and landmarks as this shape.
+    """
+    return copy_landmarks_and_path(self, TriMesh(self.points,
+                                                 trilist=self.trilist,
+                                                 copy=copy))
+
+
+def as_colouredtrimesh(self, colours=None, copy=True):
+    """
+    Converts this to a :map:`ColouredTriMesh`.
+
+    Parameters
+    ----------
+    colours : ``(N, 3)`` `ndarray`, optional
+        The floating point RGB colour per vertex. If not given, grey will be
+        assigned to each vertex.
+    copy : `bool`, optional
+        If ``True``, the graph will be a copy.
+
+    Returns
+    -------
+    coloured : :map:`ColouredTriMesh`
+        A version of this mesh with per-vertex colour assigned.
+    """
+    ctm = ColouredTriMesh(self.points, trilist=self.trilist,
+                          colours=colours, copy=copy)
+    return copy_landmarks_and_path(self, ctm)
+
+
 def error_function(mesh, gt_mesh):
     return 1.
 
@@ -1604,7 +1656,7 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
             raise ValueError("The final camera transform does not exist.")
         mesh_in_img = self._affine_transforms[-1].apply(
             self.final_camera_transform.apply(self.final_mesh))
-        return mesh_in_img.with_dims([0, 1]).as_trimesh()
+        return as_trimesh(mesh_in_img.with_dims([0, 1]))
 
     def initial_mesh_projected_in_2d(self):
         r"""
@@ -1622,7 +1674,7 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
             raise ValueError("The initial camera transform does not exist.")
         mesh_in_img = self._affine_transforms[0].apply(
             self.initial_camera_transform.apply(self.initial_mesh))
-        return mesh_in_img.with_dims([0, 1]).as_trimesh()
+        return as_trimesh(mesh_in_img.with_dims([0, 1]))
 
     def meshes_projected_in_2d(self):
         r"""
@@ -1634,7 +1686,7 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
         def project(x):
             mesh, affine, camera = x
             mesh_in_img = affine.apply(camera.apply(mesh))
-            return mesh_in_img.with_dims([0, 1]).as_trimesh()
+            return as_trimesh(mesh_in_img.with_dims([0, 1]))
 
         xs = list(zip(self.meshes, self._affine_transforms,
                       self.camera_transforms))
@@ -1661,7 +1713,7 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
         mesh_in_img = self._affine_transforms[-1].apply(
             self.final_camera_transform.apply(self.final_mesh))
         colours = extract_per_vertex_colour(mesh_in_img, self.image)
-        return self.final_mesh.as_colouredtrimesh(colours=colours)
+        return as_colouredtrimesh(self.final_mesh, colours=colours)
 
     def initial_mesh_with_image_texture(self):
         r"""
@@ -1688,7 +1740,7 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
         mesh_in_img = self._affine_transforms[0].apply(
             self.initial_camera_transform.apply(self.initial_mesh))
         colours = extract_per_vertex_colour(mesh_in_img, self.image)
-        return self.initial_mesh.as_colouredtrimesh(colours=colours)
+        return as_colouredtrimesh(self.initial_mesh, colours=colours)
 
     def meshes_with_image_texture(self):
         r"""
@@ -1710,7 +1762,7 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
             mesh, affine, camera = x
             mesh_in_img = affine.apply(camera.apply(mesh))
             colours = extract_per_vertex_colour(mesh_in_img, self.image)
-            return mesh.as_colouredtrimesh(colours=colours)
+            return as_colouredtrimesh(mesh, colours=colours)
 
         xs = list(zip(self.meshes, self._affine_transforms,
                       self.camera_transforms))
