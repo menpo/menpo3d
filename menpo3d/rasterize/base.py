@@ -70,7 +70,5 @@ def rasterize_shape_image_from_barycentric_coordinate_images(mesh,
 
 def rasterize_mesh(mesh_in_img, image_shape):
     from .cpu import rasterize_barycentric_coordinate_images
-    ti, bc = rasterize_barycentric_coordinate_images(mesh_in_img,
-                                                     image_shape)
-    return rasterize_mesh_from_barycentric_coordinate_images(
-        mesh_in_img, bc, ti)
+    bcs = rasterize_barycentric_coordinate_images(mesh_in_img, image_shape)
+    return rasterize_mesh_from_barycentric_coordinate_images(mesh_in_img, *bcs)
