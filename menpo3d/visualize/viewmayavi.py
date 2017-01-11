@@ -347,6 +347,7 @@ class MayaviTexturedTriMeshViewer3d(MayaviRenderer):
         self.trilist = trilist
         self.texture = texture
         self.tcoords_per_point = tcoords_per_point
+        self._actors = []
 
     def _render_mesh(self, mesh_type='surface', ambient_light=0.0,
                      specular_light=0.0, alpha=1.0):
@@ -400,6 +401,7 @@ class MayaviColouredTriMeshViewer3d(MayaviRenderer):
         self.points = points
         self.trilist = trilist
         self.colour_per_point = colour_per_point
+        self._actors = []
 
     def _render_mesh(self, mesh_type='surface', ambient_light=0.0,
                      specular_light=0.0, alpha=1.0):
@@ -439,7 +441,9 @@ class MayaviSurfaceViewer3d(MayaviRenderer):
             values[~mask] = np.nan
         self.values = values
 
-    def render(self, **kwargs):
+    def render(self, colour=(1, 0, 0), line_width=2, step=None,
+               marker_style='2darrow', marker_resolution=8, marker_size=0.05,
+               alpha=1.0):
         from mayavi import mlab
         warp_scale = kwargs.get('warp_scale', 'auto')
         mlab.surf(self.values, warp_scale=warp_scale)

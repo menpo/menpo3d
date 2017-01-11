@@ -6,6 +6,8 @@ requirements:
   build:
     - python
     - setuptools
+    - numpy >=1.10,<2.0
+    - cython >=0.23
 
   run:
     - python
@@ -14,6 +16,7 @@ requirements:
     - mayavi 4.5.*
     - scikit-sparse 0.3.*  # [linux]
     - qt 4.*
+    - opencv3  # let menpodetect version
 
 test:
   requires:
