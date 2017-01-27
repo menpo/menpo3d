@@ -10,7 +10,7 @@ from menpo.io.input.base import (glob_with_suffix, _import_glob_lazy_list,
                                  _register_importer)
 from menpo.io.input import same_name, image_paths
 from menpo3d.base import menpo3d_src_dir_path
-from .extensions import mesh_types, mesh_landmark_types
+from .extensions import mesh_types, mesh_landmark_types, lsfm_types
 
 
 def mesh_paths(pattern):
@@ -225,6 +225,24 @@ def import_landmark_files(pattern, max_landmarks=None, shuffle=False,
                                   shuffle=shuffle, as_generator=as_generator,
                                   verbose=verbose)
 
+
+def import_lsfm_model(filepath):
+    r"""Import a LSFM Morphable Model
+
+
+    Parameters
+    ----------
+    filepath : `str`
+        A relative or absolute filepath to a LSFM model mat file.
+
+    Returns
+    -------
+    :map:`PCAModel`
+        The 3DMM contained in the LSFM mat file.
+
+    """
+    return _import(filepath, lsfm_types,
+                   landmark_resolver=None)
 
 import_builtin_asset = BuiltinAssets(_menpo3d_import_builtin_asset)
 
