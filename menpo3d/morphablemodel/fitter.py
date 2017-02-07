@@ -101,7 +101,7 @@ class MMFitter(object):
         feature_image = self.holistic_features(tmp_image)
 
         # Get final transformed landmarks
-        new_initial_shape = feature_image.landmarks['__initial_shape'].lms
+        new_initial_shape = feature_image.landmarks['__initial_shape']
 
         # Now we have introduced an affine transform that consists of the image
         # rescaled based on the diagonal, as well as potential rescale

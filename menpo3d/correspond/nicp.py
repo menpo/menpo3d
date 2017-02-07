@@ -143,7 +143,7 @@ def active_non_rigid_icp(model, target, eps=1e-3,
 
         shape_model = ShapeModel(model)
         source_lms = model_mean_landmarks
-        target_lms = target.landmarks[landmark_group].lms
+        target_lms = target.landmarks[landmark_group]
         model_lms_index = model_mean.distance_to(source_lms).argmin(axis=0)
         shape_model_lms = shape_model.mask_points(model_lms_index)
 
@@ -212,8 +212,8 @@ def non_rigid_icp_generator(source, target, eps=1e-3,
             print("'{}' landmarks will be used as "
                   "a landmark constraint.".format(landmark_group))
             print("performing similarity alignment using landmarks")
-        lm_align = AlignmentSimilarity(source.landmarks[landmark_group].lms,
-                                       target.landmarks[landmark_group].lms).as_non_alignment()
+        lm_align = AlignmentSimilarity(source.landmarks[landmark_group],
+                                       target.landmarks[landmark_group]).as_non_alignment()
         source = lm_align.apply(source)
 
     # Scale factors completely change the behavior of the algorithm - always
@@ -317,8 +317,8 @@ def non_rigid_icp_generator(source, target, eps=1e-3,
 
     if landmark_group is not None:
         source_lm_index = source.distance_to(
-            source.landmarks[landmark_group].lms).argmin(axis=0)
-        target_lms = target.landmarks[landmark_group].lms
+            source.landmarks[landmark_group]).argmin(axis=0)
+        target_lms = target.landmarks[landmark_group]
         U_L = target_lms.points
         n_landmarks = target_lms.n_points
         lm_mask = np.in1d(row, source_lm_index)
