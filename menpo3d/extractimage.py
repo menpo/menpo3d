@@ -93,5 +93,5 @@ def extract_per_vertex_features(mesh, image, feature_f, diagonal_range=None):
         image = image.rescale_landmarks_to_diagonal_range(diagonal_range,
                                                           group='mesh_2d')
     feature_image = feature_f(image)
-    return extract_per_vertex_colour(feature_image.landmarks['mesh_2d'].lms,
+    return extract_per_vertex_colour(feature_image.landmarks['mesh_2d'],
                                      feature_image)
