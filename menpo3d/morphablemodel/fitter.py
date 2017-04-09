@@ -1,366 +1,358 @@
-from __future__ import division
-import sys
 import numpy as np
 
-from menpo.feature import gradient
-from menpo.image import Image
-from menpo.transform import Homogeneous
-from menpo3d.rasterize import GLRasterizer
+from menpo.transform import AlignmentAffine, AlignmentSimilarity, Rotation
+from menpo.shape import PointCloud
 
-from .lmalign import retrieve_view_projection_transforms
-from .derivatives import (compute_texture_derivatives_texture_parameters,
-                          compute_projection_derivatives_warp_parameters,
-                          compute_projection_derivatives_shape_parameters)
+import menpo3d.checks as checks
+from menpo3d.camera import PerspectiveCamera, OrthographicCamera
 
-
-LM_GROUP = '__3dmm_fit'
+from .algorithm import SimultaneousForwardAdditive
+from .result import MMResult
+from .shapemodel import ShapeModel
 
 
 class MMFitter(object):
     r"""
-    Class for defining a 3DMM fitter.
+    Abstract class for defining a multi-scale Morphable Model fitter.
 
+    Parameters
+    ----------
+    mm : :map:`ColouredMorphableModel` or :map:`TexturedMorphableModel`
+        The trained Morphable Model.
+    algorithms : `list` of `class`
+        The list of algorithm objects that will perform the fitting per scale.
+    camera_cls : `menpo3d.camera.PerspectiveCamera` or `menpo3d.camera.OrthographicCamera`
+        The camera class to use.
     """
-    def __init__(self, mm):
-        self.model = mm
+    def __init__(self, mm, algorithms, camera_cls):
+        # Assign model and algorithms
+        self._model = mm
+        self.algorithms = algorithms
+        self.n_scales = len(self.algorithms)
+        self.camera_cls = camera_cls
 
-    def fit_from_shape(self, image, shape, n_alphas=100, n_betas=100,
-                       n_tris=1000, camera_update=False, max_iters=100):
+    @property
+    def mm(self):
+        r"""
+        The trained Morphable Model.
 
-        # PRE-COMPUTATIONS
-        # ----------------
-        # Constants
-        threshold = 1e-3
-        # Projection type: 1 is for perspective and 0 for orthographic
-        projection_type = 1
+        :type: :map:`ColouredMorphableModel` or `:map:`TexturedMorphableModel`
+        """
+        return self._model
 
-        # store the landmarks
-        image.landmarks[LM_GROUP] = shape
+    @property
+    def holistic_features(self):
+        r"""
+        The features that are extracted from the input image.
 
-        # Compute the gradient
-        grad = gradient(image)
-        
-        # scaling the gradient by image resolution solves the non human-like
-        # faces problem
-        if image.shape[1] > image.shape[0]:
-            scale = image.shape[1]/2
+        :type: `function`
+        """
+        return self.mm.holistic_features
+
+    @property
+    def diagonal(self):
+        r"""
+        The diagonal used to rescale the image.
+
+        :type: `int`
+        """
+        return self.mm.diagonal
+
+    def _prepare_image(self, image, initial_shape):
+        r"""
+        Function the performs pre-processing on the image to be fitted. This
+        involves the following steps:
+
+            1. Rescale image so that the provided initial_shape has the
+               specified diagonal.
+            2. Compute features
+            3. Estimate the affine transform introduced by the rescale to
+               diagonal and features extraction
+
+        Parameters
+        ----------
+        image : `menpo.image.Image` or subclass
+            The image to be fitted.
+        initial_shape : `menpo.shape.PointCloud`
+            The initial shape estimate from which the fitting procedure
+            will start.
+
+        Returns
+        -------
+        image : `menpo.image.Image`
+            The feature-based image.
+        initial_shape : `menpo.shape.PointCloud`
+            The rescaled initial shape.
+        affine_transform : `menpo.transform.Affine`
+            The affine transform that is the inverse of the transformations
+            introduced by the rescale wrt diagonal as well as the feature
+            extraction.
+        """
+        # Attach landmarks to the image, in order to make transforms easier
+        image.landmarks['__initial_shape'] = initial_shape
+
+        if self.diagonal is not None:
+            # Rescale image so that initial_shape matches the provided diagonal
+            tmp_image = image.rescale_landmarks_to_diagonal_range(
+                self.diagonal, group='__initial_shape')
         else:
-            scale = image.shape[0]/2
+            tmp_image = image
+        # Extract features
+        feature_image = self.holistic_features(tmp_image)
 
-        VI_dy = grad.pixels[:3] * scale
-        VI_dx = grad.pixels[3:] * scale
+        # Get final transformed landmarks
+        new_initial_shape = feature_image.landmarks['__initial_shape']
 
-        # Generate instance
-        instance = self.model.instance(landmark_group=LM_GROUP)
+        # Now we have introduced an affine transform that consists of the image
+        # rescaled based on the diagonal, as well as potential rescale
+        # (down-sampling) caused by features. We need to store this transform
+        # (estimated by AlignmentAffine) in order to be able to revert it at
+        # the final fitting result.
+        affine_transform = AlignmentAffine(new_initial_shape, initial_shape)
 
-        # Get view projection rotation matrices
-        view_t, proj_t, R = retrieve_view_projection_transforms(image, instance,
-                                                                group=LM_GROUP)
+        # Detach added landmarks from image
+        del image.landmarks['__initial_shape']
 
-        # Get camera parameters array
-        rho = rho_from_view_projection_matrices(proj_t.h_matrix,
-                                                      R.h_matrix)
+        return feature_image, new_initial_shape, affine_transform
 
-        # Prior probabilities constants
-        alpha = np.zeros(n_alphas)
-        beta = np.zeros(n_betas)
+    def _align_mean_shape_with_bbox(self, bbox):
+        # Convert 3D landmarks to 2D by removing the Z axis
+        template_shape = PointCloud(self.mm.landmarks.points[:, [1, 0]])
 
-        da_prior_db = np.zeros(n_betas)
-        da_prior_da = 2. / (self.model.shape_model.eigenvalues[:n_alphas] ** 2)
-        
-        db_prior_da = np.zeros(n_alphas)
-        db_prior_db = 2. / (self.model.texture_model.eigenvalues[:n_betas] ** 2)
-        
-        if camera_update:
-            prior_drho = np.zeros(len(rho))
-            SD_alpha_prior = np.concatenate((da_prior_da, prior_drho,
-                                             da_prior_db))
-            SD_beta_prior = np.concatenate((db_prior_da, prior_drho,
-                                            db_prior_db))
+        # Rotation that flips over x axis
+        rot_matrix = np.eye(template_shape.n_dims)
+        rot_matrix[0, 0] = -1
+        template_shape = Rotation(rot_matrix,
+                                  skip_checks=True).apply(template_shape)
+
+        # Align the 2D landmarks' bbox with the provided bbox
+        return AlignmentSimilarity(template_shape.bounding_box(),
+                                   bbox).apply(template_shape)
+
+    def _fit(self, image, camera, instance=None, gt_mesh=None, max_iters=50,
+             camera_update=False, focal_length_update=False,
+             reconstruction_weight=1., shape_prior_weight=None,
+             texture_prior_weight=None, landmarks_prior_weight=None,
+             landmarks=None, return_costs=False):
+        # Check provided instance
+        if instance is None:
+            instance = self.mm.instance()
+
+        # Check arguments
+        max_iters = checks.check_max_iters(max_iters, self.n_scales)
+        reconstruction_weight = checks.check_multi_scale_param(
+            self.n_scales, (float, int, None), 'reconstruction_prior_weight',
+            reconstruction_weight)
+        shape_prior_weight = checks.check_multi_scale_param(
+            self.n_scales, (float, int, None), 'shape_prior_weight',
+            shape_prior_weight)
+        texture_prior_weight = checks.check_multi_scale_param(
+            self.n_scales, (float, int, None), 'texture_prior_weight',
+            texture_prior_weight)
+        landmarks_prior_weight = checks.check_multi_scale_param(
+            self.n_scales, (float, int, None), 'landmarks_prior_weight',
+            landmarks_prior_weight)
+        for i in range(self.n_scales):
+            if (reconstruction_weight[i] is None and
+                    landmarks_prior_weight[i] is None):
+                reconstruction_weight[i] = 1.
+            if reconstruction_weight[i] is None:
+                texture_prior_weight[i] = None
+
+        # Initialize list of algorithm results
+        algorithm_results = []
+
+        # Main loop at each scale level
+        for i in range(self.n_scales):
+            # Run algorithm
+            algorithm_result = self.algorithms[i].run(
+                image, instance, camera, gt_mesh=gt_mesh,
+                max_iters=max_iters[i], camera_update=camera_update,
+                focal_length_update=focal_length_update,
+                reconstruction_weight=reconstruction_weight[i],
+                shape_prior_weight=shape_prior_weight[i],
+                texture_prior_weight=texture_prior_weight[i],
+                landmarks_prior_weight=landmarks_prior_weight[i],
+                landmarks=landmarks, return_costs=return_costs)
+
+            # Get current instance
+            instance = algorithm_result.final_mesh
+            camera = algorithm_result.final_camera_transform
+
+            # Add algorithm result to the list
+            algorithm_results.append(algorithm_result)
+
+        return algorithm_results
+
+    def fit_from_camera(self, image, camera, instance=None, gt_mesh=None,
+                        max_iters=50, camera_update=False,
+                        focal_length_update=False, shape_prior_weight=1.,
+                        texture_prior_weight=1., return_costs=False):
+        # Execute multi-scale fitting
+        algorithm_results = self._fit(
+            image, camera, instance=instance, gt_mesh=gt_mesh,
+            max_iters=max_iters, camera_update=camera_update,
+            focal_length_update=focal_length_update,
+            reconstruction_weight=1.,
+            shape_prior_weight=shape_prior_weight,
+            texture_prior_weight=texture_prior_weight,
+            landmarks_prior_weight=None, landmarks=None,
+            return_costs=return_costs)
+
+        # Return multi-scale fitting result
+        return self._fitter_result(
+            image=image, algorithm_results=algorithm_results,
+            affine_transform=Rotation.init_identity(n_dims=2),
+            gt_mesh=gt_mesh)
+
+    def fit_from_bb(self, image, initial_bb, gt_mesh=None, max_iters=50,
+                    camera_update=False, focal_length_update=False,
+                    reconstruction_weight=1., shape_prior_weight=1.,
+                    texture_prior_weight=1., return_costs=False,
+                    distortion_coeffs=None):
+        initial_shape = self._align_mean_shape_with_bbox(initial_bb)
+        return self.fit_from_shape(
+            image=image, initial_shape=initial_shape, gt_mesh=gt_mesh,
+            max_iters=max_iters, camera_update=camera_update,
+            focal_length_update=focal_length_update,
+            reconstruction_weight=reconstruction_weight,
+            shape_prior_weight=shape_prior_weight,
+            texture_prior_weight=texture_prior_weight,
+            landmarks_prior_weight=None, return_costs=return_costs,
+            distortion_coeffs=distortion_coeffs,
+            init_shape_params_from_lms=False)
+
+    def fit_from_shape(self, image, initial_shape, gt_mesh=None, max_iters=50,
+                       camera_update=True, focal_length_update=False,
+                       reconstruction_weight=1., shape_prior_weight=1.,
+                       texture_prior_weight=1., landmarks_prior_weight=1.,
+                       return_costs=False, distortion_coeffs=None,
+                       init_shape_params_from_lms=False):
+        # Check that the provided initial shape has the same number of points
+        # as the landmarks of the model
+        if initial_shape.n_points != self.mm.landmarks.n_points:
+            raise ValueError(
+                "The provided 2D initial shape must have {} landmark "
+                "points.".format(self.mm.landmarks.n_points))
+
+        # Rescale image and extract features
+        rescaled_image, rescaled_initial_shape, affine_transform = \
+            self._prepare_image(image, initial_shape)
+
+        # Estimate view, projection and rotation transforms from the
+        # provided initial shape
+        camera = self.camera_cls.init_from_2d_projected_shape(
+            self.mm.landmarks, rescaled_initial_shape, rescaled_image.shape,
+            distortion_coeffs=distortion_coeffs)
+
+        if init_shape_params_from_lms:
+            # Wrap the shape model in a container that allows us to mask the
+            # PCA basis spatially
+            sm = ShapeModel(self.mm.shape_model)
+            # Only keep the landmark points in the basis
+            sm_lms_3d = sm.mask_points(self.mm.model_landmarks_index)
+
+            # Warp the basis with the camera and retain only the first two dims
+            sm_lms_2d = camera.apply(sm_lms_3d).mask_dims([0, 1])
+            # Project onto the first few shape components to give an initial
+            # shape
+            shape_weights = sm_lms_2d.project(rescaled_initial_shape,
+                                              n_components=10)
+            instance = self.mm.instance(shape_weights)
         else:
-            SD_alpha_prior = np.concatenate((da_prior_da,
-                                             da_prior_db))
-            SD_beta_prior = np.concatenate((db_prior_da,
-                                            db_prior_db))
-            
-        H_alpha_prior = np.diag(SD_alpha_prior)
-        H_beta_prior = np.diag(SD_beta_prior)
-        
-        # Initilialize rasterizer
-        rasterizer = GLRasterizer(height=image.height, width=image.width,
-                                  view_matrix=view_t.h_matrix,
-                                  projection_matrix=proj_t.h_matrix)  
-        errors = []
-        eps = np.inf
-        k = 0
-        
-        while k < max_iters and eps > threshold:
-            
-            # Progress bar
-            progress = k*100/max_iters
-            sys.stdout.write("\r%d%%" % progress)
-            sys.stdout.flush()
+            instance = None
 
-            # Rotation matrices 
-            r_phi, r_theta, r_varphi = compute_rotation_matrices(rho)
-            
-            # Inverse rendering
-            tri_index_img, b_coords_img = (
-                rasterizer.rasterize_barycentric_coordinate_image(instance))
-            tri_indices = tri_index_img.as_vector() 
-            b_coords = b_coords_img.as_vector(keep_channels=True) 
-            yx = tri_index_img.mask.true_indices()
+        # Execute multi-scale fitting
+        algorithm_results = self._fit(
+            rescaled_image, camera, instance=instance, gt_mesh=gt_mesh,
+            max_iters=max_iters, camera_update=camera_update,
+            focal_length_update=focal_length_update,
+            reconstruction_weight=reconstruction_weight,
+            shape_prior_weight=shape_prior_weight,
+            texture_prior_weight=texture_prior_weight,
+            landmarks_prior_weight=landmarks_prior_weight,
+            landmarks=rescaled_initial_shape, return_costs=return_costs)
 
-            # Select triangles randomly
-            rand = np.random.permutation(b_coords.shape[1])
-            b_coords = b_coords[:, rand[:n_tris]]
-            yx = yx[rand[:n_tris]]
-            tri_indices = tri_indices[rand[:n_tris]]
+        # Return multi-scale fitting result
+        return self._fitter_result(
+            image=image, algorithm_results=algorithm_results,
+            affine_transform=affine_transform, gt_mesh=gt_mesh)
 
-            # Build the vertex indices (3 per pixel)
-            # for the visible triangle
-            vertex_indices = instance.trilist[tri_indices]
-            
-            # Warp the shape witht the view matrix
-            W = view_t.apply(instance.points)
-            
-            # This solves the perspective projection problems
-            # It cancels the axes flip done in the view matrix before the
-            # rasterization
-            W[:, 1:] *= -1
-            
-            # Shape and texture principal components are reshaped before
-            # sampling
-            shape_pc = self.model.shape_model.components.T
-            tex_pc = self.model.texture_model.components.T
-            shape_pc = shape_pc.reshape([instance.n_points, -1])
-            tex_pc = tex_pc.reshape([instance.n_points, -1])
-
-            # Sampling
-            # norms_uv = sample_object(instance.vertex_normals(),
-            #                          vertex_indices, b_coords)
-            shape_uv = sample_object(instance.points, vertex_indices, b_coords)
-            tex_uv = sample_object(instance.colours, vertex_indices, b_coords)
-            warped_uv = sample_object(W, vertex_indices, b_coords)
-            shape_pc_uv = sample_object(shape_pc, vertex_indices, b_coords)
-            tex_pc_uv = sample_object(tex_pc, vertex_indices, b_coords)
-            img_uv = image.sample(yx)  # image
-            VI_dx_uv = Image(VI_dx).sample(yx)  # gradient along x
-            VI_dy_uv = Image(VI_dy).sample(yx)  # gradient along y
-
-            # Reshape after sampling
-            new_shape = tex_pc_uv.shape
-            shape_pc_uv = shape_pc_uv.reshape([new_shape[0], 3, -1])
-            tex_pc_uv = tex_pc_uv.reshape([new_shape[0], 3, -1])       
-
-            # DERIVATIVES
-            dop_dalpha = []
-            dpp_dalpha = []
-            dt_dbeta = []
-            dop_drho = []
-            dpp_drho = []
-            
-            if n_alphas > 0:
-
-                # Projection derivative wrt shape parameters
-                dp_dalpha = compute_projection_derivatives_shape_parameters(
-                    shape_pc_uv, rho, warped_uv, R,
-                    self.model.shape_model.eigenvalues, projection_type)
-                dp_dalpha = dp_dalpha[:, :n_alphas, :]
-                
-            if n_betas >0:
-            
-                # Texture derivative wrt texture parameters
-                dt_dbeta = compute_texture_derivatives_texture_parameters(
-                    tex_pc_uv, self.model.texture_model.eigenvalues)
-                dt_dbeta = dt_dbeta[:, :n_betas, :]
-                
-            if camera_update:
-
-                # Projection derivative wrt warp parameters
-                dp_drho = compute_projection_derivatives_warp_parameters(
-                    shape_uv, warped_uv.T, rho, r_phi, r_theta, r_varphi,
-                    projection_type)
-
-            # Compute sd matrix and hessian
-            if camera_update:
-                dp_dgamma = np.hstack((dp_dalpha, dp_drho))
-            else: 
-                dp_dgamma = dp_dalpha
-            
-            if n_betas > 0 and n_alphas > 0:
-                dt = -dt_dbeta
-                SD_gamma = compute_sd(dp_dgamma, VI_dx_uv, VI_dy_uv)
-                SD_img = np.hstack((SD_gamma, dt))
-            elif n_alphas > 0 and n_betas == 0:
-                SD_img = compute_sd(dp_dgamma, VI_dx_uv, VI_dy_uv)
-            else:
-                SD_img = -dt_dbeta              
-                
-            # Hessian approximation
-            H_img = compute_hessian(SD_img)
-
-            # Compute error
-            img_error_uv = img_uv - tex_uv.T
-
-            # Compute steepest descent matrix
-            SD_error_img = compute_sd_error(SD_img, img_error_uv)
-            
-            # Compute and store the error for future plots
-            eps = (img_error_uv ** 2).mean()
-            errors.append(eps)
-
-            # Prior probabilities over shape parameters
-            if camera_update:
-                prior_error = np.concatenate((alpha, rho, beta))
-            else:
-                prior_error = np.concatenate((alpha, beta))
-                
-            # Prior probability SD matrices
-            SD_error_alpha_prior = SD_alpha_prior*prior_error
-            SD_error_beta_prior = SD_beta_prior*prior_error
-
-            # Final hessian and SD error matrix
-            H = H_img + 1e-2 * H_alpha_prior + H_beta_prior
-            SD_error = (SD_error_img + 1e-2 * SD_error_alpha_prior +
-                        SD_error_beta_prior)
-
-            # Compute increment
-            delta_sigma = -np.dot(np.linalg.inv(H), SD_error)
-
-            # Update parameters
-            if camera_update:
-                alpha += delta_sigma[:n_alphas]
-                rho += delta_sigma[n_alphas:n_alphas+len(rho)]
-                beta += delta_sigma[n_alphas+len(rho):n_alphas+len(rho)+n_betas]
-            else:
-                alpha += delta_sigma[:n_alphas]
-                beta += delta_sigma[n_alphas:]
-
-            # Generate the updated instance
-            # The texture is scaled by 255 to cancel the 1./255 scaling in the
-            # model class
-            instance = self.model.instance(alpha=alpha, beta=255. * beta)
-            
-            # Clip to avoid out of range pixels
-            instance.colours = np.clip(instance.colours, 0, 1)
-
-            if camera_update:
-                # Compute new view matrix
-                _, R = compute_view_matrix(rho)
-                view_t.h_matrix[1:3, :3] = -R.h_matrix[1:3, :3]
-                view_t.h_matrix[0, :3] = R.h_matrix[0, :3]
-            
-                # Update the rasterizer
-                rasterizer.set_view_matrix(view_t.h_matrix)
-            
-            k += 1
-            
-        # Rasterize the final mesh
-        rasterized_result = rasterizer.rasterize_mesh(instance)
-        
-        # Save final values
-        sys.stdout.write('\rSuccessfully fitted.')
-
-        return {
-            'rasterized_result': rasterized_result,
-            'result': instance,
-            'errors': errors
-        }
+    def _fitter_result(self, image, algorithm_results, affine_transform,
+                       gt_mesh=None):
+        return MMResult(algorithm_results, [affine_transform] * self.n_scales,
+                        self.n_scales, image=image, gt_mesh=gt_mesh,
+                        model_landmarks_index=self.mm.model_landmarks_index)
 
 
-def sample_object(x, vertex_indices, b_coords):
-    per_vert_per_pixel = x[vertex_indices]
-    return np.sum(per_vert_per_pixel *
-                  b_coords.T[..., None], axis=1)
+class LucasKanadeMMFitter(MMFitter):
+    def __init__(self, mm, lk_algorithm_cls=SimultaneousForwardAdditive,
+                 n_scales=1, n_shape=1.0, n_texture=1.0, n_samples=1000,
+                 camera_cls=PerspectiveCamera):
+        # Check parameters
+        n_shape = checks.check_multi_scale_param(n_scales, (int,), 'n_shape',
+                                                 n_shape)
+        n_texture = checks.check_multi_scale_param(n_scales, (int,),
+                                                   'n_texture', n_texture)
+        self.n_samples = checks.check_multi_scale_param(n_scales, (int,),
+                                                        'n_samples', n_samples)
+        if camera_cls in [PerspectiveCamera, OrthographicCamera]:
+            self.camera_cls = camera_cls
+        else:
+            raise ValueError("Camera can be either PerspectiveCamera or"
+                             "OrthographicCamera")
+
+        # Create list of algorithms
+        algorithms = []
+        for i in range(n_scales):
+            mm_copy = mm.copy()
+            set_model_components(mm_copy.shape_model, n_shape[i])
+            set_model_components(mm_copy.texture_model, n_texture[i])
+            algorithms.append(lk_algorithm_cls(mm_copy, self.n_samples[i]))
+
+        # Call superclass
+        super(LucasKanadeMMFitter, self).__init__(mm=mm, algorithms=algorithms,
+                                                  camera_cls=camera_cls)
+
+    def __str__(self):
+        scales_info = []
+        lvl_str_tmplt = r"""   - Scale {}
+     - {} active shape components
+     - {} active texture components"""
+        for k in range(self.n_scales):
+            scales_info.append(lvl_str_tmplt.format(
+                k,
+                self.algorithms[k].model.shape_model.n_active_components,
+                self.algorithms[k].model.texture_model.n_active_components))
+        scales_info = '\n'.join(scales_info)
+
+        cls_str = r"""{class_title}
+ - {scales} scales
+{scales_info}
+    """.format(class_title=self.algorithms[0].__str__(),
+               scales=self.n_scales, scales_info=scales_info)
+        return self.mm.__str__() + cls_str
 
 
-def rho_from_view_projection_matrices(proj_t, view_t):
-    rho = np.zeros(6)
+def set_model_components(model, n_components):
+    r"""
+    Function that sets the number of active components to the provided model.
 
-    # PROJECTION MATRIX PARAMETERS
-    # The focal length is the first diagonal element of the projection matrix
-    # For the moment this is not optimised
-    rho[0] = proj_t[0, 0]
+    Parameters
+    ----------
+    model : `menpo.model.PCAVectorModel` or `menpo.model.PCAModel` or subclass
+        The PCA model.
+    n_components : `int` or `float` or ``None``
+        The number of active components to set.
 
-    # VIEW MATRIX PARAMETERS
-    # Euler angles
-    # For the case of cos(theta) != 0, we have two triplets of Euler angles
-    # we will only give one of the two solutions
-    if view_t[2, 0] != 1 or view_t[2, 0] != -1:
-        theta = np.pi + np.arcsin(view_t[2, 0])
-        varphi = np.arctan2(view_t[2, 1] / np.cos(theta),
-                            view_t[2, 2] / np.cos(theta))
-        phi = np.arctan2(view_t[1, 0] / np.cos(theta),
-                         view_t[0, 0] / np.cos(theta))
-        rho[1] = varphi
-        rho[2] = theta
-        rho[3] = phi
-
-    # Translations
-    rho[4] = -view_t[0, 3]  # tw x
-    rho[5] = -view_t[1, 3]  # tw y
-
-    return rho
-
-
-def compute_rotation_matrices(rho):
-    rot_phi = np.eye(4)
-
-    rot_phi[1:3, 1:3] = np.array([[np.cos(rho[1]), -np.sin(rho[1])],
-                                  [np.sin(rho[1]), np.cos(rho[1])]])
-    rot_theta = np.eye(4)
-    rot_theta[0:3, 0:3] = np.array([[np.cos(rho[2]), 0, np.sin(rho[2])],
-                                    [0, 1, 0],
-                                    [-np.sin(rho[2]), 0, np.cos(rho[2])]])
-    rot_varphi = np.eye(4)
-    rot_varphi[0:2, 0:2] = np.array([[np.cos(rho[3]), -np.sin(rho[3])],
-                                     [np.sin(rho[3]), np.cos(rho[3])]])
-
-    r_phi = Homogeneous(rot_phi)
-    r_theta = Homogeneous(rot_theta)
-    r_varphi = Homogeneous(rot_varphi)
-
-    return r_phi, r_theta, r_varphi
-
-
-def compute_view_matrix(rho):
-
-    view_t = np.eye(4)
-    view_t[0, 3] = -rho[4]  # tw x
-    view_t[1, 3] = -rho[5]  # tw y
-    r_phi, r_theta, r_varphi = compute_rotation_matrices(rho)
-    rotation = np.dot(np.dot(r_varphi.h_matrix, r_theta.h_matrix),
-                      r_phi.h_matrix)
-    view_t[:3, :3] = rotation[:3, :3]
-
-    return Homogeneous(view_t), Homogeneous(rotation)
-
-
-def compute_sd(dp_dgamma, VI_dx_uv, VI_dy_uv):
-    permuted_vi_dx = np.transpose(VI_dx_uv[..., None], (0, 2, 1))
-    permuted_vi_dy = np.transpose(VI_dy_uv[..., None], (0, 2, 1))
-    return permuted_vi_dx*dp_dgamma[0] + permuted_vi_dy*dp_dgamma[1]
-
-
-def compute_hessian(sd):
-    # Computes the hessian as defined in the Lucas Kanade Algorithm
-    n_channels = sd.shape[0]
-    n_params = sd.shape[1]
-    h = np.zeros((n_params, n_params))
-    sd = sd.T
-    for i in range(n_channels):
-        h += np.dot(sd[:, :, i].T, sd[:, :, i])
-    return h
-
-
-def compute_sd_error(sd, error_uv):
-    n_channels = sd.shape[0]
-    n_parameters = sd.shape[1]
-    sd_error_product = np.zeros(n_parameters)
-    sd = sd.T
- 
-    for i in range(n_channels):
-        sd_error_product += np.dot(error_uv[i, :], sd[:, :, i])
-        
-    return sd_error_product.T
+    Raises
+    ------
+    ValueError
+        n_components can be an integer or a float or None
+    """
+    if n_components is not None:
+        if type(n_components) is int or type(n_components) is float:
+            model.n_active_components = n_components
+        else:
+            raise ValueError('n_components can be an integer or a float or '
+                             'None')

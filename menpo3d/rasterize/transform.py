@@ -117,8 +117,8 @@ def clip_to_image_transform(width, height):
     t = Translation([1, 1])
     # 4. [0, 2] [0, 2] -> [0, 1] [0, 1]
     unit_scale = Scale(0.5, n_dims=2)
-    # 5. [0, 1] [0, 1] -> [0, w] [0, h]
-    im_scale = Scale([width, height])
+    # 5. [0, 1] [0, 1] -> [0, w - 1] [0, h - 1]
+    im_scale = Scale([width - 1, height - 1])
     # 6. [0, w] [0, h] -> [0, h] [0, w]
     xy_yx = Homogeneous(np.array([[0, 1, 0],
                                   [1, 0, 0],

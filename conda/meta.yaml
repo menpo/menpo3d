@@ -6,14 +6,17 @@ requirements:
   build:
     - python
     - setuptools
+    - numpy >=1.10,<2.0
+    - cython >=0.23
 
   run:
     - python
-    - menpo >=0.7.6,<0.8
+    - menpo 0.8.*
     - cyrasterize 0.3.*
     - mayavi 4.5.*
     - scikit-sparse 0.3.*  # [linux]
     - qt 4.*
+    - opencv3  # let menpodetect version
 
 test:
   requires:

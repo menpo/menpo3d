@@ -206,10 +206,10 @@ class GLRasterizer(CyRasterizerBase):
 
         a, b = vectors[:2]
         g = 1 - a - b
-        b_coords = np.vstack([a, b, g])
+        bcoords = np.vstack([a, b, g])
 
         tri_index_image = inverse_image.from_vector(tri_indices, n_channels=1)
-        bcoords_image = inverse_image.from_vector(b_coords, n_channels=3)
+        bcoords_image = inverse_image.from_vector(bcoords, n_channels=3)
 
         return tri_index_image, bcoords_image
 

@@ -1,10 +1,10 @@
 from collections import OrderedDict
 from functools import partial
 import numpy as np
+from scipy.sparse import csr_matrix
 
 from menpo.io.input.landmark import pts_importer
-from menpo.landmark import LandmarkGroup
-from menpo.shape import PointCloud
+from menpo.shape import PointCloud, LabelledPointUndirectedGraph
 
 
 pts_mesh_importer = partial(pts_importer, image_origin=False)
@@ -59,17 +59,17 @@ def lm3_importer(filepath, asset=None, **kwargs):
 
     Returns
     -------
-    landmarks : :map:`LandmarkGroup`
-        The landmarks including appropriate labels if available.
+    landmarks : :map:`LabelledPointUndirectedGraph`
+        The landmarks including appropriate labels.
     """
     with open(str(filepath), 'r') as f:
         landmarks = f.read()
 
     # Remove comments and blank lines
     landmark_text = [l for l in landmarks.splitlines()
-                     if (l.rstrip() and not '#' in l)]
+                     if (l.rstrip() and '#' not in l)]
 
-    # First line says how many landmarks there are: 22 Landmarks
+    # First line says how many landmarks there are: 24 Landmarks
     # So pop it off the front
     num_points = int(landmark_text.pop(0).split()[0])
     xs = []
@@ -78,7 +78,7 @@ def lm3_importer(filepath, asset=None, **kwargs):
     labels = []
 
     # The lines then alternate between the labels and the coordinates
-    for i in xrange(num_points * 2):
+    for i in range(num_points * 2):
         if i % 2 == 0:  # label
             # Lowercase, remove spaces and replace with underscores
             l = landmark_text[i]
@@ -94,14 +94,17 @@ def lm3_importer(filepath, asset=None, **kwargs):
     ys = np.array(ys, dtype=np.float).reshape((-1, 1))
     zs = np.array(zs, dtype=np.float).reshape((-1, 1))
 
-    pointcloud = PointCloud(np.hstack([xs, ys, zs]))
+    points = np.hstack([xs, ys, zs])
     # Create the mask whereby there is one landmark per label
     # (identity matrix)
     masks = np.eye(num_points).astype(np.bool)
     masks = np.vsplit(masks, num_points)
     masks = [np.squeeze(m) for m in masks]
     labels_to_masks = OrderedDict(zip(labels, masks))
-    return LandmarkGroup(pointcloud, labels_to_masks)
+
+    empty_adj_matrix = csr_matrix((num_points, num_points))
+    return LabelledPointUndirectedGraph(points, empty_adj_matrix,
+                                        labels_to_masks)
 
 
 def lan_importer(filepath, asset=None, **kwargs):
@@ -130,13 +133,9 @@ def lan_importer(filepath, asset=None, **kwargs):
         The landmarks including appropriate labels if available.
     """
     with open(str(filepath), 'r') as f:
-        landmarks = np.fromfile(
+        points = np.fromfile(
             f, dtype=np.float32)[3:].reshape([-1, 3]).astype(np.double)
-
-    pointcloud = PointCloud(landmarks)
-    labels_to_masks = OrderedDict(
-        [('all', np.ones(landmarks.shape[0], dtype=np.bool))])
-    return LandmarkGroup(pointcloud, labels_to_masks)
+    return PointCloud(points)
 
 
 def bnd_importer(filepath, asset=None, **kwargs):
@@ -172,36 +171,34 @@ def bnd_importer(filepath, asset=None, **kwargs):
 
     Returns
     -------
-    landmarks : :map:`LandmarkGroup`
-        The landmarks including appropriate labels if available.
+    landmarks : :map:`LabelledPointUndirectedGraph`
+        The landmarks including appropriate labels.
     """
     with open(str(filepath), 'r') as f:
-        landmarks = f.read()
+        points = f.read()
 
     # Remove blank lines
-    landmark_text = [l for l in landmarks.splitlines() if l.rstrip()]
+    landmark_text = [l for l in points.splitlines() if l.rstrip()]
     landmark_text = [l.split() for l in landmark_text]
 
     n_points = len(landmark_text)
-    landmarks = np.zeros([n_points, 3])
+    points = np.zeros([n_points, 3])
     for i, l in enumerate(landmark_text):
         # Skip the first number as it's an index into the mesh
-        landmarks[i, :] = np.array([float(l[1]), float(l[2]), float(l[3])],
-                                   dtype=np.float)
-
-    pointcloud = PointCloud(landmarks)
+        points[i, :] = np.array([float(l[1]), float(l[2]), float(l[3])],
+                                dtype=np.float)
     labels_to_masks = OrderedDict([
         ('left_eye', _indices_to_mask(n_points, np.arange(8))),
         ('right_eye', _indices_to_mask(n_points, np.arange(8, 16))),
-        ('left_eyebrow', _indices_to_mask(n_points,
-                                               np.arange(16, 26))),
-        ('right_eyebrow', _indices_to_mask(n_points,
-                                                np.arange(26, 36))),
+        ('left_eyebrow', _indices_to_mask(n_points, np.arange(16, 26))),
+        ('right_eyebrow', _indices_to_mask(n_points, np.arange(26, 36))),
         ('nose', _indices_to_mask(n_points, np.arange(36, 48))),
         ('mouth', _indices_to_mask(n_points, np.arange(48, 68))),
         ('chin', _indices_to_mask(n_points, np.arange(68, 83)))
     ])
-    return LandmarkGroup(pointcloud, labels_to_masks)
+    empty_adj_matrix = csr_matrix((n_points, n_points))
+    return LabelledPointUndirectedGraph(points, empty_adj_matrix,
+                                        labels_to_masks)
 
 
 def _indices_to_mask(n_points, indices):
