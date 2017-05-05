@@ -408,7 +408,7 @@ def non_rigid_icp_generator(source, target, eps=1e-3,
             prop_w_i_n = (n - w_i_n.sum() * 1.0) / n
             prop_w_i_e = (n - w_i_e.sum() * 1.0) / n
 
-            if data_weights is not None:
+            if gamma is not None:
                 w_i = w_i * gamma
 
             # Build the sparse diagonal weight matrix
