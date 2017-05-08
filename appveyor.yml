@@ -15,9 +15,9 @@ platform:
 
 init:
   - ps: Start-FileDownload 'https://raw.githubusercontent.com/menpo/condaci/v0.4.x/condaci.py' C:\\condaci.py; echo "Done"
-  - ps: >
-      & "${env:MINICONDA_DIR}\\python" C:\\condaci.py build conda
+  - cmd: python C:\\condaci.py setup
 
 install:
   - ps: $env:MINICONDA_DIR = python C:\\condaci.py miniconda_dir
-  - ps: $BUILD_CMD = "${env:MINICONDA_DIR}" + "\\python C:\\condaci.py build conda"; Invoke-Expression $BUILD_CMD
+  - ps: >
+      & "${env:MINICONDA_DIR}\\python" C:\\condaci.py build conda
