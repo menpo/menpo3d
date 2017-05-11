@@ -9,15 +9,21 @@ GLOBAL_CMAP = 'jet'
 def _parse_marker_size(marker_size, points):
     if marker_size is None:
         from menpo.shape import PointCloud
-        from scipy.spatial.distance import squareform
         pc = PointCloud(points, copy=False)
-        if 1 < pc.n_points < 1000:
-            d = squareform(pc.distance_to(pc))
-            d.sort()
-            min_10pc = d[int(d.shape[0] / 10)]
-            marker_size = min_10pc / 5
+        # This is the way that mayavi automatically computes the scale factor in
+        # case the user passes scale_factor = 'auto'. We use it for both the
+        # marker_size as well as the numbers_size.
+        xyz_min, xyz_max = pc.bounds()
+        x_min, y_min, z_min = xyz_min
+        x_max, y_max, z_max = xyz_max
+        distance = np.sqrt(((x_max - x_min) ** 2 +
+                            (y_max - y_min) ** 2 +
+                            (z_max - z_min) ** 2) /
+                           (4 * pc.n_points ** 0.33))
+        if distance == 0:
+            marker_size = 1
         else:
-            marker_size = 0.1
+            marker_size = 0.1 * distance
     return marker_size
 
 
@@ -259,7 +265,7 @@ class MayaviPointGraphViewer3d(MayaviRenderer):
         self.points = points
         self.edges = edges
 
-    def render(self, render_lines=True, line_colour='r', line_width=4,
+    def render(self, render_lines=True, line_colour='r', line_width=2,
                render_markers=True, marker_style='sphere', marker_size=None,
                marker_colour='r', marker_resolution=8, step=None, alpha=1.0,
                render_numbering=False, numbers_colour='k', numbers_size=None):
@@ -451,14 +457,12 @@ class MayaviSurfaceViewer3d(MayaviRenderer):
 
 
 class MayaviLandmarkViewer3d(MayaviRenderer):
-    def __init__(self, figure_id, new_figure, group, pointcloud,
-                 labels_to_masks):
+    def __init__(self, figure_id, new_figure, group, landmark_group):
         super(MayaviLandmarkViewer3d, self).__init__(figure_id, new_figure)
         self.group = group
-        self.pointcloud = pointcloud
-        self.labels_to_masks = labels_to_masks
+        self.landmark_group = landmark_group
 
-    def render(self, render_lines=True, line_colour='r', line_width=4,
+    def render(self, render_lines=True, line_colour='r', line_width=2,
                render_markers=True, marker_style='sphere', marker_size=None,
                marker_colour='r', marker_resolution=8, step=None, alpha=1.0,
                render_numbering=False, numbers_colour='k', numbers_size=None):
@@ -466,7 +470,7 @@ class MayaviLandmarkViewer3d(MayaviRenderer):
         # which case we generate random colours) or a single colour to colour
         # all the labels with
         # TODO: All marker and line options could be defined as lists...
-        n_labels = len(self.labels_to_masks)
+        n_labels = self.landmark_group.n_labels
         line_colour = _check_colours_list(
             render_lines, line_colour, n_labels,
             'Must pass a list of line colours with length n_labels or a single '
@@ -475,8 +479,9 @@ class MayaviLandmarkViewer3d(MayaviRenderer):
             render_markers, marker_colour, n_labels,
             'Must pass a list of marker colours with length n_labels or a '
             'single marker face colour for all labels.')
-        marker_size = _parse_marker_size(marker_size, self.pointcloud.points)
-        numbers_size = _parse_marker_size(numbers_size, self.pointcloud.points)
+        marker_size = _parse_marker_size(marker_size, self.landmark_group.points)
+        numbers_size = _parse_marker_size(numbers_size,
+                                          self.landmark_group.points)
 
         # get pointcloud of each label
         sub_pointclouds = self._build_sub_pointclouds()
@@ -494,14 +499,10 @@ class MayaviLandmarkViewer3d(MayaviRenderer):
                     marker_resolution=marker_resolution, step=step,
                     alpha=alpha, render_numbering=render_numbering,
                     numbers_colour=numbers_colour, numbers_size=numbers_size)
-
         self.figure.scene.disable_render = False
 
         return self
 
     def _build_sub_pointclouds(self):
-        sub_pointclouds = []
-        for label, _ in self.labels_to_masks.items():
-            mask = self.labels_to_masks[label]
-            sub_pointclouds.append((label, self.pointcloud.from_mask(mask)))
-        return sub_pointclouds
+        return [(label, self.landmark_group.get_label(label))
+                for label in self.landmark_group.labels]
