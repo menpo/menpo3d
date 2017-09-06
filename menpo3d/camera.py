@@ -92,6 +92,15 @@ class PerspectiveProjection(OrthographicProjection):
 
         return output
 
+    @classmethod
+    def init_from_2d_projected_shape(cls, points_3d, points_image,
+                                     image_shape, focal_length=None,
+                                     distortion_coeffs=None):
+        r, t, focal_length = align_2d_3d(
+            points_3d, points_image, image_shape, focal_length=focal_length,
+            distortion_coeffs=distortion_coeffs)
+        return OrthographicCamera(r, t, OrthographicProjection(focal_length,
+                                                               image_shape))
 
 class OrthographicCamera(Vectorizable):
     def __init__(self, rotation, translation, projection):
@@ -114,11 +123,8 @@ class OrthographicCamera(Vectorizable):
     def init_from_2d_projected_shape(cls, points_3d, points_image,
                                      image_shape, focal_length=None,
                                      distortion_coeffs=None):
-        r, t, focal_length = align_2d_3d(
-            points_3d, points_image, image_shape, focal_length=focal_length,
-            distortion_coeffs=distortion_coeffs)
-        return OrthographicCamera(r, t, OrthographicProjection(focal_length,
-                                                               image_shape))
+        raise NotImplementedError("Orthographic camera pose estimation not "
+                                  "implemented.")
 
     def apply(self, instance, **kwargs):
         return self.camera_transform.apply(instance)
