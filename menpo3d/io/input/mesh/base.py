@@ -188,12 +188,15 @@ def obj_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     import vtk
     from vtk.util.numpy_support import vtk_to_numpy
 
+    cleaner = vtk.vtkCleanPolyData()
+
     obj_importer = vtk.vtkOBJReader()
     obj_importer.SetFileName(str(filepath))
-    obj_importer.Update()
+    cleaner.SetInputConnection(obj_importer.GetOutputPort())
+    cleaner.Update()
 
     # Get the output
-    polydata = obj_importer.GetOutput()
+    polydata = cleaner.GetOutput()
 
     # We must have point data!
     points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float)
