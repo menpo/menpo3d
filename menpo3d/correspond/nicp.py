@@ -41,7 +41,7 @@ def stdout_redirected(to=os.devnull):
             redirect_stdout(to=old_stdout)
 
 try:
-    
+
     try:
         # First try the newer scikit-sparse namespace
         from sksparse.cholmod import cholesky_AAt
@@ -54,8 +54,10 @@ try:
         # wrap the cholesky call in a context manager that swallows the
         # low-level std-out to stop it from swamping our stdout (these low-level
         # prints come from METIS, but the solution behaves as normal)
-        with stdout_redirected():
-            factor = cholesky_AAt(sparse_X.T)
+        # fileno doesnt seem to work when called by Jupyter
+        # comment by Thanos
+        # with stdout_redirected():
+        factor = cholesky_AAt(sparse_X.T)
         return factor(sparse_X.T.dot(dense_b)).toarray()
 
 except ImportError:
