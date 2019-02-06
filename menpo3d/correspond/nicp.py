@@ -56,8 +56,14 @@ try:
         # prints come from METIS, but the solution behaves as normal)
         # fileno doesnt seem to work when called by Jupyter
         # comment by Thanos
-        # with stdout_redirected():
-        factor = cholesky_AAt(sparse_X.T)
+        try:
+                __IPYTHON__
+        except NameError:
+            with stdout_redirected():
+                factor = cholesky_AAt(sparse_X.T)
+        else:
+            factor = cholesky_AAt(sparse_X.T)
+
         return factor(sparse_X.T.dot(dense_b)).toarray()
 
 except ImportError:
