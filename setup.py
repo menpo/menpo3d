@@ -1,21 +1,29 @@
 import os
 import platform
 import site
-from setuptools import setup, find_packages, Extension
-import versioneer
 
+import versioneer
+from setuptools import setup, find_packages, Extension
 
 SYS_PLATFORM = platform.system().lower()
 IS_LINUX = 'linux' in SYS_PLATFORM
 IS_OSX = 'darwin' == SYS_PLATFORM
 IS_WIN = 'windows' == SYS_PLATFORM
+
 # Get Numpy include path without importing it
 NUMPY_INC_PATHS = [os.path.join(r, 'numpy', 'core', 'include')
                    for r in site.getsitepackages() if
                    os.path.isdir(os.path.join(r, 'numpy', 'core', 'include'))]
 if len(NUMPY_INC_PATHS) == 0:
-    raise ValueError("Could not find numpy include dir - cannot proceed with "
-                     "compilation of cython modules.")
+    try:
+        import numpy as np
+    except ImportError:
+        raise ValueError("Could not find numpy include dir and numpy not installed before build - "
+                         "cannot proceed with compilation of cython modules.")
+    else:
+        # just ask numpy for it's include dir
+        NUMPY_INC_PATHS = [np.get_include()]
+
 elif len(NUMPY_INC_PATHS) > 1:
     print("Found {} numpy include dirs: "
           "{}".format(len(NUMPY_INC_PATHS), ', '.join(NUMPY_INC_PATHS)))
@@ -57,24 +65,28 @@ def build_extension_from_pyx(pyx_path, extra_sources_paths=None):
                     language='c++')
     if IS_LINUX or IS_OSX:
         ext.extra_compile_args.append('-Wno-unused-function')
+    if IS_OSX:
+        ext.extra_link_args.append('-headerpad_max_install_names')
     return ext
+
 
 try:
     from Cython.Build import cythonize
 except ImportError:
     import warnings
+
     cythonize = no_cythonize
     warnings.warn('Unable to import Cython - attempting to build using the '
                   'pre-compiled C++ files.')
-
 
 cython_modules = [
     build_extension_from_pyx('menpo3d/rasterize/tripixel.pyx'),
 ]
 cython_exts = cythonize(cython_modules, quiet=True)
 
-install_requires = ['menpo>=0.8,<0.9',
-                    'mayavi>=4.5.0']
+install_requires = ['menpo>=0.9.0,<0.11.0',
+                    'mayavi>=4.7.0',
+                    'moderngl>=5.5.*,<6.0']
 
 setup(name='menpo3d',
       version=versioneer.get_version(),
@@ -85,6 +97,6 @@ setup(name='menpo3d',
       packages=find_packages(),
       package_data={'menpo3d': ['data/*']},
       install_requires=install_requires,
-      tests_require=['nose', 'mock'],
+      tests_require=['pytest>=5.0', 'mock>=3.0'],
       ext_modules=cython_exts
       )
