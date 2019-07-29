@@ -1,9 +1,10 @@
 import menpo3d
+import numpy as np
+from menpo.shape import TriMesh
 from menpo3d.vtkutils import trimesh_to_vtk, trimesh_from_vtk
 from numpy.testing import assert_allclose
-import numpy as np
-from nose.tools import raises
-from menpo.shape import TriMesh
+from pytest import raises
+
 
 def test_trimesh_to_vtk_and_back_is_same():
     bunny = menpo3d.io.import_builtin_asset.bunny_obj()
@@ -13,11 +14,11 @@ def test_trimesh_to_vtk_and_back_is_same():
     assert np.all(bunny.trilist == bunny_back.trilist)
 
 
-@raises(ValueError)
 def test_trimesh_to_vtk_fails_on_2d_mesh():
-    points = np.random.random((5, 2))
-    test_mesh = TriMesh(points)
-    trimesh_to_vtk(test_mesh)
+    with raises(ValueError):
+        points = np.random.random((5, 2))
+        test_mesh = TriMesh(points)
+        trimesh_to_vtk(test_mesh)
 
 
 def test_barycentric_rebuild_returns_same_as_snapped_points():
