@@ -1,0 +1,12 @@
+[run]
+branch=True
+source=menpo3d
+omit =
+      */visualize/*
+      */_version.*
+
+[report]
+exclude_lines =
+               raise NotImplementedError
+
+ignore_errors=True
