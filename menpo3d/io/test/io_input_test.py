@@ -111,8 +111,8 @@ def test_json_landmarks_bunny_direct():
 def test_ls_builtin_assets():
     assert (set(mio.ls_builtin_assets()) == {'bunny.ljson', 'bunny.obj',
                                              'bunny_no_nose.ljson',
-                                             'james.jpg', 'james.mtl',
-                                             'james.obj'})
+                                             'james.jpg', 'james.ljson',
+                                             'james.mtl', 'james.obj'})
 
 
 def test_mesh_paths():
