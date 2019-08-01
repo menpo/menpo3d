@@ -1,9 +1,11 @@
 import numpy as np
-from menpo3d.rasterize import GLRasterizer, model_to_clip_transform
+from menpo3d.rasterize import model_to_clip_transform
 from menpo.shape import PointCloud
 
 
 def render_hi_res_shape_image(mesh, render_width=3000):
+    from .rasterize import GLRasterizer
+
     h, w = mesh.range()[:2]
     aspect_ratio = w / h
     height = render_width * aspect_ratio
