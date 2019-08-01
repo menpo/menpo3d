@@ -112,12 +112,14 @@ def test_ls_builtin_assets():
     assert (set(mio.ls_builtin_assets()) == {'bunny.ljson', 'bunny.obj',
                                              'bunny_no_nose.ljson',
                                              'james.jpg', 'james.ljson',
-                                             'james.mtl', 'james.obj'})
+                                             'james.obj.mtl',
+                                             'james.obj', 'template.ljson',
+                                             'template.ply'})
 
 
 def test_mesh_paths():
     ls = mio.mesh_paths(mio.data_dir_path())
-    assert (len(list(ls)) == 2)
+    assert (len(list(ls)) == 3)
 
 
 def test_import_landmark_files_wrong_path_raises_value_error():
