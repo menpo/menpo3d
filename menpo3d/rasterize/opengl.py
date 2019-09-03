@@ -1,11 +1,24 @@
+from enum import IntEnum
+from pathlib import Path
+
+import moderngl
 import numpy as np
-from cyrasterize.base import CyRasterizerBase
 
 from menpo.image import MaskedImage
 from menpo.shape import TriMesh
 from menpo.transform import Homogeneous
-
 from .transform import clip_to_image_transform
+
+CONTAINING_DIR = Path(__file__).parent
+PASSTHROUGH_TEXTURE_VERT_SHADER = CONTAINING_DIR / 'shaders/texture/passthrough.vert'
+PASSTHROUGH_TEXTURE_FRAG_SHADER = CONTAINING_DIR / 'shaders/texture/passthrough.frag'
+PASSTHROUGH_PER_VERTEX_VERT_SHADER = CONTAINING_DIR / 'shaders/per_vertex/passthrough.vert'
+PASSTHROUGH_PER_VERTEX_FRAG_SHADER = CONTAINING_DIR / 'shaders/per_vertex/passthrough.frag'
+
+
+class _LOADED_SHADER_TYPE(IntEnum):
+    TEXTURE = 0
+    PER_VERTEX = 1
 
 
 def tri_bcoords_for_mesh(mesh):
@@ -26,14 +39,298 @@ def dedup_vertices(mesh):
     return TriMesh(new_points, trilist=new_trilist), old_to_new
 
 
-# Subclass the CyRasterizerBase class to add Menpo-specific features
-# noinspection PyProtectedMember
-class GLRasterizer(CyRasterizerBase):
+def _verify_opengl_homogeneous_matrix(matrix):
+    if matrix.shape != (4, 4):
+        raise ValueError("OpenGL matrices must have shape (4,4)")
+    return np.require(matrix, dtype=np.float32, requirements='C')
 
-    def __reduce__(self):
-        return (GLRasterizer, (self.width, self.height,
-                               self.model_matrix, self.view_matrix,
-                               self.projection_matrix))
+
+class BasePassthroughProgram:
+    def __init__(self, context):
+        """
+        Base program for a "passthrough" shader which just rasterizes the mesh
+        without considering any lighting or mesh normals.
+
+        Parameters
+        ----------
+        context : moderngl context
+            The context used for rendering
+        """
+        self.context = context
+        self.program = None
+        self.packed_vbo = None
+        self.index_buffer_vbo = None
+
+    def __del__(self):
+        # Make sure to always release the VBOs when the object is destroyed
+        if self.packed_vbo is not None:
+            self.packed_vbo.release()
+        if self.index_buffer_vbo is not None:
+            self.index_buffer_vbo.release()
+
+    def _get_packed_vbo(self, buffer_bytes):
+        # Handle creating the "packed" vbo which contains the data required
+        # for rendering with the shader. buffer_bytes is a bytes array. This
+        # tries to "cache" the VBO in the case that repeated rendering of the
+        # same mesh is performed
+        n_bytes = len(buffer_bytes)
+        if self.packed_vbo is None or n_bytes != self.packed_vbo._size:
+            if self.packed_vbo is not None:
+                self.packed_vbo.release()
+            self.packed_vbo = self.context.buffer(buffer_bytes)
+        elif self.packed_vbo is not None:
+            self.packed_vbo.write(buffer_bytes)
+
+    def _get_index_buffer_vbo(self, buffer_bytes):
+        # Handle creating the index buffer vbo which contains the data required
+        # for rendering with the shader. buffer_bytes is a bytes array. This
+        # tries to "cache" the VBO in the case that repeated rendering of the
+        # same mesh is performed
+        n_bytes = len(buffer_bytes)
+        if self.index_buffer_vbo is None or n_bytes != self.index_buffer_vbo._size:
+            if self.index_buffer_vbo is not None:
+                self.index_buffer_vbo.release()
+            self.index_buffer_vbo = self.context.buffer(buffer_bytes)
+        elif self.index_buffer_vbo is not None:
+            self.index_buffer_vbo.write(buffer_bytes)
+
+    def set_mvp(self, mvp_matrix):
+        """
+        Set the MVP (Model, View, Projection) matrix for the shader. This is
+        modelled as a uniform called "MVP".
+
+        Parameters
+        ----------
+        mvp_matrix : ndarray (4, 4)
+            The combined (Model, View, Projection) matrix to set
+        """
+        mvp_matrix = np.require(mvp_matrix, dtype=np.float32,
+                                requirements=['C'])
+        self.program['MVP'].write(mvp_matrix.tobytes())
+
+
+class TexturePassthroughProgram(BasePassthroughProgram):
+    def __init__(self, context):
+        """
+        Implements a "passthrough" shader for textured meshes. This just
+        rasterizes the mesh without considering any lighting or mesh normals.
+
+        Parameters
+        ----------
+        context : moderngl context
+            The context used for rendering
+        """
+        super().__init__(context)
+        self.program = self.context.program(
+            vertex_shader=PASSTHROUGH_TEXTURE_VERT_SHADER.read_text(encoding='ascii'),
+            fragment_shader=PASSTHROUGH_TEXTURE_FRAG_SHADER.read_text(encoding='ascii')
+        )
+        self.texture = None
+        self._texture_shape = None
+
+    def __del__(self):
+        super().__del__()
+        if self.texture is not None:
+            self.texture.release()
+        # Release program last
+        if self.program is not None:
+            self.program.release()
+
+    def _build_texture(self, pixels):
+        assert pixels.shape[-1] == 3, 'Only RGB textures supported'
+
+        # Try caching the texture if repeated rendering of the same mesh is
+        # being performed
+        shape = pixels.shape[:2][::-1]
+        if self._texture_shape is None or self._texture_shape != shape:
+            self._texture_shape = shape
+            self.texture = self.context.texture(size=shape,
+                                                components=3,
+                                                data=pixels.tobytes(),
+                                                dtype='f4')
+
+    def create_vao(self, mesh, per_vertex_f3v):
+        """
+        Create a simple Vertex Array Object (VAO) that contains the per vertex
+        array data used by the shader. Ensures that the correct texture
+        is also allocated.
+
+        Parameters
+        ----------
+        mesh :  `menpo.shape.TexturedTriMesh`
+        per_vertex_f3v : ndarray, (n_points, 3)
+
+        Returns
+        -------
+        `moderngl.vertex_array.VertexArray`
+            VAO to be used by the moderngl rendering context
+        """
+        # Grab the texture in [H, W, 3] format - note the pixel values need to
+        # be [0, 1] for moderngl
+        pixels = mesh.texture.pixels_with_channels_at_back(out_dtype=np.float32)
+        # Note that we assume the texture coordinates are flipped inside the
+        # shader
+        self._build_texture(pixels)
+        # Create the packed VBO where the entries here are in the same order as
+        # the shader inputs
+        packed = np.concatenate([mesh.points,
+                                 mesh.tcoords.points,
+                                 per_vertex_f3v], axis=1)
+
+        packed_buffer = np.require(packed, dtype=np.float32, requirements=['C'])
+        index_buffer = np.require(mesh.trilist, dtype=np.uint32,
+                                  requirements=['C'])
+        self._get_packed_vbo(packed_buffer.tobytes())
+        self._get_index_buffer_vbo(index_buffer.tobytes())
+        # Note the ordering of the inputs list matches the ordering of the
+        # packed vector above
+        return self.context.simple_vertex_array(
+            self.program,
+            self.packed_vbo,
+            'in_vert', 'in_text', 'in_f3v',
+            index_buffer=self.index_buffer_vbo
+        )
+
+
+class PerVertexPassthroughProgram(BasePassthroughProgram):
+    def __init__(self, context):
+        """
+        Implements a "passthrough" shader for coloured meshes. This just
+        rasterizes the mesh without considering any lighting or mesh normals.
+
+        Parameters
+        ----------
+        context : moderngl context
+            The context used for rendering
+        """
+        super().__init__(context)
+        self.program = self.context.program(
+            vertex_shader=PASSTHROUGH_PER_VERTEX_VERT_SHADER.read_text(encoding='ascii'),
+            fragment_shader=PASSTHROUGH_PER_VERTEX_FRAG_SHADER.read_text(encoding='ascii')
+        )
+
+    def __del__(self):
+        super().__del__()
+        # Release program last
+        if self.program is not None:
+            self.program.release()
+
+    def create_vao(self, mesh, per_vertex_f3v):
+        """
+        Create a simple Vertex Array Object (VAO) that contains the per vertex
+        array data used by the shader. Ensures that the per-vertex colour has
+        the correct format (n_points, 3). Note that if no per-vertex colour
+        is passed then a uniform gray colour is used (0.5, 0.5, 0.5).
+
+        Parameters
+        ----------
+        mesh :  `menpo.shape.ColouredTriMesh`
+        per_vertex_f3v : ndarray, (n_points, 3)
+
+        Returns
+        -------
+        `moderngl.vertex_array.VertexArray`
+            VAO to be used by the moderngl rendering context
+        """
+        colours = mesh.colours
+        if colours is None:
+            # Default to gray per vertex colouring
+            colours = np.full(mesh.points.shape, 0.5, dtype=np.float32)
+        if colours.shape[-1] == 1:
+            # Force from grayscale to colour by repeating
+            colours = np.repeat(colours, 3, axis=-1)
+        assert colours.shape[-1] == 3, 'Only RGB colours are supported'
+
+        packed = np.concatenate([mesh.points, colours, per_vertex_f3v], axis=1)
+
+        packed_buffer = np.require(packed, dtype=np.float32, requirements=['C'])
+        index_buffer = np.require(mesh.trilist, dtype=np.uint32,
+                                  requirements=['C'])
+        self._get_packed_vbo(packed_buffer.tobytes())
+        self._get_index_buffer_vbo(index_buffer.tobytes())
+        return self.context.simple_vertex_array(
+            self.program,
+            self.packed_vbo,
+            'in_vert', 'in_color', 'in_f3v',
+            index_buffer=self.index_buffer_vbo
+        )
+
+
+class GLRasterizer:
+
+    def __init__(self, width=1024, height=768, model_matrix=None,
+                 view_matrix=None, projection_matrix=None):
+        # Make a single OpenGL context that will be managed by the lifetime of
+        # this class. We will dynamically create two default "pass through"
+        # programs based on the type of the input mesh
+        self.opengl_ctx = moderngl.create_standalone_context()
+        self.width = width
+        self.height = height
+
+        self._model_matrix = model_matrix if model_matrix is not None else np.eye(4)
+        self._view_matrix = view_matrix if view_matrix is not None else np.eye(4)
+        self._projection_matrix = projection_matrix if projection_matrix is not None else np.eye(4)
+        self._vertex_shader = None
+        self._fragment_shader = None
+        self._shader_type = None
+        # We will dynamically build the program based on the mesh type
+        self._active_program = None
+        self._texture_program = None
+        self._per_vertex_program = None
+
+        self._f3v_renderbuffer = self.opengl_ctx.renderbuffer(
+            self.size, components=3, dtype='f4'
+        )
+        self._rgba_renderbuffer = self.opengl_ctx.renderbuffer(
+            self.size, components=4, dtype='f4'
+        )
+        self._depth_renderbuffer = self.opengl_ctx.depth_renderbuffer(self.size)
+        self._fbo = self.opengl_ctx.framebuffer([self._f3v_renderbuffer,
+                                                 self._rgba_renderbuffer],
+                                                self._depth_renderbuffer)
+
+    def __del__(self):
+        # Ensure we avoid memory leaks by manually releasing all moderngl
+        # objects
+        self._rgba_renderbuffer.release()
+        self._f3v_renderbuffer.release()
+        self._depth_renderbuffer.release()
+        self._fbo.release()
+        self.opengl_ctx.release()
+
+    @property
+    def size(self):
+        return self.width, self.height
+
+    @property
+    def model_matrix(self):
+        return self._model_matrix
+
+    @model_matrix.setter
+    def model_matrix(self, value):
+        self._model_matrix = _verify_opengl_homogeneous_matrix(value)
+
+    @property
+    def view_matrix(self):
+        return self._view_matrix
+
+    @view_matrix.setter
+    def view_matrix(self, value):
+        self._view_matrix = _verify_opengl_homogeneous_matrix(value)
+
+    @property
+    def projection_matrix(self):
+        return self._projection_matrix
+
+    @projection_matrix.setter
+    def projection_matrix(self, value):
+        self._projection_matrix = _verify_opengl_homogeneous_matrix(value)
+
+    @property
+    def mvp_matrix(self):
+        return np.linalg.multi_dot([self.projection_matrix,
+                                    self.view_matrix,
+                                    self.model_matrix])
 
     @property
     def model_to_clip_matrix(self):
@@ -51,6 +348,10 @@ class GLRasterizer(CyRasterizerBase):
     @property
     def projection_transform(self):
         return Homogeneous(self.projection_matrix)
+
+    @property
+    def mvp_transform(self):
+        return Homogeneous(self.mvp_matrix)
 
     @property
     def model_to_clip_transform(self):
@@ -75,8 +376,82 @@ class GLRasterizer(CyRasterizerBase):
         return self.model_to_clip_transform.compose_before(
             self.clip_to_image_transform)
 
-    def rasterize_mesh_with_f3v_interpolant(self, mesh, per_vertex_f3v=None,
-                                            normals=None):
+    def _set_active_program_to_texture(self):
+        # Ensure that we only build a single texture program per rasterizer
+        if self._texture_program is None:
+            self._texture_program = TexturePassthroughProgram(self.opengl_ctx)
+        self._active_program = self._texture_program
+        self._shader_type = _LOADED_SHADER_TYPE.TEXTURE
+
+    def _set_active_program_to_per_vertex(self):
+        # Ensure that we only build a single per vertex program per rasterizer
+        if self._per_vertex_program is None:
+            self._per_vertex_program = PerVertexPassthroughProgram(self.opengl_ctx)
+        self._active_program = self._per_vertex_program
+        self._shader_type = _LOADED_SHADER_TYPE.PER_VERTEX
+
+    def _set_active_program_by_mesh_type(self, mesh):
+        # Set the active program based on the input mesh type - this allows
+        # lazy instantiation of the program
+        if hasattr(mesh, 'tcoords'):
+            self._set_active_program_to_texture()
+        elif hasattr(mesh, 'colours'):
+            self._set_active_program_to_per_vertex()
+        else:
+            raise ValueError('Unknown mesh type, only textured (tcoords) or '
+                             'coloured (colours) TriMeshes are supported')
+
+    def _rasterize(self, mesh, per_vertex_f3v):
+        """
+        This defines the main rasterize method with moderngl. Ensures that
+        the program is setup correctly and that the outputs are also parsed
+        correctly.
+
+        Parameters
+        ----------
+        mesh : `menpo.shape.ColouredTriMesh` or `menpo.shape.TexturedTriMesh`
+        per_vertex_f3v : ndarray, (n_points, 3)
+
+        Returns
+        -------
+        rgb_image : ndarray float32, [H, W, 3]
+            RGB image representing the rasterized image (with either the
+            texture rasterized or the per vertex colours)
+        f3v_image : ndarray float32, [H, W, 3]
+            RGB image representing the rasterized per-vertex arbitrary floating
+            point values
+        mask : ndarray bool, [H, W, 1]
+        """
+        self._active_program.set_mvp(self.mvp_matrix)
+        vao = self._active_program.create_vao(mesh, per_vertex_f3v)
+
+        # Rendering
+        self._fbo.use()
+        self.opengl_ctx.clear(1.0, 1.0, 1.0, 0.0)
+        self.opengl_ctx.enable(moderngl.DEPTH_TEST | moderngl.CULL_FACE)
+        if self._shader_type == _LOADED_SHADER_TYPE.TEXTURE:
+            self._active_program.texture.use()
+        vao.render()
+
+        f3v_data = self._fbo.read(components=3, attachment=0, alignment=1,
+                                  dtype='f4')
+        rgba_data = self._fbo.read(components=4, attachment=1, alignment=1,
+                                   dtype='f4')
+
+        rgba_image = np.frombuffer(rgba_data, dtype=np.float32)
+        rgba_image = rgba_image.reshape(self.height, self.width, 4)[::-1]
+        f3v_image = np.frombuffer(f3v_data, dtype=np.float32)
+        f3v_image = f3v_image.reshape(self.height, self.width, 3)[::-1]
+        rgba_image = np.require(rgba_image, dtype=np.float32,
+                                requirements=['C'])
+        f3v_image = np.require(f3v_image, dtype=np.float32, requirements=['C'])
+        return (
+            rgba_image[..., :3],
+            f3v_image,
+            rgba_image[..., -1].astype(np.bool)
+        )
+
+    def rasterize_mesh_with_f3v_interpolant(self, mesh, per_vertex_f3v=None):
         r"""
         Rasterize the object to an image and generate an interpolated
         3-float image from a per vertex float 3 vector.
@@ -89,9 +464,6 @@ class GLRasterizer(CyRasterizerBase):
             the image.
             If None, the model's shape is used (making
             this method equivalent to rasterize_mesh_with_shape_image)
-        normals : ndarray, shape (n_points, 3)
-            A matrix specifying custom per-vertex normals to be used. If omitted,
-            the normals will be calculated from the triangulation of triangle normals.
 
         Returns
         -------
@@ -106,36 +478,17 @@ class GLRasterizer(CyRasterizerBase):
         """
         if not (hasattr(mesh, 'points') and
                 hasattr(mesh, 'trilist')):
-            raise ValueError('Rasterizable types have to have points and '
+            raise ValueError('Rasterizable types must have points and '
                              'trilist properties.')
-        if hasattr(mesh, 'tcoords'):
-            images = self._rasterize_texture_with_interp(
-                mesh.points, mesh.trilist, mesh.texture.pixels, mesh.tcoords.points,
-                normals=normals, per_vertex_f3v=per_vertex_f3v)
-        else:
-            #TODO: This should use a different shader!
-            # TODO This should actually use the colour provided.
-            # But I'm hacking it here to work quickly.
-            if hasattr(mesh, 'colours'):
-                colours = mesh.colours
-            else:
-                # just make a grey colour
-                colours = np.ones((mesh.n_points, 3)) * 0.5
-            # Fake some texture coordinates and a texture as required by the
-            # shader
-            fake_tcoords = np.random.randn(mesh.n_points, 2)
-            fake_texture = np.zeros([2, 2, 3])
 
-            # The RGB image is going to be broken due to the fake texture
-            # information we passed in
-            _, rgb_image = self._rasterize_texture_with_interp(
-                mesh.points, mesh.trilist, fake_texture, fake_tcoords,
-                per_vertex_f3v=colours)
-            _, f3v_image = self._rasterize_texture_with_interp(
-                mesh.points, mesh.trilist, fake_texture, fake_tcoords,
-                per_vertex_f3v=per_vertex_f3v)
+        if per_vertex_f3v is None:
+            per_vertex_f3v = np.zeros(mesh.points.shape, dtype=np.float32)
 
-            images = rgb_image, f3v_image
+        self._set_active_program_by_mesh_type(mesh)
+
+        rgb_pixels, f3v_pixels, mask = self._rasterize(mesh, per_vertex_f3v)
+        images = (MaskedImage.init_from_channels_at_back(rgb_pixels, mask=mask),
+                  MaskedImage.init_from_channels_at_back(f3v_pixels, mask=mask))
 
         from menpo.landmark import Landmarkable
         if isinstance(mesh, Landmarkable):
@@ -167,7 +520,8 @@ class GLRasterizer(CyRasterizerBase):
             (i.e. the z value will not necessarily correspond to a depth
             buffer).
         """
-        return self.rasterize_mesh_with_f3v_interpolant(mesh, per_vertex_f3v=None)
+        return self.rasterize_mesh_with_f3v_interpolant(
+            mesh, per_vertex_f3v=mesh.points)
 
     def rasterize_mesh(self, mesh):
         r"""Rasterize a mesh to an image.
@@ -185,17 +539,13 @@ class GLRasterizer(CyRasterizerBase):
         return self.rasterize_mesh_with_shape_image(mesh)[0]
 
     def rasterize_barycentric_coordinate_image(self, mesh):
-
         # Convert the mesh into a version with one vertex per triangle
-        # (Carefully looking after the normals)
-        normals = mesh.vertex_normals()
-        mesh, dedup_map = dedup_vertices(mesh)
-        normals = normals[dedup_map]
+        mesh, _ = dedup_vertices(mesh)
 
         per_vertex_f3v = tri_bcoords_for_mesh(mesh)
 
-        images = self.rasterize_mesh_with_f3v_interpolant(mesh, normals=normals,
-                                                          per_vertex_f3v=per_vertex_f3v)
+        images = self.rasterize_mesh_with_f3v_interpolant(
+            mesh, per_vertex_f3v=per_vertex_f3v)
 
         # the interpolated image is [tri_index, alpha, beta]
         # -> split this into two images, one tri_index, one bc
@@ -212,52 +562,3 @@ class GLRasterizer(CyRasterizerBase):
         bcoords_image = inverse_image.from_vector(bcoords, n_channels=3)
 
         return tri_index_image, bcoords_image
-
-    def _rasterize_texture_with_interp(self, points, trilist, texture, tcoords,
-                                       normals=None, per_vertex_f3v=None):
-        r"""Rasterizes a textured mesh along with it's interpolant data
-        through OpenGL.
-
-        Parameters
-        ----------
-        r : object
-            Any object with fields named 'points', 'trilist', 'texture' and
-            'tcoords' specifying the data that will be used to render. Such
-            objects are handed out by the
-            _rasterize_generate_textured_mesh method on Rasterizable
-            subclasses
-        normals : ndarray, shape (n_points, 3)
-            A matrix specifying custom per-vertex normals to be used. If omitted,
-            the normals will be calculated from the triangulation of triangle normals.
-        per_vertex_f3v : ndarray, shape (n_points, 3), optional
-            A matrix specifying arbitrary 3 floating point numbers per
-            vertex. This data will be linearly interpolated across triangles
-            and returned in the f3v image. If none, the shape information is
-            used
-
-        Returns
-        -------
-        image : MaskedImage
-            The rasterized image returned from OpenGL. Note that the
-            behavior of the rasterization is governed by the projection,
-            rotation and view matrices that may be set on this class,
-            as well as the width and height of the rasterization, which is
-            determined on the creation of this class. The mask is True if a
-            triangle is visible at that pixel in the output, and False if not.
-
-        f3v_image : MaskedImage
-            The rasterized image returned from OpenGL. Note that the
-            behavior of the rasterization is governed by the projection,
-            rotation and view matrices that may be set on this class,
-            as well as the width and height of the rasterization, which is
-            determined on the creation of this class.
-
-        """
-        # make a call out to the CyRasterizer _rasterize method
-        # first, roll the axes to get things to the way OpenGL expects them
-        texture = np.rollaxis(texture, 0, len(texture.shape))
-        rgb_pixels, f3v_pixels, mask = self._rasterize(
-            points, trilist, texture, tcoords, normals=normals, per_vertex_f3v=per_vertex_f3v)
-        # roll back the results so things are as Menpo expects
-        return (MaskedImage(np.array(np.rollaxis(rgb_pixels, -1), dtype=np.float), mask=mask),
-                MaskedImage(np.array(np.rollaxis(f3v_pixels, -1), dtype=np.float), mask=mask))
