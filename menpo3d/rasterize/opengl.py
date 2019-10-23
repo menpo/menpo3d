@@ -295,8 +295,6 @@ class GLRasterizer:
         self._rgba_renderbuffer.release()
         self._f3v_renderbuffer.release()
         self._depth_renderbuffer.release()
-        self._fbo.release()
-        self.opengl_ctx.release()
 
     @property
     def size(self):
