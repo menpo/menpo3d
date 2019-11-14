@@ -3,24 +3,24 @@ from menpo.transform.piecewiseaffine.base import barycentric_vectors
 from menpo.image import BooleanImage, MaskedImage
 
 
-def _pixels_to_check_python(start, end, _):
-    pixel_locations = []
-    tri_indices = []
+def _pixels_to_check_python(start, end, n_pixels):
+    pixel_locations = np.empty((n_pixels, 2), dtype=int)
+    tri_indices = np.empty(n_pixels, dtype=int)
 
+    n = 0
     for i, ((s_x, s_y), (e_x, e_y)) in enumerate(zip(start, end)):
         for x in range(s_x, e_x):
             for y in range(s_y, e_y):
-                pixel_locations.append((x, y))
-                tri_indices.append(i)
+                pixel_locations[n] = (x, y)
+                tri_indices[n] = i
+                n += 1
 
-    pixel_locations = np.array(pixel_locations)
-    tri_indices = np.array(tri_indices)
     return pixel_locations, tri_indices
 
 
 try:
     from .tripixel import pixels_to_check
-except IOError:
+except ImportError:
     print('Falling back to CPU pixel checking')
     pixels_to_check = _pixels_to_check_python
 

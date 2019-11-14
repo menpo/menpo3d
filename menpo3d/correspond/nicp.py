@@ -1,15 +1,16 @@
-import numpy as np
-import scipy.sparse as sp
-from menpo.shape import TriMesh, PointCloud
-from menpo.transform import Translation, UniformScale, AlignmentSimilarity
-from menpo3d.vtkutils import trimesh_to_vtk, VTKClosestPointLocator
-from menpo3d.morphablemodel.shapemodel import ShapeModel
-
-
 import os
 import sys
-from contextlib import contextmanager
 import warnings
+from contextlib import contextmanager
+
+import numpy as np
+import scipy.sparse as sp
+from io import UnsupportedOperation
+from menpo.shape import TriMesh, PointCloud
+from menpo.transform import Translation, UniformScale, AlignmentSimilarity
+from menpo3d.morphablemodel.shapemodel import ShapeModel
+from menpo3d.vtkutils import trimesh_to_vtk, VTKClosestPointLocator
+
 
 @contextmanager
 def stdout_redirected(to=os.devnull):
@@ -20,28 +21,37 @@ def stdout_redirected(to=os.devnull):
         print("from Python")
         os.system("echo non-Python applications are also supported")
     """
-    fd = sys.stdout.fileno()
+    try:
+        fd = sys.stdout.fileno()
+    except UnsupportedOperation:
+        # It's possible this is being run in an interpreter like an IPython
+        # notebook where stdout doesn't behave the same as in a "normal" python
+        # interpreter and in this case we cannot treat stdout like a file
+        # descriptor
+        warnings.warn('Unable to duplicate stdout file descriptor, likely due '
+                      'to stdout having been replaced (e.g. a notebook)')
+        yield
+    else:
+        # assert that Python and C stdio write using the same file descriptor
+        # assert libc.fileno(ctypes.c_void_p.in_dll(libc, "stdout")) == fd == 1
 
-    # assert that Python and C stdio write using the same file descriptor
-    # assert libc.fileno(ctypes.c_void_p.in_dll(libc, "stdout")) == fd == 1
+        def redirect_stdout(to):
+            sys.stdout.close()  # + implicit flush()
+            os.dup2(to.fileno(), fd)  # fd writes to 'to' file
+            sys.stdout = os.fdopen(fd, 'w')  # Python writes to fd
 
-    def redirect_stdout(to):
-        sys.stdout.close()  # + implicit flush()
-        os.dup2(to.fileno(), fd)  # fd writes to 'to' file
-        sys.stdout = os.fdopen(fd, 'w')  # Python writes to fd
+        with os.fdopen(os.dup(fd), 'w') as old_stdout:
+            with open(to, 'w') as file:
+                redirect_stdout(to=file)
+            try:
+                yield  # allow code to be run with the redirected stdout
+            finally:
+                # restore stdout.
+                # buffering and flags such as CLOEXEC may be different
+                redirect_stdout(to=old_stdout)
 
-    with os.fdopen(os.dup(fd), 'w') as old_stdout:
-        with open(to, 'w') as file:
-            redirect_stdout(to=file)
-        try:
-            yield  # allow code to be run with the redirected stdout
-        finally:
-            # restore stdout.
-            # buffering and flags such as CLOEXEC may be different
-            redirect_stdout(to=old_stdout)
 
 try:
-
     try:
         # First try the newer scikit-sparse namespace
         from sksparse.cholmod import cholesky_AAt
@@ -56,14 +66,13 @@ try:
         # prints come from METIS, but the solution behaves as normal)
         # fileno doesnt seem to work when called by Jupyter
         # comment by Thanos
-        try:
-                __IPYTHON__
-        except NameError:
-            with stdout_redirected():
-                factor = cholesky_AAt(sparse_X.T)
-        else:
+        #        try:
+        #                __IPYTHON__
+        #        except NameError:
+        with stdout_redirected():
             factor = cholesky_AAt(sparse_X.T)
-
+        #        else:
+        #            factor = cholesky_AAt(sparse_X.T)
         return factor(sparse_X.T.dot(dense_b)).toarray()
 
 except ImportError:
@@ -101,7 +110,7 @@ def validate_weights(label, weights, n_points, n_iterations=None,
     for i, weight in enumerate(weights):
         is_per_vertex = isinstance(weight, np.ndarray)
         if is_per_vertex and weight.shape != (n_points,):
-                invalid.append('({}): {}'.format(i, weight.shape[0]))
+            invalid.append('({}): {}'.format(i, weight.shape[0]))
 
     if verbose and len(weights) >= 1:
         is_per_vertex = isinstance(weights[0], np.ndarray)
@@ -113,8 +122,8 @@ def validate_weights(label, weights, n_points, n_iterations=None,
     if len(invalid) != 0:
         raise ValueError('Invalid {label}: expected shape ({n_points},) '
                          'got: {invalid_cases}'.format(
-                            label=label, n_points=n_points,
-                            invalid_cases='{}'.format(', '.join(invalid))))
+            label=label, n_points=n_points,
+            invalid_cases='{}'.format(', '.join(invalid))))
 
 
 def non_rigid_icp(source, target, eps=1e-3, landmark_group=None,
@@ -138,7 +147,6 @@ def active_non_rigid_icp(model, target, eps=1e-3,
                          landmark_group=None, landmark_weights=None,
                          model_mean_landmarks=None,
                          generate_instances=False, verbose=False):
-
     model_mean = model.mean()
 
     if landmark_group is not None:
@@ -169,7 +177,7 @@ def active_non_rigid_icp(model, target, eps=1e-3,
 
         # update the source landmarks (for the alignment below)
         source.landmarks[landmark_group] = PointCloud(source.points[
-                                                  model_lms_index])
+                                                          model_lms_index])
     else:
         # Start from the mean of the model
         source = model_mean
@@ -177,6 +185,7 @@ def active_non_rigid_icp(model, target, eps=1e-3,
     # project onto the shape model to restrict the basis
     def project_onto_model(instance):
         return model.reconstruct(instance)
+
     # call the generator version of NICP, always returning a generator
     generator = non_rigid_icp_generator(source, target, eps=eps,
                                         stiffness_weights=stiffness_weights,
@@ -191,7 +200,6 @@ def active_non_rigid_icp(model, target, eps=1e-3,
 
 
 def non_rigid_icp_generator_handler(generator, generate_instances):
-
     if generate_instances:
         # the user wants to inspect results per-iteration - return the iterator
         # directly to them
@@ -378,7 +386,7 @@ def non_rigid_icp_generator(source, target, eps=1e-3,
 
             # 2. Normals
             # Calculate the normals of the current v_i
-            v_i_tm = TriMesh(v_i, trilist=trilist)
+            v_i_tm = TriMesh(v_i, trilist=trilist, copy=False)
             v_i_n = v_i_tm.vertex_normals()
             # Extract the corresponding normals from the target
             u_i_n = target_tri_normals[tri_indices]

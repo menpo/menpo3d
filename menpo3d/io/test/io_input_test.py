@@ -1,12 +1,13 @@
-from nose.tools import raises
-import numpy as np
-from numpy.testing import assert_allclose
+import menpo
 import menpo3d.io as mio
-from menpo.shape import TriMesh, TexturedTriMesh, PointCloud
+import numpy as np
 from menpo.image import Image
-
+from menpo.shape import TriMesh, TexturedTriMesh, PointCloud
+from numpy.testing import assert_allclose
 
 # ground truth bunny landmarks
+from pytest import raises
+
 bunny_leye = np.array([[-0.0907334573249135,
                         0.13944519477304135,
                         0.016432549244098166]])
@@ -26,36 +27,36 @@ bunny_mouth = np.array([[-0.08719271323528464,
 
 def test_import_asset_bunny():
     mesh = mio.import_builtin_asset('bunny.obj')
-    assert(isinstance(mesh, TriMesh))
-    assert(isinstance(mesh.points, np.ndarray))
-    assert(mesh.points.shape[1] == 3)
-    assert(isinstance(mesh.trilist, np.ndarray))
-    assert(mesh.trilist.shape[1] == 3)
+    assert (isinstance(mesh, TriMesh))
+    assert (isinstance(mesh.points, np.ndarray))
+    assert (mesh.points.shape[1] == 3)
+    assert (isinstance(mesh.trilist, np.ndarray))
+    assert (mesh.trilist.shape[1] == 3)
 
 
 def test_import_asset_james():
     mesh = mio.import_builtin_asset('james.obj')
-    assert(isinstance(mesh, TexturedTriMesh))
-    assert(isinstance(mesh.points, np.ndarray))
-    assert(mesh.points.shape[1] == 3)
-    assert(isinstance(mesh.trilist, np.ndarray))
-    assert(mesh.trilist.shape[1] == 3)
-    assert(isinstance(mesh.texture, Image))
-    assert(isinstance(mesh.tcoords, PointCloud))
-    assert(mesh.tcoords.points.shape[1] == 2)
+    assert (isinstance(mesh, TexturedTriMesh))
+    assert (isinstance(mesh.points, np.ndarray))
+    assert (mesh.points.shape[1] == 3)
+    assert (isinstance(mesh.trilist, np.ndarray))
+    assert (mesh.trilist.shape[1] == 3)
+    assert (isinstance(mesh.texture, Image))
+    assert (isinstance(mesh.tcoords, PointCloud))
+    assert (mesh.tcoords.points.shape[1] == 2)
 
 
-@raises(ValueError)
 def test_import_incorrect_built_in():
-    mio.import_builtin_asset('adskljasdlkajd.obj')
+    with raises(ValueError):
+        mio.import_builtin_asset('adskljasdlkajd.obj')
 
 
 def test_json_landmarks_bunny():
     mesh = mio.import_builtin_asset('bunny.obj')
-    assert('LJSON' in mesh.landmarks.group_labels)
+    assert ('LJSON' in mesh.landmarks.group_labels)
     lms = mesh.landmarks['LJSON']
     labels = {'reye', 'mouth', 'nose', 'leye'}
-    assert(len(labels - set(lms.labels)) == 0)
+    assert (len(labels - set(lms.labels)) == 0)
     assert_allclose(lms.with_labels('leye').points, bunny_leye, atol=1e-7)
     assert_allclose(lms.with_labels('reye').points, bunny_reye, atol=1e-7)
     assert_allclose(lms.with_labels('nose').points, bunny_nose, atol=1e-7)
@@ -64,23 +65,25 @@ def test_json_landmarks_bunny():
 
 def test_custom_landmark_logic_bunny():
     def f(path):
-        return {
+        lmark_dict = {
             'no_nose': path.with_name('bunny_no_nose.ljson'),
             'full_set': path.with_name('bunny.ljson')
         }
+        return menpo.io.input.resolve_from_paths(lmark_dict)
+
     mesh = mio.import_mesh(mio.data_path_to('bunny.obj'), landmark_resolver=f)
-    assert('no_nose' in mesh.landmarks.group_labels)
+    assert ('no_nose' in mesh.landmarks.group_labels)
     lms = mesh.landmarks['no_nose']
     labels = {'reye', 'mouth', 'leye'}
-    assert(len(set(lms.labels) - labels) == 0)
+    assert (len(set(lms.labels) - labels) == 0)
     assert_allclose(lms.with_labels('leye').points, bunny_leye, atol=1e-7)
     assert_allclose(lms.with_labels('reye').points, bunny_reye, atol=1e-7)
     assert_allclose(lms.with_labels('mouth').points, bunny_mouth, atol=1e-7)
 
-    assert('full_set' in mesh.landmarks.group_labels)
+    assert ('full_set' in mesh.landmarks.group_labels)
     lms = mesh.landmarks['full_set']
     labels = {'reye', 'mouth', 'nose', 'leye'}
-    assert(len(set(lms.labels) - labels) == 0)
+    assert (len(set(lms.labels) - labels) == 0)
     assert_allclose(lms.with_labels('leye').points, bunny_leye, atol=1e-7)
     assert_allclose(lms.with_labels('reye').points, bunny_reye, atol=1e-7)
     assert_allclose(lms.with_labels('nose').points, bunny_nose, atol=1e-7)
@@ -90,14 +93,15 @@ def test_custom_landmark_logic_bunny():
 def test_custom_landmark_logic_None_bunny():
     def f(mesh):
         return None
+
     mesh = mio.import_mesh(mio.data_path_to('bunny.obj'), landmark_resolver=f)
-    assert(mesh.landmarks.n_groups == 0)
+    assert (mesh.landmarks.n_groups == 0)
 
 
 def test_json_landmarks_bunny_direct():
-    lms = mio.import_landmark_file(mio.data_path_to('bunny.ljson'))
+    lms = mio.import_landmark_file(mio.data_path_to('bunny.ljson'))['LJSON']
     labels = {'reye', 'mouth', 'nose', 'leye'}
-    assert(len(labels - set(lms.labels)) == 0)
+    assert (len(labels - set(lms.labels)) == 0)
     assert_allclose(lms.with_labels('leye').points, bunny_leye, atol=1e-7)
     assert_allclose(lms.with_labels('reye').points, bunny_reye, atol=1e-7)
     assert_allclose(lms.with_labels('nose').points, bunny_nose, atol=1e-7)
@@ -105,22 +109,24 @@ def test_json_landmarks_bunny_direct():
 
 
 def test_ls_builtin_assets():
-    assert(set(mio.ls_builtin_assets()) == {'bunny.ljson', 'bunny.obj',
-                                            'bunny_no_nose.ljson',
-                                            'james.jpg', 'james.mtl',
-                                            'james.obj'})
+    assert (set(mio.ls_builtin_assets()) == {'bunny.ljson', 'bunny.obj',
+                                             'bunny_no_nose.ljson',
+                                             'james.jpg', 'james.ljson',
+                                             'james.obj.mtl',
+                                             'james.obj', 'template.ljson',
+                                             'template.ply'})
 
 
 def test_mesh_paths():
     ls = mio.mesh_paths(mio.data_dir_path())
-    assert(len(list(ls)) == 2)
+    assert (len(list(ls)) == 3)
 
 
-@raises(ValueError)
 def test_import_landmark_files_wrong_path_raises_value_error():
-    list(mio.import_landmark_files('asldfjalkgjlaknglkajlekjaltknlaekstjlakj'))
+    with raises(ValueError):
+        list(mio.import_landmark_files('asldfjalkgjlaknglkajlekjaltknlaekstjlakj'))
 
 
-@raises(ValueError)
 def test_import_meshes_wrong_path_raises_value_error():
-    list(mio.import_meshes('asldfjalkgjlaknglkajlekjaltknlaekstjlakj'))
+    with raises(ValueError):
+        list(mio.import_meshes('asldfjalkgjlaknglkajlekjaltknlaekstjlakj'))

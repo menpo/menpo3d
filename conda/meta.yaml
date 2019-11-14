@@ -2,33 +2,57 @@ package:
   name: menpo3d
   version: {{ environ['CONDACI_VERSION'] }}
 
+source:
+  path: ../
+
+build:
+  number: 0
+  script: python setup.py install --single-version-externally-managed --record=record.txt && python setup.py sdist
+
 requirements:
-  build:
+  host:
     - python
     - setuptools
-    - numpy >=1.10,<2.0
-    - cython >=0.23
+    - numpy
+    - cython
 
   run:
     - python
-    - menpo 0.8.*
-    - cyrasterize 0.3.*
-    - mayavi 4.5.*
-    - scikit-sparse 0.3.*  # [linux]
-    - qt 4.*
-    - opencv3  # let menpodetect version
+
+    # Scientific Python Stack
+    - {{ pin_compatible('numpy') }}
+    - menpo >=0.9.0,<0.11.0
+    - mayavi >=4.7.0
+    - moderngl
+    # TODO: Unpin PyQT when conda-forge updates pyqt
+    # https://github.com/enthought/mayavi/issues/595#issuecomment-386097374
+    - pyqt 5.6.*
 
 test:
   requires:
-    - nose
-    - mock
+    - pytest >=5.0,<6.0
+    - pytest-cov >=2.0,<3.0
+    - mock >=3.0,<4.0
+
+  files:
+    - .coveragerc
 
   imports:
     - menpo3d
 
   commands:
-    - nosetests menpo3d -v
+    - pytest $SP_DIR/menpo3d -v --cov=menpo3d --cov-config .coveragerc
+
 
 about:
   home: https://github.com/menpo/menpo3d/
-  license: BSD
+  license: BSD 3-Clause
+  summary: The Menpo Project Python package for handling 3D data
+  description: |
+    A library inside the Menpo Project that makes manipulating 3D mesh data a
+    simple task. In particular, this project provides the ability to import,
+    visualize and rasterize 3D meshes. Although 3D meshes can be created
+    within the main Menpo project, this package adds the real functionality
+    for working with 3D data.
+  doc_url: https://menpo3d.readthedocs.io/en/stable/
+  dev_url: https://github.com/menpo/menpo3d
