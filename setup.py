@@ -86,6 +86,7 @@ cython_exts = cythonize(cython_modules, quiet=True)
 
 install_requires = ['menpo>=0.9.0,<0.11.0',
                     'mayavi>=4.7.0',
+                    'scikit-sparse>=0.3.1',
                     'moderngl>=5.5.*,<6.0']
 
 setup(name='menpo3d',
