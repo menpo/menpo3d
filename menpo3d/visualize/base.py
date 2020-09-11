@@ -8,6 +8,7 @@ from .viewmayavi import (
 
 from .viewk3dwidgets import (K3dwidgetsTriMeshViewer3d,
                              K3dwidgetsPointGraphViewer3d,
+                             K3dwidgetsLandmarkViewer3d,
                              K3dwidgetsTexturedTriMeshViewer3d)
 
 PointGraphViewer3d = MayaviPointGraphViewer3d
@@ -19,4 +20,5 @@ VectorViewer3d = MayaviVectorViewer3d
 
 TriMeshInlineViewer3d = K3dwidgetsTriMeshViewer3d
 TexturedTriMeshInlineViewer3d = K3dwidgetsTexturedTriMeshViewer3d
+LandmarkInlineViewer3d = K3dwidgetsLandmarkViewer3d
 PointGraphInlineViewer3d = K3dwidgetsPointGraphViewer3d
