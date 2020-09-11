@@ -44,6 +44,8 @@ def _check_colours_list(render_flag, colours_list, n_objects, error_str):
             # sample colours from jet colour map
             colours_list = sample_colours_from_colourmap(n_objects,
                                                          GLOBAL_CMAP)
+            colours_list = list(map(_parse_colour, colours_list))
+
         if isinstance(colours_list, list):
             if len(colours_list) == 1:
                 colours_list[0] = _parse_colour(colours_list[0])
@@ -53,7 +55,7 @@ def _check_colours_list(render_flag, colours_list, n_objects, error_str):
         else:
             colours_list = [_parse_colour(colours_list)] * n_objects
     else:
-        colours_list = [None] * n_objects
+        colours_list = [0x00FF00] * n_objects
     return colours_list
 
 
@@ -83,14 +85,6 @@ class K3dwidgetsRenderer(Plot, Renderer):
         self.figure_id = figure_id
         self.new_figure = new_figure
         self.grid_visible = False
-#        self._supported_ext = ['png', 'jpg', 'bmp', 'tiff',  # 2D
-#                               'ps', 'eps', 'pdf',  # 2D
-#                               'rib', 'oogl', 'iv', 'vrml', 'obj']  # 3D
-#        n_ext = len(self._supported_ext)
-#        func_list = [lambda obj, fp, **kwargs: mlab.savefig(fp.name, **obj)] * n_ext
-#        self._extensions_map = dict(zip(['.' + s for s in self._supported_ext],
-#                                    func_list))
-        # To store actors for clearing
 
     def get_figure(self):
         r"""
@@ -267,7 +261,7 @@ class K3dwidgetsPointGraphViewer3d(K3dwidgetsRenderer):
                             break
 
             if marker_style == 'sphere':
-                marker_style = 'flat'
+                marker_style = 'mesh'
 
             default_camera = [-0.16031231203819687,
                               0.09455110637470637,
@@ -321,12 +315,14 @@ class K3dwidgetsTriMeshViewer3d(K3dwidgetsRenderer):
         widg_to_draw += mesh_to_add
 
         if hasattr(self.landmarks, 'points'):
-            points_to_add = k3d_points(self.landmarks.points, color=0x00FF00,
-                                       point_size=marker_size,
-                                       shader='mesh')
-            widg_to_draw += points_to_add
-
-        # TODO 
+            self.landmarks.view(inline=True, new_figure=False,
+                                figure_id=self.figure_id)
+#             points_to_add = k3d_points(self.landmarks.points, color=0x00FF00,
+#                                        point_size=marker_size,
+#                                        shader='mesh')
+#             widg_to_draw += points_to_add
+# 
+        # TODO
         # Why the following atributes don't change
         self.camera = [-0.02, -0.12, 3.32,
                        0.00, -0.16, 0.58,
@@ -391,11 +387,8 @@ class K3dwidgetsTexturedTriMeshViewer3d(K3dwidgetsRenderer):
         widg_to_draw += mesh_to_add
 
         if hasattr(self.landmarks, 'points'):
-            marker_size = _parse_marker_size(None, self.points)
-            points_to_add = k3d_points(self.landmarks.points, color=0x00FF00,
-                                       point_size=marker_size,
-                                       shader='mesh')
-            widg_to_draw += points_to_add
+            self.landmarks.view(inline=True, new_figure=False,
+                                figure_id=self.figure_id)
 
         self.camera = [-0.02, -0.12, 3.32,
                        0.00, -0.16, 0.58,
@@ -484,7 +477,7 @@ class K3dwidgetsLandmarkViewer3d(K3dwidgetsRenderer):
         self.group = group
         self.landmark_group = landmark_group
 
-    def render(self, render_lines=True, line_colour='r', line_width=2,
+    def _render(self, render_lines=True, line_colour='r', line_width=2,
                render_markers=True, marker_style='sphere', marker_size=None,
                marker_colour='r', marker_resolution=8, step=None, alpha=1.0,
                render_numbering=False, numbers_colour='k', numbers_size=None):
@@ -508,22 +501,26 @@ class K3dwidgetsLandmarkViewer3d(K3dwidgetsRenderer):
         # get pointcloud of each label
         sub_pointclouds = self._build_sub_pointclouds()
 
-        # for each pointcloud
-        # disabling the rendering greatly speeds up this for loop
-        self.figure.scene.disable_render = True
-        for i, (label, pc) in enumerate(sub_pointclouds):
-            # render pointcloud
-            pc.view(figure_id=self.figure_id, new_figure=False,
-                    render_lines=render_lines, line_colour=line_colour[i],
-                    line_width=line_width, render_markers=render_markers,
-                    marker_style=marker_style, marker_size=marker_size,
-                    marker_colour=marker_colour[i],
-                    marker_resolution=marker_resolution, step=step,
-                    alpha=alpha, render_numbering=render_numbering,
-                    numbers_colour=numbers_colour, numbers_size=numbers_size)
-        self.figure.scene.disable_render = False
+        widg_to_draw = self
 
-        return self
+        if not self.new_figure:
+            for widg in self.widgets.values():
+                if isinstance(widg, K3dwidgetsRenderer):
+                    if widg.figure_id == self.figure_id and widg.model_id != self.model_id:
+                        widg_to_draw = widg
+                        break
+
+        if marker_style == 'sphere':
+            marker_style = 'mesh'
+
+        for i, (label, pc) in enumerate(sub_pointclouds):
+            # add pointcloud
+
+            points_to_add = k3d_points(pc.points, color=marker_colour[i],
+                                       point_size=marker_size,
+                                       shader=marker_style)
+            widg_to_draw += points_to_add
+        return widg_to_draw
 
     def _build_sub_pointclouds(self):
         return [(label, self.landmark_group.get_label(label))
