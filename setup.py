@@ -100,7 +100,7 @@ except ImportError:
 
     cythonize = no_cythonize
     warnings.warn(
-        "Unable to import Cython - attempting to build using the "
+        "Unabl
         "pre-compiled C++ files."
     )
 
@@ -111,7 +111,8 @@ cython_exts = cythonize(cython_modules, quiet=True)
 
 version, cmdclass = get_version_and_cmdclass("menpo3d")
 
-install_requires = ["menpo>=0.9.0,<0.12.0", "mayavi>=4.7.0", "moderngl>=5.6.*,<6.0"]
+install_requires = ["menpo>=0.9.0,<0.12.0", "mayavi>=4.7.0",
+                    "moderngl>=5.6.*,<6.0", 'k3d<=2.9.2']
 
 setup(
     name="menpo3d",
