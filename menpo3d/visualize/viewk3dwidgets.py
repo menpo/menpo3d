@@ -326,13 +326,12 @@ class K3dwidgetsTriMeshViewer3d(K3dwidgetsRenderer):
                                        shader='mesh')
             widg_to_draw += points_to_add
 
-        # TODO 
+        # TODO
         # Why the following atributes don't change
         self.camera = [-0.02, -0.12, 3.32,
                        0.00, -0.16, 0.58,
                        0.02, 1.00, 0.04]
 
-        widg_to_draw.lighting = 0
         return widg_to_draw
 
     def _render(self, mesh_type='wireframe', line_width=2, colour='r',
@@ -362,6 +361,7 @@ class K3dwidgetsTexturedTriMeshViewer3d(K3dwidgetsRenderer):
         self.texture = texture
         self.tcoords = tcoords
         self.landmarks = landmarks
+        self.lighting = 0
 
     def _render_mesh(self, mesh_type='surface', ambient_light=0.0,
                      specular_light=0.0, alpha=1.0):
