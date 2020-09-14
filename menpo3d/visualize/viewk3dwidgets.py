@@ -82,9 +82,46 @@ class K3dwidgetsRenderer(Plot, Renderer):
     """
     def __init__(self, figure_id, new_figure):
         super(K3dwidgetsRenderer, self).__init__()
+        if figure_id is None:
+            if new_figure:
+                # A new figure is created but with no figure_id
+                # we should create an id of 'Figure_n form'
+                list_ids = []
+                for x in self.widgets.values():
+                    if isinstance(x, K3dwidgetsRenderer) and x is not self:
+                        if x.figure_id is not None and 'Figure_' in str(x.figure_id):
+                            try:
+                                n_figure_id = int(x.figure_id.split('Figure_')[1])
+                            except ValueError:
+                                continue
+                            list_ids.append(n_figure_id)
+                if len(list_ids):
+                    figure_id = 'Figure_{}'.format(sorted(list_ids)[-1] + 1)
+                else:
+                    figure_id = 'Figure_0'
+
+            else:
+                self.remove_widget()
+                raise ValueError('You cannot plot a figure with no id and new figure False')
+        else:
+            if new_figure:
+                for x in self.widgets.values():
+                    if isinstance(x, K3dwidgetsRenderer) and x is not self:
+                        if x.figure_id == figure_id:
+                            self.remove_widget()
+                            raise ValueError('Figure id is already given')
+
         self.figure_id = figure_id
         self.new_figure = new_figure
         self.grid_visible = False
+
+    def remove_widget(self):
+        super(K3dwidgetsRenderer, self).close()
+        # copy from close from ipywidgets.widget.Widget
+        self.widgets.pop(self.model_id, None)
+        self.comm.close()
+        self.comm = None
+        self._repr_mimebundle_ = None
 
     def get_figure(self):
         r"""
