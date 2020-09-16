@@ -4,6 +4,8 @@ from menpo.visualize import Renderer
 # from ..vtkutils import trimesh_to_vtk
 from k3d import Plot, mesh as k3d_mesh, points as k3d_points
 from io import BytesIO
+from ipywidgets import GridBox, Layout
+from menpowidgets.options import LinearModelParametersWidget
 # The colour map used for all lines and markers
 GLOBAL_CMAP = 'jet'
 
@@ -59,6 +61,36 @@ def _check_colours_list(render_flag, colours_list, n_objects, error_str):
     return colours_list
 
 
+def _check_figure_id(obj, figure_id, new_figure):
+    if figure_id is None:
+        if new_figure:
+            # A new figure is created but with no figure_id
+            # we should create an id of 'Figure_n form'
+            list_ids = []
+            for x in obj.widgets.values():
+                if hasattr(x, 'figure_id') and x is not obj:
+                    if x.figure_id is not None and 'Figure_' in str(x.figure_id):
+                        try:
+                            n_figure_id = int(x.figure_id.split('Figure_')[1])
+                        except ValueError:
+                            continue
+                        list_ids.append(n_figure_id)
+            if len(list_ids):
+                figure_id = 'Figure_{}'.format(sorted(list_ids)[-1] + 1)
+            else:
+                figure_id = 'Figure_0'
+
+        else:
+            obj.remove_widget()
+            raise ValueError('You cannot plot a figure with no id and new figure False')
+    else:
+        if new_figure:
+            for x in obj.widgets.values():
+                if hasattr(x, 'figure_id') and x is not obj:
+                    if x.figure_id == figure_id:
+                        obj.remove_widget()
+                        raise ValueError('Figure id is already given')
+    return figure_id
 # def _set_numbering(figure, centers, render_numbering=True, numbers_size=None,
 #                    numbers_colour='k'):
 #     import mayavi.mlab as mlab
@@ -69,6 +101,7 @@ def _check_colours_list(render_flag, colours_list, n_objects, error_str):
 #             mlab.text3d(p[0], p[1], p[2], str(k), figure=figure,
 #                         scale=numbers_size, orient_to_camera=True,
 #                         color=numbers_colour, line_width=2)
+
 
 class K3dwidgetsRenderer(Plot, Renderer):
     """ Abstract class for performing visualizations using K3dwidgets.
@@ -82,36 +115,8 @@ class K3dwidgetsRenderer(Plot, Renderer):
     """
     def __init__(self, figure_id, new_figure):
         super(K3dwidgetsRenderer, self).__init__()
-        if figure_id is None:
-            if new_figure:
-                # A new figure is created but with no figure_id
-                # we should create an id of 'Figure_n form'
-                list_ids = []
-                for x in self.widgets.values():
-                    if isinstance(x, K3dwidgetsRenderer) and x is not self:
-                        if x.figure_id is not None and 'Figure_' in str(x.figure_id):
-                            try:
-                                n_figure_id = int(x.figure_id.split('Figure_')[1])
-                            except ValueError:
-                                continue
-                            list_ids.append(n_figure_id)
-                if len(list_ids):
-                    figure_id = 'Figure_{}'.format(sorted(list_ids)[-1] + 1)
-                else:
-                    figure_id = 'Figure_0'
 
-            else:
-                self.remove_widget()
-                raise ValueError('You cannot plot a figure with no id and new figure False')
-        else:
-            if new_figure:
-                for x in self.widgets.values():
-                    if isinstance(x, K3dwidgetsRenderer) and x is not self:
-                        if x.figure_id == figure_id:
-                            self.remove_widget()
-                            raise ValueError('Figure id is already given')
-
-        self.figure_id = figure_id
+        self.figure_id = _check_figure_id(self, figure_id, new_figure)
         self.new_figure = new_figure
         self.grid_visible = False
 
@@ -562,3 +567,67 @@ class K3dwidgetsLandmarkViewer3d(K3dwidgetsRenderer):
     def _build_sub_pointclouds(self):
         return [(label, self.landmark_group.get_label(label))
                 for label in self.landmark_group.labels]
+
+
+class K3dwidgetsPCAModelViewer3d(GridBox):#, K3dwidgetsRenderer):
+    def __init__(self, figure_id, new_figure, points, trilist,
+                 components, eigenvalues, n_parameters, parameters_bound,
+                 landmarks_indices, widget_style):
+
+        #self.figure_id = figure_id #self.check_figure_id(figure_id, new_figure)
+        self.figure_id = _check_figure_id(self, figure_id, new_figure)
+        self.new_figure = new_figure
+        self.points = points
+        self.trilist = trilist
+        self.components = components
+        self.eigenvalues = eigenvalues
+        self.n_parameters = n_parameters
+        self.landmarks_indices = landmarks_indices
+        self.layout = Layout(grid_template_columns='1fr 1fr')
+        self.wid = LinearModelParametersWidget(n_parameters=n_parameters,
+                                               render_function=self.render_function,
+                                               params_str='Parameter ',
+                                               mode='multiple',
+                                               params_bounds=parameters_bound,
+                                               plot_variance_visible=False,
+                                               style=widget_style)
+        self.mesh_window = K3dwidgetsTriMeshViewer3d(self.figure_id, False,
+                                                     self.points, self.trilist)
+        super(K3dwidgetsPCAModelViewer3d, self).__init__(children=[self.wid, self.mesh_window],
+                                                         layout=Layout(grid_template_columns='1fr 1fr'))
+
+    def _render_mesh(self, mesh_type, line_width, colour, marker_size,
+                     marker_resolution, marker_style, step, alpha):
+        marker_size = _parse_marker_size(marker_size, self.points)
+        colour = _parse_colour(colour)
+
+        mesh_to_add = k3d_mesh(self.points.astype(np.float32),
+                               self.trilist.flatten().astype(np.uint32),
+                               flat_shading=False, color=colour,
+                               name='Instance', side='double')
+
+        self.mesh_window += mesh_to_add
+
+        if self.landmarks_indices is not None:
+            landmarks_to_add = k3d_points(self.points[self.landmarks_indices].astype(np.float32),
+                                          color=0x00FF00, name='landmarks',
+                                          point_size=marker_size, shader='mesh')
+            self.mesh_window += landmarks_to_add
+        return self
+
+    def render_function(self, change):
+        mesh = self.points + (self.components[:self.n_parameters, :].T@(self.wid.selected_values*self.eigenvalues[:self.n_parameters]**0.5)).reshape(-1,3)
+        self.mesh_window.objects[0].vertices = mesh
+        if self.landmarks_indices is not None:
+            self.mesh_window.objects[1].positions = mesh[self.landmarks_indices]
+
+    def _render(self, mesh_type='wireframe', line_width=2, colour='r',
+                marker_style='sphere', marker_size=None, marker_resolution=8,
+                normals=None, normals_colour='k', normals_line_width=2,
+                normals_marker_resolution=8, step=None, alpha=1.0):
+
+        return self._render_mesh(mesh_type, line_width, colour, marker_size,
+                                 marker_resolution, marker_style, step, alpha)
+
+    def remove_widget(self):
+        super(K3dwidgetsPCAModelViewer3d, self).close()
