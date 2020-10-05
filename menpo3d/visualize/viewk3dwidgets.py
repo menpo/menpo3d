@@ -5,7 +5,6 @@ from menpo.visualize import Renderer
 from k3d import Plot, mesh as k3d_mesh, points as k3d_points
 from io import BytesIO
 from ipywidgets import GridBox, Layout
-from menpowidgets.options import LinearModelParametersWidget
 # The colour map used for all lines and markers
 GLOBAL_CMAP = 'jet'
 
@@ -363,7 +362,7 @@ class K3dwidgetsTriMeshViewer3d(K3dwidgetsRenderer):
 #                                        point_size=marker_size,
 #                                        shader='mesh')
 #             widg_to_draw += points_to_add
-# 
+#
         # TODO
         # Why the following atributes don't change
         self.camera = [-0.02, -0.12, 3.32,
@@ -520,9 +519,9 @@ class K3dwidgetsLandmarkViewer3d(K3dwidgetsRenderer):
         self.landmark_group = landmark_group
 
     def _render(self, render_lines=True, line_colour='r', line_width=2,
-               render_markers=True, marker_style='sphere', marker_size=None,
-               marker_colour='r', marker_resolution=8, step=None, alpha=1.0,
-               render_numbering=False, numbers_colour='k', numbers_size=None):
+                render_markers=True, marker_style='sphere', marker_size=None,
+                marker_colour='r', marker_resolution=8, step=None, alpha=1.0,
+                render_numbering=False, numbers_colour='k', numbers_size=None):
         # Regarding the labels colours, we may get passed either no colours (in
         # which case we generate random colours) or a single colour to colour
         # all the labels with
@@ -569,12 +568,16 @@ class K3dwidgetsLandmarkViewer3d(K3dwidgetsRenderer):
                 for label in self.landmark_group.labels]
 
 
-class K3dwidgetsPCAModelViewer3d(GridBox):#, K3dwidgetsRenderer):
+class K3dwidgetsPCAModelViewer3d(GridBox):
     def __init__(self, figure_id, new_figure, points, trilist,
                  components, eigenvalues, n_parameters, parameters_bound,
                  landmarks_indices, widget_style):
 
-        #self.figure_id = figure_id #self.check_figure_id(figure_id, new_figure)
+        try:
+            from menpowidgets.options import LinearModelParametersWidget
+        except ImportError as e:
+            from menpo.visualize import MenpowidgetsMissingError
+            raise MenpowidgetsMissingError(e)
         self.figure_id = _check_figure_id(self, figure_id, new_figure)
         self.new_figure = new_figure
         self.points = points
