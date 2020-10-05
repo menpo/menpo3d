@@ -1,12 +1,30 @@
 import numpy as np
 from menpo.visualize import Renderer
-# from menpo.shape import TriMesh
-# from ..vtkutils import trimesh_to_vtk
 from k3d import Plot, mesh as k3d_mesh, points as k3d_points
 from io import BytesIO
 from ipywidgets import GridBox, Layout
+from collections import defaultdict
 # The colour map used for all lines and markers
 GLOBAL_CMAP = 'jet'
+
+
+def dict_figures():
+    dict_fig = defaultdict(list)
+    for x in Widget.widgets.values():
+        if hasattr(x, 'figure_id'):
+            dict_fig[x.figure_id].append(x.model_id)
+    return dict_fig
+
+
+def list_figures():
+    list_figures = list(dict_figure.keys())
+    for figure_id in list_figures:
+        print(figure_id)
+
+
+def clear_figure(figure_id=None):
+    # TODO remove figures, clear memory
+    dict_fig = dict_figures()
 
 
 def _parse_marker_size(marker_size, points):
