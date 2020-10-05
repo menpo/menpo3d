@@ -17,7 +17,7 @@ def dict_figures():
 
 
 def list_figures():
-    list_figures = list(dict_figure.keys())
+    list_figures = list(dict_figures().keys())
     for figure_id in list_figures:
         print(figure_id)
 
