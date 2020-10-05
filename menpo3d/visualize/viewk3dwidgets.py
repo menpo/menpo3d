@@ -2,7 +2,7 @@ import numpy as np
 from menpo.visualize import Renderer
 from k3d import Plot, mesh as k3d_mesh, points as k3d_points
 from io import BytesIO
-from ipywidgets import GridBox, Layout
+from ipywidgets import GridBox, Layout, Widget
 from collections import defaultdict
 # The colour map used for all lines and markers
 GLOBAL_CMAP = 'jet'
