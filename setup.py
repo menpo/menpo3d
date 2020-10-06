@@ -85,7 +85,8 @@ cython_modules = [
 cython_exts = cythonize(cython_modules, quiet=True)
 
 install_requires = ['menpo>=0.8.0,<0.11.0',
-                    'mayavi>=4.7.0',
+                    'vtk',
+                    # 'mayavi>=4.7.0',
                     'scikit-sparse>=0.3.1',
                     'moderngl>=5.5.*,<6.0',
                     'k3d']
