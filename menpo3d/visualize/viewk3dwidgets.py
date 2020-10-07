@@ -1,6 +1,7 @@
 import numpy as np
 from menpo.visualize import Renderer
-from k3d import Plot, mesh as k3d_mesh, points as k3d_points
+from k3d import Plot, mesh as k3d_mesh, points as k3d_points,text as k3d_text
+from k3d.colormaps import matplotlib_color_maps
 from io import BytesIO
 from ipywidgets import GridBox, Layout, Widget
 from collections import defaultdict
@@ -376,11 +377,6 @@ class K3dwidgetsTriMeshViewer3d(K3dwidgetsRenderer):
         if hasattr(self.landmarks, 'points'):
             self.landmarks.view(inline=True, new_figure=False,
                                 figure_id=self.figure_id)
-#             points_to_add = k3d_points(self.landmarks.points, color=0x00FF00,
-#                                        point_size=marker_size,
-#                                        shader='mesh')
-#             widg_to_draw += points_to_add
-#
         # TODO
         # Why the following atributes don't change
         self.camera = [-0.02, -0.12, 3.32,
@@ -575,7 +571,8 @@ class K3dwidgetsLandmarkViewer3d(K3dwidgetsRenderer):
         for i, (label, pc) in enumerate(sub_pointclouds):
             # add pointcloud
 
-            points_to_add = k3d_points(pc.points, color=marker_colour[i],
+            points_to_add = k3d_points(pc.points.astype(np.float32),
+                                       color=marker_colour[i],
                                        point_size=marker_size,
                                        shader=marker_style)
             widg_to_draw += points_to_add
@@ -584,6 +581,62 @@ class K3dwidgetsLandmarkViewer3d(K3dwidgetsRenderer):
     def _build_sub_pointclouds(self):
         return [(label, self.landmark_group.get_label(label))
                 for label in self.landmark_group.labels]
+
+
+class K3dwidgetsHeatmapViewer3d(K3dwidgetsRenderer):
+    def __init__(self, figure_id, new_figure, points, trilist, landmarks=None):
+        super(K3dwidgetsHeatmapViewer3d, self).__init__(figure_id, new_figure)
+        self.points = points
+        self.trilist = trilist
+        self.landmarks = landmarks
+
+    def _render_mesh(self, distances_between_meshes, type_cmap,
+                     scalar_range, show_statistics=False):
+
+        marker_size = _parse_marker_size(None, self.points)
+
+        widg_to_draw = self
+        if not self.new_figure:
+            for widg in self.widgets.values():
+                if isinstance(widg, K3dwidgetsRenderer):
+                    if widg.figure_id == self.figure_id and widg.model_id != self.model_id:
+                        widg_to_draw = widg
+                        break
+        try:
+            color_map = getattr(matplotlib_color_maps, type_cmap)
+        except AttributeError:
+            print('Could not find colormap {}. Hot_r is going to be used instead'.format(type_cmap))
+            color_map = getattr(matplotlib_color_maps, 'hot_r')
+
+        mesh_to_add = k3d_mesh(self.points.astype(np.float32),
+                               self.trilist.flatten().astype(np.uint32),
+                               color_map=color_map,
+                               attribute=distances_between_meshes,
+                               color_range=scalar_range
+                               )
+        widg_to_draw += mesh_to_add
+
+        if hasattr(self.landmarks, 'points'):
+            self.landmarks.view(inline=True, new_figure=False,
+                                figure_id=self.figure_id)
+
+        if show_statistics:
+            text = '\\begin{{matrix}} \\mu &  {:.3} \\\\ \\sigma^2 & {:.3} \\\\ \\max & {:.3}  \\end{{matrix}}'\
+                          .format(distances_between_meshes.mean(),
+                                  distances_between_meshes.std(),
+                                  distances_between_meshes.max())
+            min_b = np.min(self.points, axis=0)
+            max_b = np.max(self.points, axis=0)
+            text_position = (max_b-min_b)/2
+            widg_to_draw += k3d_text(text, position=text_position,
+                                     color=0xff0000, size=1)
+
+        return widg_to_draw
+
+    def _render(self, distances_between_meshes, type_cmap='hot_r',
+                scalar_range=[0, 2], show_statistics=False):
+        return self._render_mesh(distances_between_meshes, type_cmap,
+                                 scalar_range, show_statistics)
 
 
 class K3dwidgetsPCAModelViewer3d(GridBox):
@@ -637,7 +690,7 @@ class K3dwidgetsPCAModelViewer3d(GridBox):
         return self
 
     def render_function(self, change):
-        mesh = self.points + (self.components[:self.n_parameters, :].T@(self.wid.selected_values*self.eigenvalues[:self.n_parameters]**0.5)).reshape(-1,3)
+        mesh = self.points + (self.components[:self.n_parameters, :].T@(self.wid.selected_values*self.eigenvalues[:self.n_parameters]**0.5)).reshape(-1, 3)
         self.mesh_window.objects[0].vertices = mesh
         if self.landmarks_indices is not None:
             self.mesh_window.objects[1].positions = mesh[self.landmarks_indices]
