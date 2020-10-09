@@ -1,6 +1,7 @@
 import numpy as np
 from menpo.visualize import Renderer
-from k3d import Plot, mesh as k3d_mesh, points as k3d_points,text as k3d_text
+from k3d import (Plot, mesh as k3d_mesh, points as k3d_points,
+                 text as k3d_text, vectors as k3d_vectors)
 from k3d.colormaps import matplotlib_color_maps
 from io import BytesIO
 from ipywidgets import GridBox, Layout, Widget
@@ -137,6 +138,16 @@ class K3dwidgetsRenderer(Plot, Renderer):
         self.figure_id = _check_figure_id(self, figure_id, new_figure)
         self.new_figure = new_figure
         self.grid_visible = False
+
+    def _render(self):
+        widg_to_draw = self
+        if not self.new_figure:
+            for widg in self.widgets.values():
+                if isinstance(widg, K3dwidgetsRenderer):
+                    if widg.figure_id == self.figure_id and widg.model_id != self.model_id:
+                        widg_to_draw = widg
+                        return widg_to_draw
+        return widg_to_draw
 
     def remove_widget(self):
         super(K3dwidgetsRenderer, self).close()
@@ -275,19 +286,19 @@ class K3dwidgetsRenderer(Plot, Renderer):
 class K3dwidgetsVectorViewer3d(K3dwidgetsRenderer):
     def __init__(self, figure_id, new_figure, points, vectors):
         super(K3dwidgetsVectorViewer3d, self).__init__(figure_id, new_figure)
-        self.points = points
-        self.vectors = vectors
+        non_zero_indices = np.unique(np.nonzero(vectors.reshape(-1,3))[0])
+        self.points = points[non_zero_indices].astype(np.float32)
+        self.vectors = vectors[non_zero_indices].astype(np.float32)
 
-    def render(self, colour='r', line_width=2, marker_style='2darrow',
-               marker_resolution=8, marker_size=None, step=None, alpha=1.0):
+    def _render(self, colour='r', line_width=2, marker_size=None):
         marker_size = _parse_marker_size(marker_size, self.points)
         colour = _parse_colour(colour)
-#         mlab.quiver3d(self.points[:, 0], self.points[:, 1], self.points[:, 2],
-#                       self.vectors[:, 0], self.vectors[:, 1], self.vectors[:, 2],
-#                       figure=self.figure, color=colour, mask_points=step,
-#                       line_width=line_width, mode=marker_style,
-#                       resolution=marker_resolution, opacity=alpha,
-#                       scale_factor=marker_size)
+
+        widg_to_draw = super(K3dwidgetsVectorViewer3d, self)._render()
+        vectors_to_add = k3d_vectors(self.points, self.vectors,
+                                     color=colour, head_size=marker_size,
+                                     line_width=line_width)
+        widg_to_draw += vectors_to_add
         return self
 
 
@@ -356,19 +367,11 @@ class K3dwidgetsTriMeshViewer3d(K3dwidgetsRenderer):
         self.trilist = trilist
         self.landmarks = landmarks
 
-    def _render_mesh(self, mesh_type, line_width, colour, marker_size,
-                     marker_resolution, marker_style, step, alpha):
+    def _render_mesh(self, line_width, colour, marker_style, marker_size):
         marker_size = _parse_marker_size(marker_size, self.points)
         colour = _parse_colour(colour)
 
-        widg_to_draw = self
-        if not self.new_figure:
-            for widg in self.widgets.values():
-                if isinstance(widg, K3dwidgetsRenderer):
-                    if widg.figure_id == self.figure_id and widg.model_id != self.model_id:
-                        widg_to_draw = widg
-                        break
-
+        widg_to_draw = super(K3dwidgetsTriMeshViewer3d, self)._render()
         mesh_to_add = k3d_mesh(self.points.astype(np.float32),
                                self.trilist.flatten().astype(np.uint32),
                                flat_shading=False, color=colour, side='double')
@@ -386,22 +389,21 @@ class K3dwidgetsTriMeshViewer3d(K3dwidgetsRenderer):
         widg_to_draw.lighting = 0
         return widg_to_draw
 
-    def _render(self, mesh_type='wireframe', line_width=2, colour='r',
-                marker_style='sphere', marker_size=None, marker_resolution=8,
+    def _render(self, line_width=2, colour='r',
+                marker_style='sphere', marker_size=None,
                 normals=None, normals_colour='k', normals_line_width=2,
-                normals_marker_style='2darrow', normals_marker_size=None,
-                normals_marker_resolution=8, step=None, alpha=1.0):
+                normals_marker_size=None):
 
+        widg_to_draw = self._render_mesh(line_width, colour,
+                                         marker_style, marker_size)
         if normals is not None:
-            K3dwidgetsVectorViewer3d(self.figure_id, False,
-                                     self.points, normals).render(
-                colour=normals_colour, line_width=normals_line_width, step=step,
-                marker_style=normals_marker_style,
-                marker_resolution=normals_marker_resolution,
-                marker_size=normals_marker_size, alpha=alpha)
-        return self._render_mesh(mesh_type, line_width, colour, marker_size,
-                                 marker_resolution, marker_style, step, alpha)
+             print('Mpika {}'.format(self.figure_id))
+             K3dwidgetsVectorViewer3d(self.figure_id, False,
+                                     self.points, normals)._render(colour=normals_colour,
+                                                                  line_width=normals_line_width,
+                                                                  marker_size=normals_marker_size)
 
+        return widg_to_draw
 
 class K3dwidgetsTexturedTriMeshViewer3d(K3dwidgetsRenderer):
     def __init__(self, figure_id, new_figure, points, trilist, texture,
@@ -417,13 +419,7 @@ class K3dwidgetsTexturedTriMeshViewer3d(K3dwidgetsRenderer):
     def _render_mesh(self, mesh_type='surface', ambient_light=0.0,
                      specular_light=0.0, alpha=1.0):
 
-        widg_to_draw = self
-        if not self.new_figure:
-            for widg in self.widgets.values():
-                if isinstance(widg, K3dwidgetsRenderer):
-                    if widg.figure_id == self.figure_id and widg.model_id != self.model_id:
-                        widg_to_draw = widg
-                        break
+        widg_to_draw = super(K3dwidgetsTexturedTriMeshViewer3d, self)._render()
 
         uvs = self.tcoords.points
         tmp_img = self.texture.mirror(axis=0).as_PILImage()
