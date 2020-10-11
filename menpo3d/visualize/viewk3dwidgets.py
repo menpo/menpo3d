@@ -1,7 +1,8 @@
 import numpy as np
 from menpo.visualize import Renderer
 from k3d import (Plot, mesh as k3d_mesh, points as k3d_points,
-                 text as k3d_text, vectors as k3d_vectors)
+                 text as k3d_text, vectors as k3d_vectors,
+                 line as k3d_line)
 from k3d.colormaps import matplotlib_color_maps
 from io import BytesIO
 from ipywidgets import GridBox, Layout, Widget
@@ -110,16 +111,6 @@ def _check_figure_id(obj, figure_id, new_figure):
                         obj.remove_widget()
                         raise ValueError('Figure id is already given')
     return figure_id
-# def _set_numbering(figure, centers, render_numbering=True, numbers_size=None,
-#                    numbers_colour='k'):
-#     import mayavi.mlab as mlab
-#     numbers_colour = _parse_colour(numbers_colour)
-#     numbers_size = _parse_marker_size(numbers_size, centers)
-#     if render_numbering:
-#         for k, p in enumerate(centers):
-#             mlab.text3d(p[0], p[1], p[2], str(k), figure=figure,
-#                         scale=numbers_size, orient_to_camera=True,
-#                         color=numbers_colour, line_width=2)
 
 
 class K3dwidgetsRenderer(Plot, Renderer):
@@ -286,7 +277,7 @@ class K3dwidgetsRenderer(Plot, Renderer):
 class K3dwidgetsVectorViewer3d(K3dwidgetsRenderer):
     def __init__(self, figure_id, new_figure, points, vectors):
         super(K3dwidgetsVectorViewer3d, self).__init__(figure_id, new_figure)
-        non_zero_indices = np.unique(np.nonzero(vectors.reshape(-1,3))[0])
+        non_zero_indices = np.unique(np.nonzero(vectors.reshape(-1, 3))[0])
         self.points = points[non_zero_indices].astype(np.float32)
         self.vectors = vectors[non_zero_indices].astype(np.float32)
 
@@ -311,52 +302,61 @@ class K3dwidgetsPointGraphViewer3d(K3dwidgetsRenderer):
 
     def _render(self, render_lines=True, line_colour='r', line_width=2,
                 render_markers=True, marker_style='flat', marker_size=10,
-                marker_colour='g', marker_resolution=8, step=None, alpha=1.0,
-                render_numbering=False, numbers_colour='k', numbers_size=None):
+                marker_colour='g', render_numbering=False,
+                numbers_colour='k', numbers_size=None):
 
         # Render the lines if requested
         # TODO
         if render_lines:
-            line_colour = _parse_colour(line_colour)
+            if isinstance(line_colour, list):
+                line_colour = [_parse_colour(i_color) for i_color in
+                               line_colour]
+            else:
+                line_colour = _parse_colour(line_colour)
+
         # Render the markers if requested
         if render_markers:
             marker_size = _parse_marker_size(marker_size, self.points)
             marker_colour = _parse_colour(marker_colour)
-            widg_to_draw = self
-
-            if not self.new_figure:
-                for widg in self.widgets.values():
-                    if isinstance(widg, K3dwidgetsRenderer):
-                        if widg.figure_id == self.figure_id and widg.model_id != self.model_id:
-                            widg_to_draw = widg
-                            break
+            widg_to_draw = super(K3dwidgetsPointGraphViewer3d, self)._render()
 
             if marker_style == 'sphere':
                 marker_style = 'mesh'
 
-            default_camera = [-0.16031231203819687,
-                              0.09455110637470637,
-                              2.8537626738058663,
-                              0.00039440393447875977,
-                              -0.15653744339942932,
-                              0.5779531598091125,
-                              -0.02452392741576587,
-                              0.9981297233524523,
-                              -0.05599671726525722]
-
-            if widg_to_draw is self:
-                widg_to_draw.camera = default_camera
-
             points_to_add = k3d_points(self.points, color=marker_colour,
                                        point_size=marker_size,
                                        shader=marker_style)
+            lines_to_add = None
+            for edge in self.edges:
+                if isinstance(line_colour, list):
+                    if len(line_colour):
+                        color_this_line = line_colour.pop()
+                    else:
+                        color_this_line = 0xFF0000
+                else:
+                    color_this_line = line_colour
+
+                if lines_to_add is None:
+                    lines_to_add = k3d_line(self.points[edge],
+                                            color=color_this_line)
+                else:
+                    lines_to_add += k3d_line(self.points[edge],
+                                             color=color_this_line)
+
+            if render_numbering:
+                text_to_add = None
+                for i, point in enumerate(self.points):
+                    if text_to_add is None:
+                        text_to_add = k3d_text(str(i), position=point,
+                                              label_box=False)
+                    else:
+                        text_to_add += k3d_text(str(i), position=point,
+                                              label_box=False)
+                widg_to_draw += text_to_add
+
+            widg_to_draw += lines_to_add
             widg_to_draw += points_to_add
 
-    # set numbering
-#        _set_numbering(self.figure, self.points, numbers_size=numbers_size,
-#                       render_numbering=render_numbering,
-#                       numbers_colour=numbers_colour)
-#
         return widg_to_draw
 
 
@@ -396,13 +396,13 @@ class K3dwidgetsTriMeshViewer3d(K3dwidgetsRenderer):
         widg_to_draw = self._render_mesh(line_width, colour,
                                          marker_style, marker_size)
         if normals is not None:
-             print('Mpika {}'.format(self.figure_id))
-             K3dwidgetsVectorViewer3d(self.figure_id, False,
+            K3dwidgetsVectorViewer3d(self.figure_id, False,
                                      self.points, normals)._render(colour=normals_colour,
-                                                                  line_width=normals_line_width,
-                                                                  marker_size=normals_marker_size)
+                                                                   line_width=normals_line_width,
+                                                                   marker_size=normals_marker_size)
 
         return widg_to_draw
+
 
 class K3dwidgetsTexturedTriMeshViewer3d(K3dwidgetsRenderer):
     def __init__(self, figure_id, new_figure, points, trilist, texture,
@@ -552,26 +552,28 @@ class K3dwidgetsLandmarkViewer3d(K3dwidgetsRenderer):
         # get pointcloud of each label
         sub_pointclouds = self._build_sub_pointclouds()
 
-        widg_to_draw = self
-
-        if not self.new_figure:
-            for widg in self.widgets.values():
-                if isinstance(widg, K3dwidgetsRenderer):
-                    if widg.figure_id == self.figure_id and widg.model_id != self.model_id:
-                        widg_to_draw = widg
-                        break
+        widg_to_draw = super(K3dwidgetsLandmarkViewer3d, self)._render()
 
         if marker_style == 'sphere':
             marker_style = 'mesh'
 
         for i, (label, pc) in enumerate(sub_pointclouds):
-            # add pointcloud
-
             points_to_add = k3d_points(pc.points.astype(np.float32),
                                        color=marker_colour[i],
                                        point_size=marker_size,
                                        shader=marker_style)
             widg_to_draw += points_to_add
+        if render_numbering:
+            text_to_add = None
+            for i, point in enumerate(self.landmark_group.points):
+                if text_to_add is None:
+                    text_to_add = k3d_text(str(i), position=point,
+                                          label_box=False)
+                else:
+                    text_to_add += k3d_text(str(i), position=point,
+                                          label_box=False)
+            widg_to_draw += text_to_add
+            
         return widg_to_draw
 
     def _build_sub_pointclouds(self):
