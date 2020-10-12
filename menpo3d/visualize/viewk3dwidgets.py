@@ -445,26 +445,23 @@ class K3dwidgetsTexturedTriMeshViewer3d(K3dwidgetsRenderer):
 
         return widg_to_draw
 
-    def _render(self, mesh_type='surface', ambient_light=0.0,
-                specular_light=0.0, normals=None, normals_colour='k',
-                normals_line_width=2, normals_marker_style='2darrow',
-                normals_marker_resolution=8, normals_marker_size=None,
-                step=None, alpha=1.0):
+    def _render(self, normals=None, normals_colour='k',
+                normals_line_width=2, normals_marker_size=None):
 
         if normals is not None:
-            K3dwidgetsVectorViewer3d(self.figure_id, False,
-                                     self.points, normals).render(
-                colour=normals_colour, line_width=normals_line_width, step=step,
-                marker_style=normals_marker_style,
-                marker_resolution=normals_marker_resolution,
-                marker_size=normals_marker_size, alpha=alpha)
+            tmp_normals_widget = K3dwidgetsVectorViewer3d(self.figure_id,
+                                                          False, self.points,
+                                                          normals)
+            tmp_normals_widget._render(colour=normals_colour,
+                                       line_width=normals_line_width,
+                                       marker_size=normals_marker_size)
 
-        self._render_mesh(mesh_type=mesh_type, ambient_light=ambient_light,
-                          specular_light=specular_light, alpha=alpha)
+        self._render_mesh()
         return self
 
 
 class K3dwidgetsColouredTriMeshViewer3d(K3dwidgetsRenderer):
+    # TODO
     def __init__(self, figure_id, new_figure, points, trilist,
                  colour_per_point):
         super(K3dwidgetsColouredTriMeshViewer3d, self).__init__(figure_id,
@@ -472,27 +469,24 @@ class K3dwidgetsColouredTriMeshViewer3d(K3dwidgetsRenderer):
         self.points = points
         self.trilist = trilist
         self.colour_per_point = colour_per_point
-        self._actors = []
+        self.colorbar_object_id = False
 
-    def _render_mesh(self, mesh_type='surface', ambient_light=0.0,
-                     specular_light=0.0, alpha=1.0):
-        from tvtk.api import tvtk
-        pd = tvtk.PolyData()
-        pd.points = self.points
-        pd.polys = self.trilist
-        pd.point_data.scalars = (self.colour_per_point * 255.).astype(np.uint8)
-        mapper = tvtk.PolyDataMapper()
-        mapper.set_input_data(pd)
-        p = tvtk.Property(representation=mesh_type, opacity=alpha,
-                          ambient=ambient_light, specular=specular_light)
-        actor = tvtk.Actor(mapper=mapper, property=p)
-        self.figure.scene.add_actors(actor)
-        self._actors.append(actor)
+    def _render_mesh(self):
+        widg_to_draw = super(K3dwidgetsColouredTriMeshViewer3d, self)._render()
 
-    def render(self, mesh_type='surface', ambient_light=0.0, specular_light=0.0,
-               normals=None, normals_colour='k', normals_line_width=2,
-               normals_marker_style='2darrow', normals_marker_resolution=8,
-               normals_marker_size=None, step=None, alpha=1.0):
+        mesh_to_add = k3d_mesh(self.points.astype(np.float32),
+                               self.trilist.flatten().astype(np.uint32),
+                               attribute=self.colour_per_point,
+                               )
+        widg_to_draw += mesh_to_add
+
+        #if hasattr(self.landmarks, 'points'):
+        #    self.landmarks.view(inline=True, new_figure=False,
+        #                        figure_id=self.figure_id)
+
+
+    def _render(self, normals=None, normals_colour='k', normals_line_width=2,
+               normals_marker_size=None):
         if normals is not None:
             K3dwidgetsVectorViewer3d(self.figure_id, False,
                                      self.points, normals).render(
@@ -500,8 +494,7 @@ class K3dwidgetsColouredTriMeshViewer3d(K3dwidgetsRenderer):
                 marker_style=normals_marker_style,
                 marker_resolution=normals_marker_resolution,
                 marker_size=normals_marker_size, alpha=alpha)
-        self._render_mesh(mesh_type=mesh_type, ambient_light=ambient_light,
-                          specular_light=specular_light, alpha=alpha)
+        self._render_mesh()
         return self
 
 
@@ -645,7 +638,7 @@ class K3dwidgetsPCAModelViewer3d(GridBox):
         self.trilist = trilist.astype(np.uint32)
         self.components = components.astype(np.float32)
         self.eigenvalues = eigenvalues.astype(np.float32)
-        self.n_parameters = n_parameters.astype(np.float32)
+        self.n_parameters = n_parameters
         self.landmarks_indices = landmarks_indices
         self.layout = Layout(grid_template_columns='1fr 1fr')
         self.wid = LinearModelParametersWidget(n_parameters=n_parameters,
