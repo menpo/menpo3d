@@ -135,7 +135,7 @@ class K3dwidgetsRenderer(Plot, Renderer):
         if not self.new_figure:
             for widg in self.widgets.values():
                 if isinstance(widg, K3dwidgetsRenderer):
-                    if widg.figure_id == self.figure_id and widg.model_id != self.model_id:
+                    if widg.figure_id == self.figure_id and widg.model_id != self.model_id and widg.new_figure:
                         widg_to_draw = widg
                         return widg_to_draw
         return widg_to_draw
@@ -295,7 +295,7 @@ class K3dwidgetsVectorViewer3d(K3dwidgetsRenderer):
                                      color=colour, head_size=marker_size,
                                      line_width=line_width)
         widg_to_draw += vectors_to_add
-        return self
+        return widg_to_draw
 
 
 class K3dwidgetsPointGraphViewer3d(K3dwidgetsRenderer):
@@ -367,8 +367,8 @@ class K3dwidgetsPointGraphViewer3d(K3dwidgetsRenderer):
 class K3dwidgetsTriMeshViewer3d(K3dwidgetsRenderer):
     def __init__(self, figure_id, new_figure, points, trilist, landmarks=None):
         super(K3dwidgetsTriMeshViewer3d, self).__init__(figure_id, new_figure)
-        self.points = points
-        self.trilist = trilist
+        self.points = points.astype(np.float32)
+        self.trilist = trilist.astype(np.uint32)
         self.landmarks = landmarks
 
     def _render_mesh(self, line_width, colour, marker_style, marker_size):
@@ -376,8 +376,7 @@ class K3dwidgetsTriMeshViewer3d(K3dwidgetsRenderer):
         colour = _parse_colour(colour)
 
         widg_to_draw = super(K3dwidgetsTriMeshViewer3d, self)._render()
-        mesh_to_add = k3d_mesh(self.points.astype(np.float32),
-                               self.trilist.flatten().astype(np.uint32),
+        mesh_to_add = k3d_mesh(self.points, self.trilist.flatten(),
                                flat_shading=False, color=colour, side='double')
         widg_to_draw += mesh_to_add
 
@@ -394,10 +393,12 @@ class K3dwidgetsTriMeshViewer3d(K3dwidgetsRenderer):
         widg_to_draw = self._render_mesh(line_width, colour,
                                          marker_style, marker_size)
         if normals is not None:
-            K3dwidgetsVectorViewer3d(self.figure_id, False,
-                                     self.points, normals)._render(colour=normals_colour,
-                                                                   line_width=normals_line_width,
-                                                                   marker_size=normals_marker_size)
+            tmp_normals_widget = K3dwidgetsVectorViewer3d(self.figure_id,
+                                                          False, self.points,
+                                                          normals)
+            tmp_normals_widget._render(colour=normals_colour,
+                                       line_width=normals_line_width,
+                                       marker_size=normals_marker_size)
 
         return widg_to_draw
 
@@ -641,11 +642,11 @@ class K3dwidgetsPCAModelViewer3d(GridBox):
             raise MenpowidgetsMissingError(e)
         self.figure_id = _check_figure_id(self, figure_id, new_figure)
         self.new_figure = new_figure
-        self.points = points
-        self.trilist = trilist
-        self.components = components
-        self.eigenvalues = eigenvalues
-        self.n_parameters = n_parameters
+        self.points = points.astype(np.float32)
+        self.trilist = trilist.astype(np.uint32)
+        self.components = components.astype(np.float32)
+        self.eigenvalues = eigenvalues.astype(np.float32)
+        self.n_parameters = n_parameters.astype(np.float32)
         self.landmarks_indices = landmarks_indices
         self.layout = Layout(grid_template_columns='1fr 1fr')
         self.wid = LinearModelParametersWidget(n_parameters=n_parameters,
@@ -665,17 +666,17 @@ class K3dwidgetsPCAModelViewer3d(GridBox):
         marker_size = _parse_marker_size(marker_size, self.points)
         colour = _parse_colour(colour)
 
-        mesh_to_add = k3d_mesh(self.points.astype(np.float32),
-                               self.trilist.flatten().astype(np.uint32),
+        mesh_to_add = k3d_mesh(self.points, self.trilist.flatten(),
                                flat_shading=False, color=colour,
                                name='Instance', side='double')
 
         self.mesh_window += mesh_to_add
 
         if self.landmarks_indices is not None:
-            landmarks_to_add = k3d_points(self.points[self.landmarks_indices].astype(np.float32),
+            landmarks_to_add = k3d_points(self.points[self.landmarks_indices],
                                           color=0x00FF00, name='landmarks',
-                                          point_size=marker_size, shader='mesh')
+                                          point_size=marker_size,
+                                          shader='mesh')
             self.mesh_window += landmarks_to_add
         return self
 
