@@ -11,6 +11,7 @@ from .viewk3dwidgets import (K3dwidgetsTriMeshViewer3d,
                              K3dwidgetsVectorViewer3d,
                              K3dwidgetsLandmarkViewer3d,
                              K3dwidgetsTexturedTriMeshViewer3d,
+                             K3dwidgetsColouredTriMeshViewer3d,
                              K3dwidgetsHeatmapViewer3d,
                              K3dwidgetsPCAModelViewer3d)
 
@@ -29,3 +30,4 @@ PointGraphInlineViewer3d = K3dwidgetsPointGraphViewer3d
 VectorInlineViewer3d = K3dwidgetsVectorViewer3d
 HeatmapInlineViewer3d = K3dwidgetsHeatmapViewer3d
 PCAModelInlineViewer3d = K3dwidgetsPCAModelViewer3d
+ColouredTriMeshInlineViewer3d = K3dwidgetsColouredTriMeshViewer3d
