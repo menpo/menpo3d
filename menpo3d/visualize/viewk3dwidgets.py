@@ -147,6 +147,11 @@ class K3dwidgetsRenderer(Plot, Renderer):
         self.comm.close()
         self.comm = None
         self._repr_mimebundle_ = None
+        # TODO
+        # Why the following atributes don't change
+        self.camera = [-0.02, -0.12, 3.32,
+                       0.00, -0.16, 0.58,
+                       0.02, 1.00, 0.04]
 
     def get_figure(self):
         r"""
@@ -305,8 +310,8 @@ class K3dwidgetsPointGraphViewer3d(K3dwidgetsRenderer):
                 marker_colour='g', render_numbering=False,
                 numbers_colour='k', numbers_size=None):
 
+        widg_to_draw = super(K3dwidgetsPointGraphViewer3d, self)._render()
         # Render the lines if requested
-        # TODO
         if render_lines:
             if isinstance(line_colour, list):
                 line_colour = [_parse_colour(i_color) for i_color in
@@ -314,18 +319,6 @@ class K3dwidgetsPointGraphViewer3d(K3dwidgetsRenderer):
             else:
                 line_colour = _parse_colour(line_colour)
 
-        # Render the markers if requested
-        if render_markers:
-            marker_size = _parse_marker_size(marker_size, self.points)
-            marker_colour = _parse_colour(marker_colour)
-            widg_to_draw = super(K3dwidgetsPointGraphViewer3d, self)._render()
-
-            if marker_style == 'sphere':
-                marker_style = 'mesh'
-
-            points_to_add = k3d_points(self.points, color=marker_colour,
-                                       point_size=marker_size,
-                                       shader=marker_style)
             lines_to_add = None
             for edge in self.edges:
                 if isinstance(line_colour, list):
@@ -342,20 +335,31 @@ class K3dwidgetsPointGraphViewer3d(K3dwidgetsRenderer):
                 else:
                     lines_to_add += k3d_line(self.points[edge],
                                              color=color_this_line)
+            widg_to_draw += lines_to_add
+
+        # Render the markers if requested
+        if render_markers:
+            marker_size = _parse_marker_size(marker_size, self.points)
+            marker_colour = _parse_colour(marker_colour)
+
+            if marker_style == 'sphere':
+                marker_style = 'mesh'
+
+            points_to_add = k3d_points(self.points, color=marker_colour,
+                                       point_size=marker_size,
+                                       shader=marker_style)
+            widg_to_draw += points_to_add
 
             if render_numbering:
                 text_to_add = None
                 for i, point in enumerate(self.points):
                     if text_to_add is None:
                         text_to_add = k3d_text(str(i), position=point,
-                                              label_box=False)
+                                               label_box=False)
                     else:
                         text_to_add += k3d_text(str(i), position=point,
-                                              label_box=False)
+                                                label_box=False)
                 widg_to_draw += text_to_add
-
-            widg_to_draw += lines_to_add
-            widg_to_draw += points_to_add
 
         return widg_to_draw
 
@@ -380,12 +384,6 @@ class K3dwidgetsTriMeshViewer3d(K3dwidgetsRenderer):
         if hasattr(self.landmarks, 'points'):
             self.landmarks.view(inline=True, new_figure=False,
                                 figure_id=self.figure_id)
-        # TODO
-        # Why the following atributes don't change
-        self.camera = [-0.02, -0.12, 3.32,
-                       0.00, -0.16, 0.58,
-                       0.02, 1.00, 0.04]
-
         return widg_to_draw
 
     def _render(self, line_width=2, colour='r',
@@ -568,12 +566,11 @@ class K3dwidgetsLandmarkViewer3d(K3dwidgetsRenderer):
             for i, point in enumerate(self.landmark_group.points):
                 if text_to_add is None:
                     text_to_add = k3d_text(str(i), position=point,
-                                          label_box=False)
+                                           label_box=False)
                 else:
                     text_to_add += k3d_text(str(i), position=point,
-                                          label_box=False)
+                                            label_box=False)
             widg_to_draw += text_to_add
-            
         return widg_to_draw
 
     def _build_sub_pointclouds(self):
@@ -593,13 +590,8 @@ class K3dwidgetsHeatmapViewer3d(K3dwidgetsRenderer):
 
         marker_size = _parse_marker_size(None, self.points)
 
-        widg_to_draw = self
-        if not self.new_figure:
-            for widg in self.widgets.values():
-                if isinstance(widg, K3dwidgetsRenderer):
-                    if widg.figure_id == self.figure_id and widg.model_id != self.model_id:
-                        widg_to_draw = widg
-                        break
+        widg_to_draw = super(K3dwidgetsHeatmapViewer3d, self)._render()
+
         try:
             color_map = getattr(matplotlib_color_maps, type_cmap)
         except AttributeError:
