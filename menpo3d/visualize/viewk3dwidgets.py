@@ -129,6 +129,9 @@ class K3dwidgetsRenderer(Plot, Renderer):
         self.figure_id = _check_figure_id(self, figure_id, new_figure)
         self.new_figure = new_figure
         self.grid_visible = False
+        self.camera = [-0.02, -0.12, 3.32,
+                       0.00, -0.16, 0.58,
+                       0.02, 1.00, 0.04]
 
     def _render(self):
         widg_to_draw = self
@@ -138,6 +141,9 @@ class K3dwidgetsRenderer(Plot, Renderer):
                     if widg.figure_id == self.figure_id and widg.model_id != self.model_id and widg.new_figure:
                         widg_to_draw = widg
                         return widg_to_draw
+            self.remove_widget()
+            raise Exception('Figure with id {} was not found '.format(self.figure_id))
+
         return widg_to_draw
 
     def remove_widget(self):
@@ -149,9 +155,6 @@ class K3dwidgetsRenderer(Plot, Renderer):
         self._repr_mimebundle_ = None
         # TODO
         # Why the following atributes don't change
-        self.camera = [-0.02, -0.12, 3.32,
-                       0.00, -0.16, 0.58,
-                       0.02, 1.00, 0.04]
 
     def get_figure(self):
         r"""
@@ -483,7 +486,6 @@ class K3dwidgetsColouredTriMeshViewer3d(K3dwidgetsRenderer):
         #if hasattr(self.landmarks, 'points'):
         #    self.landmarks.view(inline=True, new_figure=False,
         #                        figure_id=self.figure_id)
-
 
     def _render(self, normals=None, normals_colour='k', normals_line_width=2,
                normals_marker_size=None):
