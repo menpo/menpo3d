@@ -466,13 +466,14 @@ class K3dwidgetsTexturedTriMeshViewer3d(K3dwidgetsRenderer):
 class K3dwidgetsColouredTriMeshViewer3d(K3dwidgetsRenderer):
     # TODO
     def __init__(self, figure_id, new_figure, points, trilist,
-                 colour_per_point):
+                 colour_per_point, landmarks):
         super(K3dwidgetsColouredTriMeshViewer3d, self).__init__(figure_id,
                                                                 new_figure)
         self.points = points
         self.trilist = trilist
         self.colour_per_point = colour_per_point
         self.colorbar_object_id = False
+        self.landmarks = landmarks
 
     def _render_mesh(self):
         widg_to_draw = super(K3dwidgetsColouredTriMeshViewer3d, self)._render()
@@ -483,12 +484,12 @@ class K3dwidgetsColouredTriMeshViewer3d(K3dwidgetsRenderer):
                                )
         widg_to_draw += mesh_to_add
 
-        #if hasattr(self.landmarks, 'points'):
-        #    self.landmarks.view(inline=True, new_figure=False,
-        #                        figure_id=self.figure_id)
+        if hasattr(self.landmarks, 'points'):
+            self.landmarks.view(inline=True, new_figure=False,
+                                figure_id=self.figure_id)
 
     def _render(self, normals=None, normals_colour='k', normals_line_width=2,
-               normals_marker_size=None):
+                normals_marker_size=None):
         if normals is not None:
             K3dwidgetsVectorViewer3d(self.figure_id, False,
                                      self.points, normals).render(
@@ -634,6 +635,7 @@ class K3dwidgetsPCAModelViewer3d(GridBox):
         except ImportError as e:
             from menpo.visualize import MenpowidgetsMissingError
             raise MenpowidgetsMissingError(e)
+
         self.figure_id = _check_figure_id(self, figure_id, new_figure)
         self.new_figure = new_figure
         self.points = points.astype(np.float32)
@@ -675,7 +677,11 @@ class K3dwidgetsPCAModelViewer3d(GridBox):
         return self
 
     def render_function(self, change):
-        mesh = self.points + (self.components[:self.n_parameters, :].T@(self.wid.selected_values*self.eigenvalues[:self.n_parameters]**0.5)).reshape(-1, 3)
+        weights = np.asarray(self.wid.selected_values).astype(np.float32)
+        weighted_eigenvalues = weights * self.eigenvalues[:self.n_parameters]**0.5
+        new_instance = (self.components[:self.n_parameters, :].T@weighted_eigenvalues).reshape(-1, 3)
+        mesh = self.points + new_instance
+
         self.mesh_window.objects[0].vertices = mesh
         if self.landmarks_indices is not None:
             self.mesh_window.objects[1].positions = mesh[self.landmarks_indices]
