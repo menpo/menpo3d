@@ -84,7 +84,7 @@ cython_modules = [
 ]
 cython_exts = cythonize(cython_modules, quiet=True)
 
-install_requires = ['menpo>=0.8.0,<0.11.0',
+install_requires = ['menpo>=0.9.0,<0.11.0',
                     'vtk',
                     # 'mayavi>=4.7.0',
                     'scikit-sparse>=0.3.1',
