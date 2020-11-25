@@ -30,20 +30,25 @@ def clear_figure(figure_id=None):
     dict_fig = dict_figures()
 
 
+def _calc_distance(points):
+    from menpo.shape import PointCloud
+    pc = PointCloud(points, copy=False)
+    # This is the way that mayavi automatically computes the scale factor
+    # in  case the user passes scale_factor = 'auto'. We use it for both
+    # the  marker_size as well as the numbers_size.
+    xyz_min, xyz_max = pc.bounds()
+    x_min, y_min, z_min = xyz_min
+    x_max, y_max, z_max = xyz_max
+    distance = np.sqrt(((x_max - x_min) ** 2 +
+                        (y_max - y_min) ** 2 +
+                        (z_max - z_min) ** 2) /
+                       (4 * pc.n_points ** 0.33))
+    return distance
+
+
 def _parse_marker_size(marker_size, points):
+    distance = _calc_distance(points)
     if marker_size is None:
-        from menpo.shape import PointCloud
-        pc = PointCloud(points, copy=False)
-        # This is the way that mayavi automatically computes the scale factor
-        # in  case the user passes scale_factor = 'auto'. We use it for both
-        # the  marker_size as well as the numbers_size.
-        xyz_min, xyz_max = pc.bounds()
-        x_min, y_min, z_min = xyz_min
-        x_max, y_max, z_max = xyz_max
-        distance = np.sqrt(((x_max - x_min) ** 2 +
-                            (y_max - y_min) ** 2 +
-                            (z_max - z_min) ** 2) /
-                           (4 * pc.n_points ** 0.33))
         if distance == 0:
             marker_size = 1
         else:
@@ -79,6 +84,17 @@ def _check_colours_list(render_flag, colours_list, n_objects, error_str):
     else:
         colours_list = [0x00FF00] * n_objects
     return colours_list
+
+
+def _calc_camera_position(points):
+    from menpo.shape import PointCloud
+
+    pc = PointCloud(points, copy=False)
+    bounds = pc.bounding_box().points
+    distance = np.max(bounds[1::2] - bounds[::2]) * 2.0
+    camera = [0, 0, distance, 0, 0, 0, 0, 1, 0]
+
+    return camera
 
 
 def _check_figure_id(obj, figure_id, new_figure):
@@ -129,9 +145,6 @@ class K3dwidgetsRenderer(Plot, Renderer):
         self.figure_id = _check_figure_id(self, figure_id, new_figure)
         self.new_figure = new_figure
         self.grid_visible = False
-        self.camera = [-0.02, -0.12, 3.32,
-                       0.00, -0.16, 0.58,
-                       0.02, 1.00, 0.04]
 
     def _render(self):
         widg_to_draw = self
@@ -403,6 +416,9 @@ class K3dwidgetsTriMeshViewer3d(K3dwidgetsRenderer):
                                        line_width=normals_line_width,
                                        marker_size=normals_marker_size)
 
+        widg_to_draw.camera = _calc_camera_position(self.points)
+        widg_to_draw.camera_auto_fit = False
+
         return widg_to_draw
 
 
@@ -443,9 +459,8 @@ class K3dwidgetsTexturedTriMeshViewer3d(K3dwidgetsRenderer):
             self.landmarks.view(inline=True, new_figure=False,
                                 figure_id=self.figure_id)
 
-        self.camera = [-0.02, -0.12, 3.32,
-                       0.00, -0.16, 0.58,
-                       0.02, 1.00, 0.04]
+        widg_to_draw.camera = _calc_camera_position(self.points)
+        widg_to_draw.camera_auto_fit = False
 
         return widg_to_draw
 
@@ -488,6 +503,8 @@ class K3dwidgetsColouredTriMeshViewer3d(K3dwidgetsRenderer):
         if hasattr(self.landmarks, 'points'):
             self.landmarks.view(inline=True, new_figure=False,
                                 figure_id=self.figure_id)
+        widg_to_draw.camera = _calc_camera_position(self.points)
+        widg_to_draw.camera_auto_fit = False
 
     def _render(self, normals=None, normals_colour='k', normals_line_width=2,
                 normals_marker_size=None):
@@ -568,6 +585,9 @@ class K3dwidgetsLandmarkViewer3d(K3dwidgetsRenderer):
                     text_to_add += k3d_text(str(i), position=point,
                                             label_box=False)
             widg_to_draw += text_to_add
+        # widg_to_draw.camera = _calc_camera_position(pc.points)
+        # widg_to_draw.camera_auto_fit = False
+
         return widg_to_draw
 
     def _build_sub_pointclouds(self):
@@ -617,6 +637,9 @@ class K3dwidgetsHeatmapViewer3d(K3dwidgetsRenderer):
             text_position = (max_b-min_b)/2
             widg_to_draw += k3d_text(text, position=text_position,
                                      color=0xff0000, size=1)
+
+        widg_to_draw.camera = _calc_camera_position(self.points)
+        widg_to_draw.camera_auto_fit = False
 
         return widg_to_draw
 
@@ -675,6 +698,9 @@ class K3dwidgetsPCAModelViewer3d(GridBox):
                                           point_size=marker_size,
                                           shader='mesh')
             self.mesh_window += landmarks_to_add
+        self.mesh_window.camera = _calc_camera_position(self.points)
+        self.mesh_window.camera_auto_fit = False
+
         return self
 
     def render_function(self, change):
