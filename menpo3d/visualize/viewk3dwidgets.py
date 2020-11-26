@@ -387,13 +387,22 @@ class K3dwidgetsTriMeshViewer3d(K3dwidgetsRenderer):
         self.trilist = trilist.astype(np.uint32)
         self.landmarks = landmarks
 
-    def _render_mesh(self, line_width, colour, marker_style, marker_size):
+    def _render_mesh(self, line_width, colour, mesh_type,
+                     marker_style, marker_size):
         marker_size = _parse_marker_size(marker_size, self.points)
         colour = _parse_colour(colour)
 
         widg_to_draw = super(K3dwidgetsTriMeshViewer3d, self)._render()
+        wireframe = False
+        opacity = 1.0
+        if mesh_type == 'wireframe':
+            wireframe = True
+            opacity = 0.3
+
         mesh_to_add = k3d_mesh(self.points, self.trilist.flatten(),
-                               flat_shading=False, color=colour, side='double')
+                               flat_shading=False, opacity=opacity,
+                               color=colour, wireframe=wireframe,
+                               side='double')
         widg_to_draw += mesh_to_add
 
         if hasattr(self.landmarks, 'points'):
@@ -401,12 +410,12 @@ class K3dwidgetsTriMeshViewer3d(K3dwidgetsRenderer):
                                 figure_id=self.figure_id)
         return widg_to_draw
 
-    def _render(self, line_width=2, colour='r',
+    def _render(self, line_width=2, colour='r', mesh_type='surface',
                 marker_style='sphere', marker_size=None,
                 normals=None, normals_colour='k', normals_line_width=2,
                 normals_marker_size=None):
 
-        widg_to_draw = self._render_mesh(line_width, colour,
+        widg_to_draw = self._render_mesh(line_width, colour, mesh_type,
                                          marker_style, marker_size)
         if normals is not None:
             tmp_normals_widget = K3dwidgetsVectorViewer3d(self.figure_id,
