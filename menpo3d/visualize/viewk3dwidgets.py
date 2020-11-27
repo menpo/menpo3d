@@ -1,5 +1,4 @@
 import numpy as np
-from menpo.visualize import Renderer
 from k3d import (Plot, mesh as k3d_mesh, points as k3d_points,
                  text as k3d_text, vectors as k3d_vectors,
                  line as k3d_line)
@@ -117,8 +116,11 @@ def _check_figure_id(obj, figure_id, new_figure):
                 figure_id = 'Figure_0'
 
         else:
-            obj.remove_widget()
-            raise ValueError('You cannot plot a figure with no id and new figure False')
+            if len(obj.list_figures_ids):
+                figure_id = obj.list_figures_ids[-1]
+            else:
+                obj.remove_widget()
+                raise ValueError('You cannot plot a figure with no id and new figure False')
     else:
         if new_figure:
             for x in obj.widgets.values():
@@ -126,10 +128,21 @@ def _check_figure_id(obj, figure_id, new_figure):
                     if x.figure_id == figure_id:
                         obj.remove_widget()
                         raise ValueError('Figure id is already given')
+        else:
+            return figure_id
+
+    obj.list_figures_ids.append(figure_id)
+    if hasattr(obj, 'model_id'):
+        obj.dict_figure_id_to_model_id[figure_id] = obj.model_id
     return figure_id
 
 
-class K3dwidgetsRenderer(Plot, Renderer):
+class K3dwidgetIdentity():
+    list_figures_ids = []
+    dict_figure_id_to_model_id = {}
+
+
+class K3dwidgetsRenderer(Plot, K3dwidgetIdentity):
     """ Abstract class for performing visualizations using K3dwidgets.
 
     Parameters
@@ -139,6 +152,8 @@ class K3dwidgetsRenderer(Plot, Renderer):
     new_figure : bool
         If `True`, creates a new figure on the cell.
     """
+  #  list_figures_ids = []
+
     def __init__(self, figure_id, new_figure):
         super(K3dwidgetsRenderer, self).__init__()
 
@@ -166,8 +181,6 @@ class K3dwidgetsRenderer(Plot, Renderer):
         self.comm.close()
         self.comm = None
         self._repr_mimebundle_ = None
-        # TODO
-        # Why the following atributes don't change
 
     def get_figure(self):
         r"""
@@ -658,7 +671,7 @@ class K3dwidgetsHeatmapViewer3d(K3dwidgetsRenderer):
                                  scalar_range, show_statistics)
 
 
-class K3dwidgetsPCAModelViewer3d(GridBox):
+class K3dwidgetsPCAModelViewer3d(GridBox, K3dwidgetIdentity):
     def __init__(self, figure_id, new_figure, points, trilist,
                  components, eigenvalues, n_parameters, parameters_bound,
                  landmarks_indices, widget_style):
@@ -689,6 +702,8 @@ class K3dwidgetsPCAModelViewer3d(GridBox):
                                                      self.points, self.trilist)
         super(K3dwidgetsPCAModelViewer3d, self).__init__(children=[self.wid, self.mesh_window],
                                                          layout=Layout(grid_template_columns='1fr 1fr'))
+
+        self.dict_figure_id_to_model_id[figure_id] = self.model_id
 
     def _render_mesh(self, mesh_type, line_width, colour, marker_size,
                      marker_resolution, marker_style, step, alpha):
