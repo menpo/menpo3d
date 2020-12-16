@@ -152,7 +152,7 @@ class K3dwidgetsRenderer(Plot, K3dwidgetIdentity):
     new_figure : bool
         If `True`, creates a new figure on the cell.
     """
-  #  list_figures_ids = []
+   #  list_figures_ids = []
 
     def __init__(self, figure_id, new_figure):
         super(K3dwidgetsRenderer, self).__init__()
@@ -341,7 +341,7 @@ class K3dwidgetsPointGraphViewer3d(K3dwidgetsRenderer):
 
         widg_to_draw = super(K3dwidgetsPointGraphViewer3d, self)._render()
         # Render the lines if requested
-        if render_lines:
+        if render_lines and self.edges is not None:
             if isinstance(line_colour, list):
                 line_colour = [_parse_colour(i_color) for i_color in
                                line_colour]
@@ -685,7 +685,10 @@ class K3dwidgetsPCAModelViewer3d(GridBox, K3dwidgetIdentity):
         self.figure_id = _check_figure_id(self, figure_id, new_figure)
         self.new_figure = new_figure
         self.points = points.astype(np.float32)
-        self.trilist = trilist.astype(np.uint32)
+        if trilist is None:
+            self.trilist = None
+        else:
+            self.trilist = trilist.astype(np.uint32)
         self.components = components.astype(np.float32)
         self.eigenvalues = eigenvalues.astype(np.float32)
         self.n_parameters = n_parameters
@@ -698,7 +701,11 @@ class K3dwidgetsPCAModelViewer3d(GridBox, K3dwidgetIdentity):
                                                params_bounds=parameters_bound,
                                                plot_variance_visible=False,
                                                style=widget_style)
-        self.mesh_window = K3dwidgetsTriMeshViewer3d(self.figure_id, False,
+        if self.trilist is None:
+            self.mesh_window = K3dwidgetsPointGraphViewer3d(self.figure_id, False,
+                                                     self.points, self.trilist)
+        else:
+            self.mesh_window = K3dwidgetsTriMeshViewer3d(self.figure_id, False,
                                                      self.points, self.trilist)
         super(K3dwidgetsPCAModelViewer3d, self).__init__(children=[self.wid, self.mesh_window],
                                                          layout=Layout(grid_template_columns='1fr 1fr'))
@@ -710,9 +717,14 @@ class K3dwidgetsPCAModelViewer3d(GridBox, K3dwidgetIdentity):
         marker_size = _parse_marker_size(marker_size, self.points)
         colour = _parse_colour(colour)
 
-        mesh_to_add = k3d_mesh(self.points, self.trilist.flatten(),
-                               flat_shading=False, color=colour,
-                               name='Instance', side='double')
+        if self.trilist is None:
+            mesh_to_add = k3d_points(self.points, color=colour,
+                                     point_size=marker_size,
+                                     shader='3dSpecular')
+        else:
+            mesh_to_add = k3d_mesh(self.points, self.trilist.flatten(),
+                                   flat_shading=False, color=colour,
+                                   name='Instance', side='double')
 
         self.mesh_window += mesh_to_add
 
@@ -731,11 +743,14 @@ class K3dwidgetsPCAModelViewer3d(GridBox, K3dwidgetIdentity):
         weights = np.asarray(self.wid.selected_values).astype(np.float32)
         weighted_eigenvalues = weights * self.eigenvalues[:self.n_parameters]**0.5
         new_instance = (self.components[:self.n_parameters, :].T@weighted_eigenvalues).reshape(-1, 3)
-        mesh = self.points + new_instance
+        new_points = self.points + new_instance
 
-        self.mesh_window.objects[0].vertices = mesh
+        if self.trilist is None:
+            self.mesh_window.objects[0].positions = new_points
+        else:
+            self.mesh_window.objects[0].vertices = new_points
         if self.landmarks_indices is not None:
-            self.mesh_window.objects[1].positions = mesh[self.landmarks_indices]
+            self.mesh_window.objects[1].positions = new_points[self.landmarks_indices]
 
     def _render(self, mesh_type='wireframe', line_width=2, colour='r',
                 marker_style='sphere', marker_size=None, marker_resolution=8,
