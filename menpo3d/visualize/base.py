@@ -3,8 +3,6 @@ from .viewmayavi import (
     MayaviTexturedTriMeshViewer3d, MayaviLandmarkViewer3d,
     MayaviVectorViewer3d, MayaviColouredTriMeshViewer3d, MayaviHeatmapViewer3d)
 
-# from .viewitkwidgets import (ItkwidgetsTriMeshViewer3d,
-#                             ItkwidgetsPointGraphViewer3d)
 
 from .viewk3dwidgets import (K3dwidgetsTriMeshViewer3d,
                              K3dwidgetsPointGraphViewer3d,
