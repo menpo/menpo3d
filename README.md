@@ -50,24 +50,3 @@ mesh = menpo3d.io.import_builtin_asset('james.obj')
 %matplotlib qt
 mesh.view()
 ```
- If you are on Linux and get an error like:
-```
-ValueError: API 'QString' has already been set to version 1
-```
-Try adding the following to your `.bashrc` file:
-```bash
-export QT_API=pyqt
-export ETS_TOOLKIT=qt4
-```
-Open a new terminal and re-run IPython notebook in here, this should fix the issue.
-
-If you are running Windows and recieve this error, try:
-```cmd
-set QT_API=pyqt
-set ETS_TOOLKIT=qt4
-```
-Alternatively, try installing wxPython:
-```cmd
-conda install wxpython
-```
-and using `%matplotlib wx`.
