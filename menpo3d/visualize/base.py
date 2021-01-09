@@ -1,7 +1,11 @@
 from .viewmayavi import (
-    MayaviTriMeshViewer3d, MayaviPointGraphViewer3d,
-    MayaviTexturedTriMeshViewer3d, MayaviLandmarkViewer3d,
-    MayaviVectorViewer3d, MayaviColouredTriMeshViewer3d)
+    MayaviTriMeshViewer3d,
+    MayaviPointGraphViewer3d,
+    MayaviTexturedTriMeshViewer3d,
+    MayaviLandmarkViewer3d,
+    MayaviVectorViewer3d,
+    MayaviColouredTriMeshViewer3d,
+)
 
 PointGraphViewer3d = MayaviPointGraphViewer3d
 TriMeshViewer3d = MayaviTriMeshViewer3d

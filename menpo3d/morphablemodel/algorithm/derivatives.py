@@ -70,19 +70,17 @@ def d_orthographic_camera_d_shape_parameters(shape_pc_uv, camera):
 
 def d_camera_d_shape_parameters(camera, warped_uv, shape_pc_uv):
     if camera.__class__ == PerspectiveCamera:
-        dp_da = d_perspective_camera_d_shape_parameters(shape_pc_uv, warped_uv,
-                                                        camera)
+        dp_da = d_perspective_camera_d_shape_parameters(shape_pc_uv, warped_uv, camera)
     elif camera.__class__ == OrthographicCamera:
         dp_da = d_orthographic_camera_d_shape_parameters(shape_pc_uv, camera)
     else:
-        raise ValueError("Camera must be either Perspective or "
-                         "Orthographic.")
+        raise ValueError("Camera must be either Perspective or " "Orthographic.")
     return dp_da
 
 
-def d_perspective_camera_d_camera_parameters(warped_uv, camera,
-                                             with_focal_length=True,
-                                             with_first_quaternion=False):
+def d_perspective_camera_d_camera_parameters(
+    warped_uv, camera, with_focal_length=True, with_first_quaternion=False
+):
     """
     Calculates the derivative of the perspective projection with respect to the
     camera parameters.
@@ -133,34 +131,25 @@ def d_perspective_camera_d_camera_parameters(warped_uv, camera,
         r += 1
 
     # Quaternions
-    centered_warped_uv = camera.translation_transform.pseudoinverse().apply(
-        warped_uv).T
+    centered_warped_uv = camera.translation_transform.pseudoinverse().apply(warped_uv).T
     # q_1, if requested
     if with_first_quaternion:
-        r0 = 2 * np.array([[1, 0, 0],
-                           [0, 1, 0],
-                           [0, 0, 1]]).dot(centered_warped_uv).T
+        r0 = 2 * np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]]).dot(centered_warped_uv).T
         dw_dr[:, r] = r0[:, :2].T - r0[:, 2] * warped_uv[:, :2].T / z
         r += 1
 
     # q_2
-    r1 = 2 * np.array([[0, 0,  0],
-                       [0, 0, -1],
-                       [0, 1,  0]]).dot(centered_warped_uv).T
+    r1 = 2 * np.array([[0, 0, 0], [0, 0, -1], [0, 1, 0]]).dot(centered_warped_uv).T
     dw_dr[:, r] = r1[:, :2].T - r1[:, 2] * warped_uv[:, :2].T / z
     r += 1
 
     # q_3
-    r2 = 2 * np.array([[ 0, 0, 1],
-                       [ 0, 0, 0],
-                       [-1, 0, 0]]).dot(centered_warped_uv).T
+    r2 = 2 * np.array([[0, 0, 1], [0, 0, 0], [-1, 0, 0]]).dot(centered_warped_uv).T
     dw_dr[:, r] = r2[:, :2].T - r2[:, 2] * warped_uv[:, :2].T / z
     r += 1
 
     # q_4
-    r3 = 2 * np.array([[0, -1, 0],
-                       [1,  0, 0],
-                       [0,  0, 0]]).dot(centered_warped_uv).T
+    r3 = 2 * np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]]).dot(centered_warped_uv).T
     dw_dr[:, r] = r3[:, :2].T - r3[:, 2] * warped_uv[:, :2].T / z
     r += 1
 
@@ -177,15 +166,16 @@ def d_perspective_camera_d_camera_parameters(warped_uv, camera,
     dw_dr[1, r] = camera.projection_transform.focal_length / z
     r += 1
     # t_z
-    dw_dr[:, r] = (- camera.projection_transform.focal_length *
-                   warped_uv[:, :2] / z[..., None] ** 2).T
+    dw_dr[:, r] = (
+        -camera.projection_transform.focal_length * warped_uv[:, :2] / z[..., None] ** 2
+    ).T
 
     return dw_dr
 
 
-def d_orthographic_camera_d_camera_parameters(warped_uv, camera,
-                                              with_focal_length=True,
-                                              with_first_quaternion=False):
+def d_orthographic_camera_d_camera_parameters(
+    warped_uv, camera, with_focal_length=True, with_first_quaternion=False
+):
     """
     Calculates the derivative of the orthographic projection with respect to the
     camera parameters.
@@ -233,35 +223,26 @@ def d_orthographic_camera_d_camera_parameters(warped_uv, camera,
         r += 1
 
     # Quaternions
-    centered_warped_uv = camera.translation_transform.pseudoinverse().apply(
-        warped_uv).T
+    centered_warped_uv = camera.translation_transform.pseudoinverse().apply(warped_uv).T
 
     # q_1, if requested
     if with_first_quaternion:
-        r0 = 2 * np.array([[1, 0, 0],
-                           [0, 1, 0],
-                           [0, 0, 1]]).dot(centered_warped_uv).T
+        r0 = 2 * np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]]).dot(centered_warped_uv).T
         dw_dr[:, r] = camera.projection_transform.focal_length * r0[:, :2].T
         r += 1
 
     # q_2
-    r1 = 2 * np.array([[0, 0,  0],
-                       [0, 0, -1],
-                       [0, 1,  0]]).dot(centered_warped_uv).T
+    r1 = 2 * np.array([[0, 0, 0], [0, 0, -1], [0, 1, 0]]).dot(centered_warped_uv).T
     dw_dr[:, r] = camera.projection_transform.focal_length * r1[:, :2].T
     r += 1
 
     # q_3
-    r2 = 2 * np.array([[ 0, 0, 1],
-                       [ 0, 0, 0],
-                       [-1, 0, 0]]).dot(centered_warped_uv).T
+    r2 = 2 * np.array([[0, 0, 1], [0, 0, 0], [-1, 0, 0]]).dot(centered_warped_uv).T
     dw_dr[:, r] = camera.projection_transform.focal_length * r2[:, :2].T
     r += 1
 
     # q_4
-    r3 = 2 * np.array([[0, -1, 0],
-                       [1,  0, 0],
-                       [0,  0, 0]]).dot(centered_warped_uv).T
+    r3 = 2 * np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]]).dot(centered_warped_uv).T
     dw_dr[:, r] = camera.projection_transform.focal_length * r3[:, :2].T
     r += 1
 
@@ -280,13 +261,18 @@ def d_orthographic_camera_d_camera_parameters(warped_uv, camera,
 def d_camera_d_camera_parameters(camera, warped_uv, with_focal_length):
     if camera.__class__ == PerspectiveCamera:
         dp_dr = d_perspective_camera_d_camera_parameters(
-            warped_uv, camera, with_focal_length=with_focal_length,
-            with_first_quaternion=False)
+            warped_uv,
+            camera,
+            with_focal_length=with_focal_length,
+            with_first_quaternion=False,
+        )
     elif camera.__class__ == OrthographicCamera:
         dp_dr = d_orthographic_camera_d_camera_parameters(
-            warped_uv, camera, with_focal_length=with_focal_length,
-            with_first_quaternion=False)
+            warped_uv,
+            camera,
+            with_focal_length=with_focal_length,
+            with_first_quaternion=False,
+        )
     else:
-        raise ValueError("Camera must be either Perspective or "
-                         "Orthographic.")
+        raise ValueError("Camera must be either Perspective or " "Orthographic.")
     return dp_dr

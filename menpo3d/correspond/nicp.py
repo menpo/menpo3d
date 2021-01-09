@@ -28,8 +28,10 @@ def stdout_redirected(to=os.devnull):
         # notebook where stdout doesn't behave the same as in a "normal" python
         # interpreter and in this case we cannot treat stdout like a file
         # descriptor
-        warnings.warn('Unable to duplicate stdout file descriptor, likely due '
-                      'to stdout having been replaced (e.g. a notebook)')
+        warnings.warn(
+            "Unable to duplicate stdout file descriptor, likely due "
+            "to stdout having been replaced (e.g. a notebook)"
+        )
         yield
     else:
         # assert that Python and C stdio write using the same file descriptor
@@ -38,10 +40,10 @@ def stdout_redirected(to=os.devnull):
         def redirect_stdout(to):
             sys.stdout.close()  # + implicit flush()
             os.dup2(to.fileno(), fd)  # fd writes to 'to' file
-            sys.stdout = os.fdopen(fd, 'w')  # Python writes to fd
+            sys.stdout = os.fdopen(fd, "w")  # Python writes to fd
 
-        with os.fdopen(os.dup(fd), 'w') as old_stdout:
-            with open(to, 'w') as file:
+        with os.fdopen(os.dup(fd), "w") as old_stdout:
+            with open(to, "w") as file:
                 redirect_stdout(to=file)
             try:
                 yield  # allow code to be run with the redirected stdout
@@ -59,7 +61,6 @@ try:
         # Fall back to the older scikits.sparse namespace
         from scikits.sparse.cholmod import cholesky_AAt
 
-
     # user has cholesky available - provide a fast solve
     def spsolve(sparse_X, dense_b):
         # wrap the cholesky call in a context manager that swallows the
@@ -69,17 +70,20 @@ try:
             factor = cholesky_AAt(sparse_X.T)
         return factor(sparse_X.T.dot(dense_b)).toarray()
 
+
 except ImportError:
     # fallback to (much slower) scipy solve
     from scipy.sparse.linalg import spsolve as scipy_spsolve
 
-
     def spsolve(sparse_X, dense_b):
-        warnings.warn("suitesparse is not installed - NICP will run "
-                      "considerably (~5-10x) slower. If possible install "
-                      "suitesparse.")
-        return scipy_spsolve(sparse_X.T.dot(sparse_X),
-                             sparse_X.T.dot(dense_b)).toarray()
+        warnings.warn(
+            "suitesparse is not installed - NICP will run "
+            "considerably (~5-10x) slower. If possible install "
+            "suitesparse."
+        )
+        return scipy_spsolve(
+            sparse_X.T.dot(sparse_X), sparse_X.T.dot(dense_b)
+        ).toarray()
 
 
 def node_arc_incidence_matrix(source):
@@ -93,55 +97,78 @@ def node_arc_incidence_matrix(source):
     return sp.coo_matrix((data, (row, col))), unique_edge_pairs
 
 
-def validate_weights(label, weights, n_points, n_iterations=None,
-                     verbose=False):
+def validate_weights(label, weights, n_points, n_iterations=None, verbose=False):
     if n_iterations is not None and len(weights) != n_iterations:
-        raise ValueError('Invalid {label}: - due to other weights there are '
-                         '{n_iterations} iterations but {n_weights} {label} '
-                         'were provided'.format(label=label,
-                                                n_iterations=n_iterations,
-                                                n_weights=len(weights)))
+        raise ValueError(
+            "Invalid {label}: - due to other weights there are "
+            "{n_iterations} iterations but {n_weights} {label} "
+            "were provided".format(
+                label=label, n_iterations=n_iterations, n_weights=len(weights)
+            )
+        )
     invalid = []
     for i, weight in enumerate(weights):
         is_per_vertex = isinstance(weight, np.ndarray)
         if is_per_vertex and weight.shape != (n_points,):
-            invalid.append('({}): {}'.format(i, weight.shape[0]))
+            invalid.append("({}): {}".format(i, weight.shape[0]))
 
     if verbose and len(weights) >= 1:
         is_per_vertex = isinstance(weights[0], np.ndarray)
         if is_per_vertex:
-            print('Using per-vertex {label}'.format(label=label))
+            print("Using per-vertex {label}".format(label=label))
         else:
-            print('Using global {label}'.format(label=label))
+            print("Using global {label}".format(label=label))
 
     if len(invalid) != 0:
-        raise ValueError('Invalid {label}: expected shape ({n_points},) '
-                         'got: {invalid_cases}'.format(
-            label=label, n_points=n_points,
-            invalid_cases='{}'.format(', '.join(invalid))))
+        raise ValueError(
+            "Invalid {label}: expected shape ({n_points},) "
+            "got: {invalid_cases}".format(
+                label=label,
+                n_points=n_points,
+                invalid_cases="{}".format(", ".join(invalid)),
+            )
+        )
 
 
-def non_rigid_icp(source, target, eps=1e-3, landmark_group=None,
-                  stiffness_weights=None, data_weights=None,
-                  landmark_weights=None, generate_instances=False,
-                  verbose=False):
+def non_rigid_icp(
+    source,
+    target,
+    eps=1e-3,
+    landmark_group=None,
+    stiffness_weights=None,
+    data_weights=None,
+    landmark_weights=None,
+    generate_instances=False,
+    verbose=False,
+):
     # call the generator version of NICP, always returning a generator
-    generator = non_rigid_icp_generator(source, target, eps=eps,
-                                        stiffness_weights=stiffness_weights,
-                                        verbose=verbose,
-                                        landmark_group=landmark_group,
-                                        landmark_weights=landmark_weights,
-                                        data_weights=data_weights)
+    generator = non_rigid_icp_generator(
+        source,
+        target,
+        eps=eps,
+        stiffness_weights=stiffness_weights,
+        verbose=verbose,
+        landmark_group=landmark_group,
+        landmark_weights=landmark_weights,
+        data_weights=data_weights,
+    )
     # the handler decides whether the user get's details and each iteration
     # returned, or just the final result.
     return non_rigid_icp_generator_handler(generator, generate_instances)
 
 
-def active_non_rigid_icp(model, target, eps=1e-3,
-                         stiffness_weights=None, data_weights=None,
-                         landmark_group=None, landmark_weights=None,
-                         model_mean_landmarks=None,
-                         generate_instances=False, verbose=False):
+def active_non_rigid_icp(
+    model,
+    target,
+    eps=1e-3,
+    stiffness_weights=None,
+    data_weights=None,
+    landmark_group=None,
+    landmark_weights=None,
+    model_mean_landmarks=None,
+    generate_instances=False,
+    verbose=False,
+):
     model_mean = model.mean()
 
     if landmark_group is not None:
@@ -149,8 +176,9 @@ def active_non_rigid_icp(model, target, eps=1e-3,
         # user better have provided model landmarks!
         if model_mean_landmarks is None:
             raise ValueError(
-                'For Active NICP with landmarks the model_mean_landmarks '
-                'need to be provided.')
+                "For Active NICP with landmarks the model_mean_landmarks "
+                "need to be provided."
+            )
 
         shape_model = ShapeModel(model)
         source_lms = model_mean_landmarks
@@ -159,20 +187,19 @@ def active_non_rigid_icp(model, target, eps=1e-3,
         shape_model_lms = shape_model.mask_points(model_lms_index)
 
         # Sim align the target lms to the mean before projecting
-        target_lms_aligned = AlignmentSimilarity(target_lms,
-                                                 source_lms).apply(target_lms)
+        target_lms_aligned = AlignmentSimilarity(target_lms, source_lms).apply(
+            target_lms
+        )
 
         # project to learn the weights for the landmark model
-        weights = shape_model_lms.project(target_lms_aligned,
-                                          n_components=20)
+        weights = shape_model_lms.project(target_lms_aligned, n_components=20)
 
         # use these weights on the dense shape model to generate an improved
         # instance
         source = model.instance(weights)
 
         # update the source landmarks (for the alignment below)
-        source.landmarks[landmark_group] = PointCloud(source.points[
-                                                          model_lms_index])
+        source.landmarks[landmark_group] = PointCloud(source.points[model_lms_index])
     else:
         # Start from the mean of the model
         source = model_mean
@@ -182,13 +209,17 @@ def active_non_rigid_icp(model, target, eps=1e-3,
         return model.reconstruct(instance)
 
     # call the generator version of NICP, always returning a generator
-    generator = non_rigid_icp_generator(source, target, eps=eps,
-                                        stiffness_weights=stiffness_weights,
-                                        data_weights=data_weights,
-                                        landmark_weights=landmark_weights,
-                                        landmark_group=landmark_group,
-                                        v_i_update_func=project_onto_model,
-                                        verbose=verbose)
+    generator = non_rigid_icp_generator(
+        source,
+        target,
+        eps=eps,
+        stiffness_weights=stiffness_weights,
+        data_weights=data_weights,
+        landmark_weights=landmark_weights,
+        landmark_group=landmark_group,
+        v_i_update_func=project_onto_model,
+        verbose=verbose,
+    )
     # the handler decides whether the user get's details and each iteration
     # returned, or just the final result.
     return non_rigid_icp_generator_handler(generator, generate_instances)
@@ -209,10 +240,17 @@ def non_rigid_icp_generator_handler(generator, generate_instances):
                 return instance[0]
 
 
-def non_rigid_icp_generator(source, target, eps=1e-3,
-                            stiffness_weights=None, data_weights=None,
-                            landmark_group=None, landmark_weights=None,
-                            v_i_update_func=None, verbose=False):
+def non_rigid_icp_generator(
+    source,
+    target,
+    eps=1e-3,
+    stiffness_weights=None,
+    data_weights=None,
+    landmark_group=None,
+    landmark_weights=None,
+    v_i_update_func=None,
+    verbose=False,
+):
     r"""
     Deforms the source trimesh to align with to optimally the target.
     """
@@ -220,11 +258,14 @@ def non_rigid_icp_generator(source, target, eps=1e-3,
     # AlignmentSimilarity between the landmarks to initialize optimally.
     if landmark_group is not None:
         if verbose:
-            print("'{}' landmarks will be used as "
-                  "a landmark constraint.".format(landmark_group))
+            print(
+                "'{}' landmarks will be used as "
+                "a landmark constraint.".format(landmark_group)
+            )
             print("performing similarity alignment using landmarks")
-        lm_align = AlignmentSimilarity(source.landmarks[landmark_group],
-                                       target.landmarks[landmark_group]).as_non_alignment()
+        lm_align = AlignmentSimilarity(
+            source.landmarks[landmark_group], target.landmarks[landmark_group]
+        ).as_non_alignment()
         source = lm_align.apply(source)
 
     # Scale factors completely change the behavior of the algorithm - always
@@ -269,30 +310,28 @@ def non_rigid_icp_generator(source, target, eps=1e-3,
 
     if stiffness_weights is not None:
         if verbose:
-            print('using user-defined stiffness_weights')
-        validate_weights('stiffness_weights', stiffness_weights,
-                         source.n_points, verbose=verbose)
+            print("using user-defined stiffness_weights")
+        validate_weights(
+            "stiffness_weights", stiffness_weights, source.n_points, verbose=verbose
+        )
     else:
         # these values have been empirically found to perform well for well
         # rigidly aligned facial meshes
         stiffness_weights = [50, 20, 5, 2, 0.8, 0.5, 0.35, 0.2]
         if verbose:
-            print('using default '
-                  'stiffness_weights: {}'.format(stiffness_weights))
+            print("using default " "stiffness_weights: {}".format(stiffness_weights))
 
     n_iterations = len(stiffness_weights)
 
     if landmark_weights is not None:
         if verbose:
-            print('using user defined '
-                  'landmark_weights: {}'.format(landmark_weights))
+            print("using user defined " "landmark_weights: {}".format(landmark_weights))
     elif landmark_group is not None:
         # these values have been empirically found to perform well for well
         # rigidly aligned facial meshes
-        landmark_weights = [5, 2, .5, 0, 0, 0, 0, 0]
+        landmark_weights = [5, 2, 0.5, 0, 0, 0, 0, 0]
         if verbose:
-            print('using default '
-                  'landmark_weights: {}'.format(landmark_weights))
+            print("using default " "landmark_weights: {}".format(landmark_weights))
     else:
         # no landmark_weights provided - no landmark_group in use. We still
         # need a landmark group for the iterator
@@ -302,33 +341,43 @@ def non_rigid_icp_generator(source, target, eps=1e-3,
     # number is correct.
     # Note we say verbose=False, as we have done custom reporting above, and
     # per-vertex landmarks are not supported.
-    validate_weights('landmark_weights', landmark_weights, source.n_points,
-                     n_iterations=n_iterations, verbose=False)
+    validate_weights(
+        "landmark_weights",
+        landmark_weights,
+        source.n_points,
+        n_iterations=n_iterations,
+        verbose=False,
+    )
 
     if data_weights is not None:
         if verbose:
-            print('using user-defined data_weights')
-        validate_weights('data_weights', data_weights,
-                         source.n_points, n_iterations=n_iterations,
-                         verbose=verbose)
+            print("using user-defined data_weights")
+        validate_weights(
+            "data_weights",
+            data_weights,
+            source.n_points,
+            n_iterations=n_iterations,
+            verbose=verbose,
+        )
     else:
         data_weights = [None] * n_iterations
         if verbose:
-            print('Not customising data_weights')
+            print("Not customising data_weights")
 
     # we need to prepare some indices for efficient construction of the D
     # sparse matrix.
-    row = np.hstack((np.repeat(np.arange(n)[:, None], n_dims, axis=1).ravel(),
-                     np.arange(n)))
+    row = np.hstack(
+        (np.repeat(np.arange(n)[:, None], n_dims, axis=1).ravel(), np.arange(n))
+    )
 
     x = np.arange(n * h_dims).reshape((n, h_dims))
-    col = np.hstack((x[:, :n_dims].ravel(),
-                     x[:, n_dims]))
+    col = np.hstack((x[:, :n_dims].ravel(), x[:, n_dims]))
     o = np.ones(n)
 
     if landmark_group is not None:
-        source_lm_index = source.distance_to(
-            source.landmarks[landmark_group]).argmin(axis=0)
+        source_lm_index = source.distance_to(source.landmarks[landmark_group]).argmin(
+            axis=0
+        )
         target_lms = target.landmarks[landmark_group]
         U_L = target_lms.points
         n_landmarks = target_lms.n_points
@@ -340,9 +389,9 @@ def non_rigid_icp_generator(source, target, eps=1e-3,
         source_lm_index_l = list(source_lm_index)
         row_lm = np.array([source_lm_index_l.index(r) for r in row_lm_to_fix])
 
-    for i, (alpha, beta, gamma) in enumerate(zip(stiffness_weights,
-                                                 landmark_weights,
-                                                 data_weights), 1):
+    for i, (alpha, beta, gamma) in enumerate(
+        zip(stiffness_weights, landmark_weights, data_weights), 1
+    ):
         alpha_is_per_vertex = isinstance(alpha, np.ndarray)
         if alpha_is_per_vertex:
             # stiffness is provided per-vertex
@@ -357,12 +406,14 @@ def non_rigid_icp_generator(source, target, eps=1e-3,
             alpha_M_kron_G_s = alpha * M_kron_G_s
 
         if verbose:
-            a_str = (alpha if not alpha_is_per_vertex
-                     else 'min: {:.2f}, max: {:.2f}'.format(alpha.min(),
-                                                            alpha.max()))
-            i_str = '{}/{}: stiffness: {}'.format(i, len(stiffness_weights), a_str)
+            a_str = (
+                alpha
+                if not alpha_is_per_vertex
+                else "min: {:.2f}, max: {:.2f}".format(alpha.min(), alpha.max())
+            )
+            i_str = "{}/{}: stiffness: {}".format(i, len(stiffness_weights), a_str)
             if landmark_group is not None:
-                i_str += '  lm_weight: {}'.format(beta)
+                i_str += "  lm_weight: {}".format(beta)
             print(i_str)
 
         j = 0
@@ -429,12 +480,15 @@ def non_rigid_icp_generator(source, target, eps=1e-3,
             D_s = sp.coo_matrix((data, (row, col)))
 
             to_stack_A = [alpha_M_kron_G_s, W_s.dot(D_s)]
-            to_stack_B = [np.zeros((alpha_M_kron_G_s.shape[0], n_dims)),
-                          U * w_i[:, None]]  # nullify nearest points by w_i
+            to_stack_B = [
+                np.zeros((alpha_M_kron_G_s.shape[0], n_dims)),
+                U * w_i[:, None],
+            ]  # nullify nearest points by w_i
 
             if landmark_group is not None:
-                D_L = sp.coo_matrix((data[lm_mask], (row_lm, col_lm)),
-                                    shape=(n_landmarks, D_s.shape[1]))
+                D_L = sp.coo_matrix(
+                    (data[lm_mask], (row_lm, col_lm)), shape=(n_landmarks, D_s.shape[1])
+                )
                 to_stack_A.append(beta * D_L)
                 to_stack_B.append(beta * U_L)
 
@@ -461,7 +515,7 @@ def non_rigid_icp_generator(source, target, eps=1e-3,
                 # convert back to points in the NICP space
                 v_i = prepare.apply(updated_def_template.points)
 
-            err = np.linalg.norm(X_prev - X, ord='fro')
+            err = np.linalg.norm(X_prev - X, ord="fro")
             stop_criterion = err / np.sqrt(np.size(X_prev))
 
             if landmark_group is not None:
@@ -469,13 +523,15 @@ def non_rigid_icp_generator(source, target, eps=1e-3,
                 lm_err = np.sqrt((src_lms - U_L) ** 2).sum(axis=1).mean()
 
             if verbose:
-                v_str = (' - {} stop crit: {:.3f}  '
-                         'total: {:.0%}  norms: {:.0%}  '
-                         'edges: {:.0%}'.format(j, stop_criterion,
-                                                prop_w_i, prop_w_i_n,
-                                                prop_w_i_e))
+                v_str = (
+                    " - {} stop crit: {:.3f}  "
+                    "total: {:.0%}  norms: {:.0%}  "
+                    "edges: {:.0%}".format(
+                        j, stop_criterion, prop_w_i, prop_w_i_n, prop_w_i_e
+                    )
+                )
                 if landmark_group is not None:
-                    v_str += '  lm_err: {:.4f}'.format(lm_err)
+                    v_str += "  lm_err: {:.4f}".format(lm_err)
 
                 print(v_str)
 
@@ -483,25 +539,25 @@ def non_rigid_icp_generator(source, target, eps=1e-3,
 
             # track the progress of the algorithm per-iteration
             info_dict = {
-                'alpha': alpha,
-                'iteration': j,
-                'prop_omitted': prop_w_i,
-                'prop_omitted_norms': prop_w_i_n,
-                'prop_omitted_edges': prop_w_i_e,
-                'delta': err,
-                'mask_normals': w_i_n,
-                'mask_edges': w_i_e,
-                'mask_all': w_i,
-                'nearest_points': restore.apply(U),
-                'deformation_per_step': delta_v_i
+                "alpha": alpha,
+                "iteration": j,
+                "prop_omitted": prop_w_i,
+                "prop_omitted_norms": prop_w_i_n,
+                "prop_omitted_edges": prop_w_i_e,
+                "delta": err,
+                "mask_normals": w_i_n,
+                "mask_edges": w_i_e,
+                "mask_all": w_i,
+                "nearest_points": restore.apply(U),
+                "deformation_per_step": delta_v_i,
             }
 
             current_instance = source.copy()
             current_instance.points = v_i.copy()
 
             if landmark_group:
-                info_dict['beta'] = beta
-                info_dict['lm_err'] = lm_err
+                info_dict["beta"] = beta
+                info_dict["lm_err"] = lm_err
                 current_instance.landmarks[landmark_group] = PointCloud(src_lms)
 
             yield restore.apply(current_instance), info_dict

@@ -26,15 +26,15 @@ def check_max_iters(max_iters, n_scales):
         elements or None
     """
     if type(max_iters) is int:
-        max_iters = [np.round(max_iters/n_scales)
-                     for _ in range(n_scales)]
+        max_iters = [np.round(max_iters / n_scales) for _ in range(n_scales)]
     elif len(max_iters) == 1 and n_scales > 1:
-        max_iters = [np.round(max_iters[0]/n_scales)
-                     for _ in range(n_scales)]
+        max_iters = [np.round(max_iters[0] / n_scales) for _ in range(n_scales)]
     elif len(max_iters) != n_scales:
-        raise ValueError('max_iters can be integer, integer list '
-                         'containing 1 or {} elements or '
-                         'None'.format(n_scales))
+        raise ValueError(
+            "max_iters can be integer, integer list "
+            "containing 1 or {} elements or "
+            "None".format(n_scales)
+        )
     return np.require(max_iters, dtype=np.int)
 
 
@@ -67,9 +67,11 @@ def check_multi_scale_param(n_scales, types, param_name, param):
         {param_name} must be in {types} or a list/tuple of {types} with the same
         length as the number of scales
     """
-    error_msg = "{0} must be in {1} or a list/tuple of " \
-                "{1} with the same length as the number " \
-                "of scales".format(param_name, types)
+    error_msg = (
+        "{0} must be in {1} or a list/tuple of "
+        "{1} with the same length as the number "
+        "of scales".format(param_name, types)
+    )
 
     none_in_types = False
     new_types = []
@@ -95,8 +97,9 @@ def check_multi_scale_param(n_scales, types, param_name, param):
     # Must be an iterable object
     len_param = len(param)
     if none_in_types:
-        isinstance_all_in_param = all(isinstance(p, new_types) or p is None
-                                      for p in param)
+        isinstance_all_in_param = all(
+            isinstance(p, new_types) or p is None for p in param
+        )
     else:
         isinstance_all_in_param = all(isinstance(p, new_types) for p in param)
 
@@ -117,5 +120,5 @@ def check_parameters(parameters, n_active_components):
     elif len(params) < n_active_components:
         tmp = params
         params = np.zeros(n_active_components)
-        params[:len(tmp)] = np.asarray(tmp)
+        params[: len(tmp)] = np.asarray(tmp)
     return params

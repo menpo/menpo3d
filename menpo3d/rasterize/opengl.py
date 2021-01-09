@@ -10,10 +10,14 @@ from menpo.transform import Homogeneous
 from .transform import clip_to_image_transform
 
 CONTAINING_DIR = Path(__file__).parent
-PASSTHROUGH_TEXTURE_VERT_SHADER = CONTAINING_DIR / 'shaders/texture/passthrough.vert'
-PASSTHROUGH_TEXTURE_FRAG_SHADER = CONTAINING_DIR / 'shaders/texture/passthrough.frag'
-PASSTHROUGH_PER_VERTEX_VERT_SHADER = CONTAINING_DIR / 'shaders/per_vertex/passthrough.vert'
-PASSTHROUGH_PER_VERTEX_FRAG_SHADER = CONTAINING_DIR / 'shaders/per_vertex/passthrough.frag'
+PASSTHROUGH_TEXTURE_VERT_SHADER = CONTAINING_DIR / "shaders/texture/passthrough.vert"
+PASSTHROUGH_TEXTURE_FRAG_SHADER = CONTAINING_DIR / "shaders/texture/passthrough.frag"
+PASSTHROUGH_PER_VERTEX_VERT_SHADER = (
+    CONTAINING_DIR / "shaders/per_vertex/passthrough.vert"
+)
+PASSTHROUGH_PER_VERTEX_FRAG_SHADER = (
+    CONTAINING_DIR / "shaders/per_vertex/passthrough.frag"
+)
 
 
 class _LOADED_SHADER_TYPE(IntEnum):
@@ -22,9 +26,7 @@ class _LOADED_SHADER_TYPE(IntEnum):
 
 
 def tri_bcoords_for_mesh(mesh):
-    bc_per_tri = np.array([[1, 0],
-                           [0, 1],
-                           [0, 0]])
+    bc_per_tri = np.array([[1, 0], [0, 1], [0, 0]])
     bc = np.tile(bc_per_tri.T, mesh.n_tris).T
 
     index = np.repeat(np.arange(mesh.n_tris), 3, axis=0)
@@ -42,7 +44,7 @@ def dedup_vertices(mesh):
 def _verify_opengl_homogeneous_matrix(matrix):
     if matrix.shape != (4, 4):
         raise ValueError("OpenGL matrices must have shape (4,4)")
-    return np.require(matrix, dtype=np.float32, requirements='C')
+    return np.require(matrix, dtype=np.float32, requirements="C")
 
 
 class BasePassthroughProgram:
@@ -104,9 +106,8 @@ class BasePassthroughProgram:
         mvp_matrix : ndarray (4, 4)
             The combined (Model, View, Projection) matrix to set
         """
-        mvp_matrix = np.require(mvp_matrix, dtype=np.float32,
-                                requirements=['C'])
-        self.program['MVP'].write(mvp_matrix.tobytes())
+        mvp_matrix = np.require(mvp_matrix, dtype=np.float32, requirements=["C"])
+        self.program["MVP"].write(mvp_matrix.tobytes())
 
 
 class TexturePassthroughProgram(BasePassthroughProgram):
@@ -122,8 +123,8 @@ class TexturePassthroughProgram(BasePassthroughProgram):
         """
         super().__init__(context)
         self.program = self.context.program(
-            vertex_shader=PASSTHROUGH_TEXTURE_VERT_SHADER.read_text(encoding='ascii'),
-            fragment_shader=PASSTHROUGH_TEXTURE_FRAG_SHADER.read_text(encoding='ascii')
+            vertex_shader=PASSTHROUGH_TEXTURE_VERT_SHADER.read_text(encoding="ascii"),
+            fragment_shader=PASSTHROUGH_TEXTURE_FRAG_SHADER.read_text(encoding="ascii"),
         )
         self.texture = None
         self._texture_shape = None
@@ -137,17 +138,16 @@ class TexturePassthroughProgram(BasePassthroughProgram):
             self.program.release()
 
     def _build_texture(self, pixels):
-        assert pixels.shape[-1] == 3, 'Only RGB textures supported'
+        assert pixels.shape[-1] == 3, "Only RGB textures supported"
 
         # Try caching the texture if repeated rendering of the same mesh is
         # being performed
         shape = pixels.shape[:2][::-1]
         if self._texture_shape is None or self._texture_shape != shape:
             self._texture_shape = shape
-            self.texture = self.context.texture(size=shape,
-                                                components=3,
-                                                data=pixels.tobytes(),
-                                                dtype='f4')
+            self.texture = self.context.texture(
+                size=shape, components=3, data=pixels.tobytes(), dtype="f4"
+            )
 
     def create_vao(self, mesh, per_vertex_f3v):
         """
@@ -173,13 +173,12 @@ class TexturePassthroughProgram(BasePassthroughProgram):
         self._build_texture(pixels)
         # Create the packed VBO where the entries here are in the same order as
         # the shader inputs
-        packed = np.concatenate([mesh.points,
-                                 mesh.tcoords.points,
-                                 per_vertex_f3v], axis=1)
+        packed = np.concatenate(
+            [mesh.points, mesh.tcoords.points, per_vertex_f3v], axis=1
+        )
 
-        packed_buffer = np.require(packed, dtype=np.float32, requirements=['C'])
-        index_buffer = np.require(mesh.trilist, dtype=np.uint32,
-                                  requirements=['C'])
+        packed_buffer = np.require(packed, dtype=np.float32, requirements=["C"])
+        index_buffer = np.require(mesh.trilist, dtype=np.uint32, requirements=["C"])
         self._get_packed_vbo(packed_buffer.tobytes())
         self._get_index_buffer_vbo(index_buffer.tobytes())
         # Note the ordering of the inputs list matches the ordering of the
@@ -187,8 +186,10 @@ class TexturePassthroughProgram(BasePassthroughProgram):
         return self.context.simple_vertex_array(
             self.program,
             self.packed_vbo,
-            'in_vert', 'in_text', 'in_f3v',
-            index_buffer=self.index_buffer_vbo
+            "in_vert",
+            "in_text",
+            "in_f3v",
+            index_buffer=self.index_buffer_vbo,
         )
 
 
@@ -205,8 +206,12 @@ class PerVertexPassthroughProgram(BasePassthroughProgram):
         """
         super().__init__(context)
         self.program = self.context.program(
-            vertex_shader=PASSTHROUGH_PER_VERTEX_VERT_SHADER.read_text(encoding='ascii'),
-            fragment_shader=PASSTHROUGH_PER_VERTEX_FRAG_SHADER.read_text(encoding='ascii')
+            vertex_shader=PASSTHROUGH_PER_VERTEX_VERT_SHADER.read_text(
+                encoding="ascii"
+            ),
+            fragment_shader=PASSTHROUGH_PER_VERTEX_FRAG_SHADER.read_text(
+                encoding="ascii"
+            ),
         )
 
     def __del__(self):
@@ -239,27 +244,33 @@ class PerVertexPassthroughProgram(BasePassthroughProgram):
         if colours.shape[-1] == 1:
             # Force from grayscale to colour by repeating
             colours = np.repeat(colours, 3, axis=-1)
-        assert colours.shape[-1] == 3, 'Only RGB colours are supported'
+        assert colours.shape[-1] == 3, "Only RGB colours are supported"
 
         packed = np.concatenate([mesh.points, colours, per_vertex_f3v], axis=1)
 
-        packed_buffer = np.require(packed, dtype=np.float32, requirements=['C'])
-        index_buffer = np.require(mesh.trilist, dtype=np.uint32,
-                                  requirements=['C'])
+        packed_buffer = np.require(packed, dtype=np.float32, requirements=["C"])
+        index_buffer = np.require(mesh.trilist, dtype=np.uint32, requirements=["C"])
         self._get_packed_vbo(packed_buffer.tobytes())
         self._get_index_buffer_vbo(index_buffer.tobytes())
         return self.context.simple_vertex_array(
             self.program,
             self.packed_vbo,
-            'in_vert', 'in_color', 'in_f3v',
-            index_buffer=self.index_buffer_vbo
+            "in_vert",
+            "in_color",
+            "in_f3v",
+            index_buffer=self.index_buffer_vbo,
         )
 
 
 class GLRasterizer:
-
-    def __init__(self, width=1024, height=768, model_matrix=None,
-                 view_matrix=None, projection_matrix=None):
+    def __init__(
+        self,
+        width=1024,
+        height=768,
+        model_matrix=None,
+        view_matrix=None,
+        projection_matrix=None,
+    ):
         # Make a single OpenGL context that will be managed by the lifetime of
         # this class. We will dynamically create two default "pass through"
         # programs based on the type of the input mesh
@@ -269,7 +280,9 @@ class GLRasterizer:
 
         self._model_matrix = model_matrix if model_matrix is not None else np.eye(4)
         self._view_matrix = view_matrix if view_matrix is not None else np.eye(4)
-        self._projection_matrix = projection_matrix if projection_matrix is not None else np.eye(4)
+        self._projection_matrix = (
+            projection_matrix if projection_matrix is not None else np.eye(4)
+        )
         self._vertex_shader = None
         self._fragment_shader = None
         self._shader_type = None
@@ -279,15 +292,15 @@ class GLRasterizer:
         self._per_vertex_program = None
 
         self._f3v_renderbuffer = self.opengl_ctx.renderbuffer(
-            self.size, components=3, dtype='f4'
+            self.size, components=3, dtype="f4"
         )
         self._rgba_renderbuffer = self.opengl_ctx.renderbuffer(
-            self.size, components=4, dtype='f4'
+            self.size, components=4, dtype="f4"
         )
         self._depth_renderbuffer = self.opengl_ctx.depth_renderbuffer(self.size)
-        self._fbo = self.opengl_ctx.framebuffer([self._f3v_renderbuffer,
-                                                 self._rgba_renderbuffer],
-                                                self._depth_renderbuffer)
+        self._fbo = self.opengl_ctx.framebuffer(
+            [self._f3v_renderbuffer, self._rgba_renderbuffer], self._depth_renderbuffer
+        )
 
     def __del__(self):
         # Ensure we avoid memory leaks by manually releasing all moderngl
@@ -326,14 +339,15 @@ class GLRasterizer:
 
     @property
     def mvp_matrix(self):
-        return np.linalg.multi_dot([self.projection_matrix,
-                                    self.view_matrix,
-                                    self.model_matrix])
+        return np.linalg.multi_dot(
+            [self.projection_matrix, self.view_matrix, self.model_matrix]
+        )
 
     @property
     def model_to_clip_matrix(self):
-        return np.dot(self.projection_matrix,
-                      np.dot(self.view_matrix, self.model_matrix))
+        return np.dot(
+            self.projection_matrix, np.dot(self.view_matrix, self.model_matrix)
+        )
 
     @property
     def model_transform(self):
@@ -371,8 +385,7 @@ class GLRasterizer:
         r"""
         TransformChain from 3D model space to 2D image space.
         """
-        return self.model_to_clip_transform.compose_before(
-            self.clip_to_image_transform)
+        return self.model_to_clip_transform.compose_before(self.clip_to_image_transform)
 
     def _set_active_program_to_texture(self):
         # Ensure that we only build a single texture program per rasterizer
@@ -391,13 +404,15 @@ class GLRasterizer:
     def _set_active_program_by_mesh_type(self, mesh):
         # Set the active program based on the input mesh type - this allows
         # lazy instantiation of the program
-        if hasattr(mesh, 'tcoords'):
+        if hasattr(mesh, "tcoords"):
             self._set_active_program_to_texture()
-        elif hasattr(mesh, 'colours'):
+        elif hasattr(mesh, "colours"):
             self._set_active_program_to_per_vertex()
         else:
-            raise ValueError('Unknown mesh type, only textured (tcoords) or '
-                             'coloured (colours) TriMeshes are supported')
+            raise ValueError(
+                "Unknown mesh type, only textured (tcoords) or "
+                "coloured (colours) TriMeshes are supported"
+            )
 
     def _rasterize(self, mesh, per_vertex_f3v):
         """
@@ -431,23 +446,16 @@ class GLRasterizer:
             self._active_program.texture.use()
         vao.render()
 
-        f3v_data = self._fbo.read(components=3, attachment=0, alignment=1,
-                                  dtype='f4')
-        rgba_data = self._fbo.read(components=4, attachment=1, alignment=1,
-                                   dtype='f4')
+        f3v_data = self._fbo.read(components=3, attachment=0, alignment=1, dtype="f4")
+        rgba_data = self._fbo.read(components=4, attachment=1, alignment=1, dtype="f4")
 
         rgba_image = np.frombuffer(rgba_data, dtype=np.float32)
         rgba_image = rgba_image.reshape(self.height, self.width, 4)[::-1]
         f3v_image = np.frombuffer(f3v_data, dtype=np.float32)
         f3v_image = f3v_image.reshape(self.height, self.width, 3)[::-1]
-        rgba_image = np.require(rgba_image, dtype=np.float32,
-                                requirements=['C'])
-        f3v_image = np.require(f3v_image, dtype=np.float32, requirements=['C'])
-        return (
-            rgba_image[..., :3],
-            f3v_image,
-            rgba_image[..., -1].astype(np.bool)
-        )
+        rgba_image = np.require(rgba_image, dtype=np.float32, requirements=["C"])
+        f3v_image = np.require(f3v_image, dtype=np.float32, requirements=["C"])
+        return (rgba_image[..., :3], f3v_image, rgba_image[..., -1].astype(np.bool))
 
     def rasterize_mesh_with_f3v_interpolant(self, mesh, per_vertex_f3v=None):
         r"""
@@ -474,10 +482,10 @@ class GLRasterizer:
             visible primitives.
 
         """
-        if not (hasattr(mesh, 'points') and
-                hasattr(mesh, 'trilist')):
-            raise ValueError('Rasterizable types must have points and '
-                             'trilist properties.')
+        if not (hasattr(mesh, "points") and hasattr(mesh, "trilist")):
+            raise ValueError(
+                "Rasterizable types must have points and " "trilist properties."
+            )
 
         if per_vertex_f3v is None:
             per_vertex_f3v = np.zeros(mesh.points.shape, dtype=np.float32)
@@ -485,14 +493,16 @@ class GLRasterizer:
         self._set_active_program_by_mesh_type(mesh)
 
         rgb_pixels, f3v_pixels, mask = self._rasterize(mesh, per_vertex_f3v)
-        images = (MaskedImage.init_from_channels_at_back(rgb_pixels, mask=mask),
-                  MaskedImage.init_from_channels_at_back(f3v_pixels, mask=mask))
+        images = (
+            MaskedImage.init_from_channels_at_back(rgb_pixels, mask=mask),
+            MaskedImage.init_from_channels_at_back(f3v_pixels, mask=mask),
+        )
 
         from menpo.landmark import Landmarkable
+
         if isinstance(mesh, Landmarkable):
             # Transform all landmarks and set them on the image
-            image_lms = self.model_to_image_transform.apply(
-                mesh.landmarks)
+            image_lms = self.model_to_image_transform.apply(mesh.landmarks)
             for image in images:
                 image.landmarks = image_lms
         return images
@@ -519,7 +529,8 @@ class GLRasterizer:
             buffer).
         """
         return self.rasterize_mesh_with_f3v_interpolant(
-            mesh, per_vertex_f3v=mesh.points)
+            mesh, per_vertex_f3v=mesh.points
+        )
 
     def rasterize_mesh(self, mesh):
         r"""Rasterize a mesh to an image.
@@ -543,7 +554,8 @@ class GLRasterizer:
         per_vertex_f3v = tri_bcoords_for_mesh(mesh)
 
         images = self.rasterize_mesh_with_f3v_interpolant(
-            mesh, per_vertex_f3v=per_vertex_f3v)
+            mesh, per_vertex_f3v=per_vertex_f3v
+        )
 
         # the interpolated image is [tri_index, alpha, beta]
         # -> split this into two images, one tri_index, one bc

@@ -50,16 +50,21 @@ class MorphableModel(Copyable):
         IEEE International Conference on Advanced Video and Signal Based
         Surveillance, pp. 296-301, 2009.
     """
-    def __init__(self, shape_model, texture_model, landmarks,
-                 holistic_features, diagonal):
+
+    def __init__(
+        self, shape_model, texture_model, landmarks, holistic_features, diagonal
+    ):
         self.shape_model = shape_model
         self.texture_model = texture_model
         self.holistic_features = holistic_features
         self.diagonal = diagonal
         # Find mapping that brings landmarks in correspondence with shape model
-        (self.model_landmarks_index,
-         self.landmarks) = find_correspondences_between_shapes(
-            landmarks, self.shape_model.mean(), return_pointcloud=True)
+        (
+            self.model_landmarks_index,
+            self.landmarks,
+        ) = find_correspondences_between_shapes(
+            landmarks, self.shape_model.mean(), return_pointcloud=True
+        )
 
     @property
     def n_vertices(self):
@@ -79,8 +84,9 @@ class MorphableModel(Copyable):
         """
         return self.shape_model.template_instance.n_tris
 
-    def instance(self, shape_weights=None, texture_weights=None,
-                 landmark_group='landmarks'):
+    def instance(
+        self, shape_weights=None, texture_weights=None, landmark_group="landmarks"
+    ):
         r"""
         Generates a novel Morphable Model instance given a set of shape and
         texture weights. If no weights are provided, then the mean Morphable
@@ -119,7 +125,7 @@ class MorphableModel(Copyable):
         # Create and return trimesh
         return self._instance(shape_instance, texture_instance, landmark_group)
 
-    def random_instance(self, landmark_group='__landmarks__'):
+    def random_instance(self, landmark_group="__landmarks__"):
         r"""
         Generates a random instance of the Morphable Model.
 
@@ -138,15 +144,14 @@ class MorphableModel(Copyable):
         # TODO: this bit of logic should to be transferred down to PCAModel
         shape_weights = np.random.randn(self.shape_model.n_active_components)
         shape_instance = self.shape_model.instance(shape_weights)
-        texture_weights = np.random.randn(
-            self.texture_model.n_active_components)
+        texture_weights = np.random.randn(self.texture_model.n_active_components)
         texture_instance = self.texture_model.instance(texture_weights)
 
         return self._instance(shape_instance, texture_instance, landmark_group)
 
-    def view_shape_model_widget(self, n_parameters=5,
-                                parameters_bounds=(-3.0, 3.0),
-                                mode='multiple'):
+    def view_shape_model_widget(
+        self, n_parameters=5, parameters_bounds=(-3.0, 3.0), mode="multiple"
+    ):
         r"""
         Visualizes the shape model of the Morphable Model using an interactive
         widget.
@@ -169,16 +174,25 @@ class MorphableModel(Copyable):
         """
         try:
             from menpowidgets import visualize_shape_model_3d
-            visualize_shape_model_3d(self.shape_model,
-                                     n_parameters=n_parameters,
-                                     parameters_bounds=parameters_bounds,
-                                     mode=mode)
+
+            visualize_shape_model_3d(
+                self.shape_model,
+                n_parameters=n_parameters,
+                parameters_bounds=parameters_bounds,
+                mode=mode,
+            )
         except ImportError:
             from menpo.visualize.base import MenpowidgetsMissingError
+
             raise MenpowidgetsMissingError()
 
-    def view_mm_widget(self, n_shape_parameters=5, n_texture_parameters=5,
-                       parameters_bounds=(-3.0, 3.0), mode='multiple'):
+    def view_mm_widget(
+        self,
+        n_shape_parameters=5,
+        n_texture_parameters=5,
+        parameters_bounds=(-3.0, 3.0),
+        mode="multiple",
+    ):
         r"""
         Visualizes the Morphable Model using an interactive widget.
 
@@ -207,12 +221,17 @@ class MorphableModel(Copyable):
         """
         try:
             from menpowidgets import visualize_morphable_model
+
             visualize_morphable_model(
-                self, n_shape_parameters=n_shape_parameters,
+                self,
+                n_shape_parameters=n_shape_parameters,
                 n_texture_parameters=n_texture_parameters,
-                parameters_bounds=parameters_bounds, mode=mode)
+                parameters_bounds=parameters_bounds,
+                mode=mode,
+            )
         except ImportError:
             from menpo.visualize.base import MenpowidgetsMissingError
+
             raise MenpowidgetsMissingError()
 
     def __str__(self):
@@ -228,13 +247,21 @@ class MorphableModel(Copyable):
    - {} channels
  - Sparse landmarks class: {}
    - {} landmarks
-""".format(self._str_title, name_of_callable(self.shape_model),
-           self.n_vertices, self.n_triangles, self.shape_model.n_components,
-           name_of_callable(self.shape_model.template_instance),
-           name_of_callable(self.texture_model),
-           self.texture_model.n_components, self.diagonal,
-           name_of_callable(self.holistic_features), self.n_channels,
-           name_of_callable(self.landmarks), self.landmarks.n_points)
+""".format(
+            self._str_title,
+            name_of_callable(self.shape_model),
+            self.n_vertices,
+            self.n_triangles,
+            self.shape_model.n_components,
+            name_of_callable(self.shape_model.template_instance),
+            name_of_callable(self.texture_model),
+            self.texture_model.n_components,
+            self.diagonal,
+            name_of_callable(self.holistic_features),
+            self.n_channels,
+            name_of_callable(self.landmarks),
+            self.landmarks.n_points,
+        )
         return cls_str
 
 
@@ -275,9 +302,10 @@ class ColouredMorphableModel(MorphableModel):
         IEEE International Conference on Advanced Video and Signal Based
         Surveillance, pp. 296-301, 2009.
     """
+
     @property
     def _str_title(self):
-        return 'Coloured Morphable Model'
+        return "Coloured Morphable Model"
 
     @property
     def n_channels(self):
@@ -296,9 +324,11 @@ class ColouredMorphableModel(MorphableModel):
         # texture_instance = np.clip(texture_instance, 0, 1)
 
         # Create trimesh
-        trimesh = ColouredTriMesh(shape_instance.points,
-                                  trilist=shape_instance.trilist,
-                                  colours=texture_instance)
+        trimesh = ColouredTriMesh(
+            shape_instance.points,
+            trilist=shape_instance.trilist,
+            colours=texture_instance,
+        )
         # Attach landmarks to trimesh
         trimesh.landmarks[landmark_group] = self.landmarks
         # Return trimesh
@@ -309,10 +339,10 @@ class ColouredMorphableModel(MorphableModel):
         vertex_indices = shape_template.trilist[tri_indices]
 
         t_model = self.texture_model.components.reshape(
-            [self.texture_model.n_active_components, -1, self.n_channels])
+            [self.texture_model.n_active_components, -1, self.n_channels]
+        )
         # n: components    s: samples    t: triangle    c: channels
-        return np.einsum('nstc, st -> scn',
-                         t_model[:, vertex_indices], bcoords)
+        return np.einsum("nstc, st -> scn", t_model[:, vertex_indices], bcoords)
 
     def project_instance_on_texture_model(self, instance):
         return self.texture_model.project(instance.colours.ravel())
@@ -348,16 +378,25 @@ class TexturedMorphableModel(MorphableModel):
         words, this parameter defined the size of the training images before
         extracting features.
     """
-    def __init__(self, shape_model, texture_model, landmarks, tcoords,
-                 holistic_features, diagonal):
+
+    def __init__(
+        self,
+        shape_model,
+        texture_model,
+        landmarks,
+        tcoords,
+        holistic_features,
+        diagonal,
+    ):
         super(TexturedMorphableModel, self).__init__(
-            shape_model, texture_model, landmarks, holistic_features, diagonal)
+            shape_model, texture_model, landmarks, holistic_features, diagonal
+        )
         self.tcoords = tcoords
         self.tcoords_pixel_scaled = self.instance().tcoords_pixel_scaled()
 
     @property
     def _str_title(self):
-        return 'Textured Morphable Model'
+        return "Textured Morphable Model"
 
     @property
     def n_channels(self):
@@ -374,10 +413,12 @@ class TexturedMorphableModel(MorphableModel):
         # restrict the texture to 0-1
         # texture_instance.pixels = np.clip(texture_instance.pixels, 0, 1)
 
-        trimesh = TexturedTriMesh(shape_instance.points,
-                                  trilist=shape_instance.trilist,
-                                  tcoords=self.tcoords.points,
-                                  texture=texture_instance)
+        trimesh = TexturedTriMesh(
+            shape_instance.points,
+            trilist=shape_instance.trilist,
+            tcoords=self.tcoords.points,
+            texture=texture_instance,
+        )
         # Attach landmarks to trimesh
         trimesh.landmarks[landmark_group] = self.landmarks
         # Return trimesh
@@ -388,12 +429,14 @@ class TexturedMorphableModel(MorphableModel):
         texture_template = self.texture_model.template_instance
 
         sample_points_in_texture = shape_template.barycentric_coordinate_interpolation(
-            self.tcoords_pixel_scaled.points, bcoords, tri_indices)
+            self.tcoords_pixel_scaled.points, bcoords, tri_indices
+        )
 
         to_index = sample_points_in_texture.round().astype(int)
 
         texture_index_img = texture_template.from_vector(
-            np.arange(self.texture_model.n_features))
+            np.arange(self.texture_model.n_features)
+        )
 
         # TODO shouldn't get out of mask samples here, but we do (hence
         # unmasked). This means for some samples every time in UV space
@@ -441,7 +484,6 @@ def find_correspondences_between_shapes(source, target, return_pointcloud=True):
     # Create pointcloud with source landmarks that are in correspondence
     # with target
     if return_pointcloud:
-        return map_source_to_target, PointCloud(
-            target.points[map_source_to_target, :])
+        return map_source_to_target, PointCloud(target.points[map_source_to_target, :])
     else:
         return map_source_to_target

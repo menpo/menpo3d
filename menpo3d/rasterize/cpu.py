@@ -21,7 +21,7 @@ def _pixels_to_check_python(start, end, n_pixels):
 try:
     from .tripixel import pixels_to_check
 except ImportError:
-    print('Falling back to CPU pixel checking')
+    print("Falling back to CPU pixel checking")
     pixels_to_check = _pixels_to_check_python
 
 
@@ -37,13 +37,13 @@ def pixel_locations_and_tri_indices(mesh):
 
 def alpha_beta(i, ij, ik, points):
     ip = points - i
-    dot_jj = np.einsum('dt, dt -> t', ij, ij)
-    dot_kk = np.einsum('dt, dt -> t', ik, ik)
-    dot_jk = np.einsum('dt, dt -> t', ij, ik)
-    dot_pj = np.einsum('dt, dt -> t', ip, ij)
-    dot_pk = np.einsum('dt, dt -> t', ip, ik)
+    dot_jj = np.einsum("dt, dt -> t", ij, ij)
+    dot_kk = np.einsum("dt, dt -> t", ik, ik)
+    dot_jk = np.einsum("dt, dt -> t", ij, ik)
+    dot_pj = np.einsum("dt, dt -> t", ip, ij)
+    dot_pk = np.einsum("dt, dt -> t", ip, ik)
 
-    d = 1.0/(dot_jj * dot_kk - dot_jk * dot_jk)
+    d = 1.0 / (dot_jj * dot_kk - dot_jk * dot_jk)
     alpha = (dot_kk * dot_pj - dot_jk * dot_pk) * d
     beta = (dot_jj * dot_pk - dot_jk * dot_pj) * d
     return alpha, beta
@@ -62,14 +62,13 @@ def xy_bcoords(mesh, tri_indices, pixel_locations):
 
 def tri_containment(bcoords):
     alpha, beta, _ = bcoords.T
-    return np.logical_and(np.logical_and(
-        alpha >= 0, beta >= 0),
-        alpha + beta <= 1)
+    return np.logical_and(np.logical_and(alpha >= 0, beta >= 0), alpha + beta <= 1)
 
 
 def z_values_for_bcoords(mesh, bcoords, tri_indices):
     return mesh.barycentric_coordinate_interpolation(
-        mesh.points[:, -1][..., None], bcoords, tri_indices)[:, 0]
+        mesh.points[:, -1][..., None], bcoords, tri_indices
+    )[:, 0]
 
 
 def pixel_sample_uniform(xy, n_samples):
@@ -95,8 +94,8 @@ def rasterize_barycentric_coordinates(mesh, image_shape):
 
     # 2. Limit to only pixel sites in the image
     out_of_bounds = np.logical_or(
-        np.any(yx < 0, axis=1),
-        np.any((np.array([height, width]) - yx) <= 0, axis=1))
+        np.any(yx < 0, axis=1), np.any((np.array([height, width]) - yx) <= 0, axis=1)
+    )
     in_image = ~out_of_bounds
     yx = yx[in_image]
     tri_indices = tri_indices[in_image]
@@ -145,8 +144,7 @@ def rasterize_barycentric_coordinates(mesh, image_shape):
 
 def rasterize_barycentric_coordinate_images(mesh, image_shape):
     h, w = image_shape
-    yx, bcoords, tri_indices = rasterize_barycentric_coordinates(mesh,
-                                                                 image_shape)
+    yx, bcoords, tri_indices = rasterize_barycentric_coordinates(mesh, image_shape)
 
     tri_indices_img = np.zeros((1, h, w), dtype=int)
     bcoords_img = np.zeros((3, h, w))
@@ -156,5 +154,7 @@ def rasterize_barycentric_coordinate_images(mesh, image_shape):
     bcoords_img[:, yx[:, 0], yx[:, 1]] = bcoords.T
 
     mask = BooleanImage(mask)
-    return (MaskedImage(bcoords_img, mask=mask.copy(), copy=False),
-            MaskedImage(tri_indices_img, mask=mask.copy(), copy=False))
+    return (
+        MaskedImage(bcoords_img, mask=mask.copy(), copy=False),
+        MaskedImage(tri_indices_img, mask=mask.copy(), copy=False),
+    )

@@ -37,21 +37,25 @@ def _construct_shape_type(points, trilist, tcoords, texture, colour_per_vertex):
     if trilist is None:
         obj = PointCloud(points, copy=False)
     elif tcoords is not None and texture is not None:
-        obj = TexturedTriMesh(points, tcoords, texture,
-                              trilist=trilist, copy=False)
+        obj = TexturedTriMesh(points, tcoords, texture, trilist=trilist, copy=False)
     elif colour_per_vertex is not None:
-        obj = ColouredTriMesh(points, trilist=trilist,
-                              colours=colour_per_vertex, copy=False)
+        obj = ColouredTriMesh(
+            points, trilist=trilist, colours=colour_per_vertex, copy=False
+        )
     else:
         # TriMesh fall through
         obj = TriMesh(points, trilist=trilist, copy=False)
 
     if tcoords is not None and texture is None:
-        warnings.warn('tcoords were found, but no texture was recovered, '
-                      'reverting to an untextured mesh.')
+        warnings.warn(
+            "tcoords were found, but no texture was recovered, "
+            "reverting to an untextured mesh."
+        )
     if texture is not None and tcoords is None:
-        warnings.warn('texture was found, but no tcoords were recovered, '
-                      'reverting to an untextured mesh.')
+        warnings.warn(
+            "texture was found, but no tcoords were recovered, "
+            "reverting to an untextured mesh."
+        )
 
     return obj
 
@@ -69,10 +73,12 @@ def vtk_ensure_trilist(polydata):
         polydata.GetCellTypes(c)
 
         if c.GetNumberOfTypes() != 1 or polydata.GetCellType(0) != 5:
-            warnings.warn('Non-triangular mesh connectivity was detected - '
-                          'this is currently unsupported and thus the '
-                          'connectivity is being coerced into a triangular '
-                          'mesh. This may have unintended consequences.')
+            warnings.warn(
+                "Non-triangular mesh connectivity was detected - "
+                "this is currently unsupported and thus the "
+                "connectivity is being coerced into a triangular "
+                "mesh. This may have unintended consequences."
+            )
             t_filter = vtk.vtkTriangleFilter()
             t_filter.SetInputData(polydata)
             t_filter.Update()
@@ -121,8 +127,10 @@ def wrl_importer(filepath, asset=None, texture_resolver=None, **kwargs):
 
     if actors.GetNextActor():
         # There was more than one actor!
-        warnings.warn('More than one actor was detected in the scene. Only '
-                      'single scene actors are currently supported.')
+        warnings.warn(
+            "More than one actor was detected in the scene. Only "
+            "single scene actors are currently supported."
+        )
 
     # Get the Data
     polydata = vtk.vtkPolyData.SafeDownCast(mapper_dataset)
@@ -153,15 +161,14 @@ def wrl_importer(filepath, asset=None, texture_resolver=None, **kwargs):
 
     # Colour-per-vertex
     try:
-        colour_per_vertex = vtk_to_numpy(mapper.GetLookupTable().GetTable()) / 255.
+        colour_per_vertex = vtk_to_numpy(mapper.GetLookupTable().GetTable()) / 255.0
     except Exception:
         pass
 
     if isinstance(colour_per_vertex, np.ndarray) and colour_per_vertex.size == 0:
         colour_per_vertex = None
 
-    return _construct_shape_type(points, trilist, tcoords, texture,
-                                 colour_per_vertex)
+    return _construct_shape_type(points, trilist, tcoords, texture, colour_per_vertex)
 
 
 def obj_importer(filepath, asset=None, texture_resolver=None, **kwargs):
@@ -198,7 +205,7 @@ def obj_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     # We must have point data!
     points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float)
 
-    trilist = np.require(vtk_ensure_trilist(polydata), requirements=['C'])
+    trilist = np.require(vtk_ensure_trilist(polydata), requirements=["C"])
 
     texture = None
     if texture_resolver is not None:
@@ -217,8 +224,7 @@ def obj_importer(filepath, asset=None, texture_resolver=None, **kwargs):
             tcoords = None
 
     colour_per_vertex = None
-    return _construct_shape_type(points, trilist, tcoords, texture,
-                                 colour_per_vertex)
+    return _construct_shape_type(points, trilist, tcoords, texture, colour_per_vertex)
 
 
 def ply_importer(filepath, asset=None, texture_resolver=None, **kwargs):
@@ -256,7 +262,7 @@ def ply_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     # We must have point data!
     points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float)
 
-    trilist = np.require(vtk_ensure_trilist(polydata), requirements=['C'])
+    trilist = np.require(vtk_ensure_trilist(polydata), requirements=["C"])
 
     texture = None
     if texture_resolver is not None:
@@ -275,8 +281,7 @@ def ply_importer(filepath, asset=None, texture_resolver=None, **kwargs):
             tcoords = None
 
     colour_per_vertex = None
-    return _construct_shape_type(points, trilist, tcoords, texture,
-                                 colour_per_vertex)
+    return _construct_shape_type(points, trilist, tcoords, texture, colour_per_vertex)
 
 
 def stl_importer(filepath, asset=None, **kwargs):
@@ -309,13 +314,12 @@ def stl_importer(filepath, asset=None, **kwargs):
 
     # We must have point data!
     points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float)
-    trilist = np.require(vtk_ensure_trilist(polydata), requirements=['C'])
+    trilist = np.require(vtk_ensure_trilist(polydata), requirements=["C"])
 
     colour_per_vertex = None
     tcoords = None
     texture = None
-    return _construct_shape_type(points, trilist, tcoords, texture,
-                                 colour_per_vertex)
+    return _construct_shape_type(points, trilist, tcoords, texture, colour_per_vertex)
 
 
 def mjson_importer(filepath, asset=None, texture_resolver=True, **kwargs):
@@ -338,7 +342,7 @@ def mjson_importer(filepath, asset=None, texture_resolver=True, **kwargs):
     shape : :map:`PointCloud` or subclass
         The correct shape for the given inputs.
     """
-    with open(str(filepath), 'rb') as f:
+    with open(str(filepath), "rb") as f:
         mesh_json = json.load(f)
 
     texture = None
@@ -347,10 +351,9 @@ def mjson_importer(filepath, asset=None, texture_resolver=True, **kwargs):
         if texture_path is not None and texture_path.exists():
             texture = mio.import_image(texture_path)
 
-    points = mesh_json['points']
-    trilist = mesh_json['trilist']
-    tcoords = mesh_json.get('tcoords'),
-    colour_per_vertex = mesh_json.get('colour_per_vertex')
+    points = mesh_json["points"]
+    trilist = mesh_json["trilist"]
+    tcoords = (mesh_json.get("tcoords"),)
+    colour_per_vertex = mesh_json.get("colour_per_vertex")
 
-    return _construct_shape_type(points, trilist, tcoords, texture,
-                                 colour_per_vertex)
+    return _construct_shape_type(points, trilist, tcoords, texture, colour_per_vertex)
