@@ -34,12 +34,13 @@ class CylindricalUnwrap(Transform):
         The distance of the unwrapping from the axis.
 
     """
+
     def __init__(self, radius):
         self.radius = radius
 
     def _apply(self, x, **kwargs):
         cy_coords = np.zeros_like(x)
-        depth = np.sqrt(x[:, 0]**2 + x[:, 2]**2) - self.radius
+        depth = np.sqrt(x[:, 0] ** 2 + x[:, 2] ** 2) - self.radius
         theta = np.arctan2(x[:, 0], x[:, 2])
         z = x[:, 1]
         cy_coords[:, 0] = theta * self.radius

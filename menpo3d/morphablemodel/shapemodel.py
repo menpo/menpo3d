@@ -9,6 +9,7 @@ class ShapeModel(Transformable):
     Wrapper around a :map:`PCAModel` that makes it transformable and
     maskable in both dimensions and points.
     """
+
     def __init__(self, model):
         self.model = model
 
@@ -22,13 +23,11 @@ class ShapeModel(Transformable):
 
     @property
     def _c(self):
-        return self.model._components.reshape(
-            [self.n_components, -1, self.n_dims])
+        return self.model._components.reshape([self.n_components, -1, self.n_dims])
 
     def mask_points(self, mask):
         new_model = self.model.copy()
-        new_model._components = self._c[:, mask].reshape(
-            [self.n_components, -1])
+        new_model._components = self._c[:, mask].reshape([self.n_components, -1])
         mean = self.model.mean().points[mask]
         new_model._mean = mean.ravel()
         new_model.template_instance = PointCloud(mean)
@@ -36,8 +35,7 @@ class ShapeModel(Transformable):
 
     def mask_dims(self, mask):
         new_model = self.model.copy()
-        new_model._components = self._c[..., mask].reshape(
-            [self.n_components, -1])
+        new_model._components = self._c[..., mask].reshape([self.n_components, -1])
         mean = self.model.mean().points[:, mask]
         new_model._mean = mean.ravel()
         new_model.template_instance = PointCloud(mean)
@@ -46,8 +44,8 @@ class ShapeModel(Transformable):
     def _transform(self, transform):
         new_model = self.model.copy()
         new_model._components = np.concatenate(
-            [transform(c)[None] for c in self._c]).reshape(
-            [self.n_components, -1])
+            [transform(c)[None] for c in self._c]
+        ).reshape([self.n_components, -1])
         new_model._mean = transform(self.model.mean().points).ravel()
         return ShapeModel(new_model)
 
@@ -55,9 +53,9 @@ class ShapeModel(Transformable):
         if n_components is not None:
             prev_n_components = self.model.n_active_components
             self.model.n_active_components = n_components
-        weights = np.linalg.lstsq(self.model.components.T,
-                                  instance.as_vector() - self.model.mean_vector)[
-            0]
+        weights = np.linalg.lstsq(
+            self.model.components.T, instance.as_vector() - self.model.mean_vector
+        )[0]
         if n_components is not None:
             self.model.n_active_components = prev_n_components
         return weights
