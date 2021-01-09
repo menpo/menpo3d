@@ -62,12 +62,11 @@ def lm3_importer(filepath, asset=None, **kwargs):
     landmarks : :map:`LabelledPointUndirectedGraph`
         The landmarks including appropriate labels.
     """
-    with open(str(filepath), 'r') as f:
+    with open(str(filepath), "r") as f:
         landmarks = f.read()
 
     # Remove comments and blank lines
-    landmark_text = [l for l in landmarks.splitlines()
-                     if (l.rstrip() and '#' not in l)]
+    landmark_text = [l for l in landmarks.splitlines() if (l.rstrip() and "#" not in l)]
 
     # First line says how many landmarks there are: 24 Landmarks
     # So pop it off the front
@@ -82,7 +81,7 @@ def lm3_importer(filepath, asset=None, **kwargs):
         if i % 2 == 0:  # label
             # Lowercase, remove spaces and replace with underscores
             l = landmark_text[i]
-            l = '_'.join(l.lower().split())
+            l = "_".join(l.lower().split())
             labels.append(l)
         else:  # coordinate
             p = landmark_text[i].split()
@@ -103,8 +102,7 @@ def lm3_importer(filepath, asset=None, **kwargs):
     labels_to_masks = OrderedDict(zip(labels, masks))
 
     empty_adj_matrix = csr_matrix((num_points, num_points))
-    return LabelledPointUndirectedGraph(points, empty_adj_matrix,
-                                        labels_to_masks)
+    return LabelledPointUndirectedGraph(points, empty_adj_matrix, labels_to_masks)
 
 
 def lan_importer(filepath, asset=None, **kwargs):
@@ -132,9 +130,8 @@ def lan_importer(filepath, asset=None, **kwargs):
     landmarks : :map:`LandmarkGroup`
         The landmarks including appropriate labels if available.
     """
-    with open(str(filepath), 'r') as f:
-        points = np.fromfile(
-            f, dtype=np.float32)[3:].reshape([-1, 3]).astype(np.double)
+    with open(str(filepath), "r") as f:
+        points = np.fromfile(f, dtype=np.float32)[3:].reshape([-1, 3]).astype(np.double)
     return PointCloud(points)
 
 
@@ -174,7 +171,7 @@ def bnd_importer(filepath, asset=None, **kwargs):
     landmarks : :map:`LabelledPointUndirectedGraph`
         The landmarks including appropriate labels.
     """
-    with open(str(filepath), 'r') as f:
+    with open(str(filepath), "r") as f:
         points = f.read()
 
     # Remove blank lines
@@ -185,20 +182,20 @@ def bnd_importer(filepath, asset=None, **kwargs):
     points = np.zeros([n_points, 3])
     for i, l in enumerate(landmark_text):
         # Skip the first number as it's an index into the mesh
-        points[i, :] = np.array([float(l[1]), float(l[2]), float(l[3])],
-                                dtype=np.float)
-    labels_to_masks = OrderedDict([
-        ('left_eye', _indices_to_mask(n_points, np.arange(8))),
-        ('right_eye', _indices_to_mask(n_points, np.arange(8, 16))),
-        ('left_eyebrow', _indices_to_mask(n_points, np.arange(16, 26))),
-        ('right_eyebrow', _indices_to_mask(n_points, np.arange(26, 36))),
-        ('nose', _indices_to_mask(n_points, np.arange(36, 48))),
-        ('mouth', _indices_to_mask(n_points, np.arange(48, 68))),
-        ('chin', _indices_to_mask(n_points, np.arange(68, 83)))
-    ])
+        points[i, :] = np.array([float(l[1]), float(l[2]), float(l[3])], dtype=np.float)
+    labels_to_masks = OrderedDict(
+        [
+            ("left_eye", _indices_to_mask(n_points, np.arange(8))),
+            ("right_eye", _indices_to_mask(n_points, np.arange(8, 16))),
+            ("left_eyebrow", _indices_to_mask(n_points, np.arange(16, 26))),
+            ("right_eyebrow", _indices_to_mask(n_points, np.arange(26, 36))),
+            ("nose", _indices_to_mask(n_points, np.arange(36, 48))),
+            ("mouth", _indices_to_mask(n_points, np.arange(48, 68))),
+            ("chin", _indices_to_mask(n_points, np.arange(68, 83))),
+        ]
+    )
     empty_adj_matrix = csr_matrix((n_points, n_points))
-    return LabelledPointUndirectedGraph(points, empty_adj_matrix,
-                                        labels_to_masks)
+    return LabelledPointUndirectedGraph(points, empty_adj_matrix, labels_to_masks)
 
 
 def _indices_to_mask(n_points, indices):

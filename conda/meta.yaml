@@ -18,21 +18,17 @@ requirements:
 
   run:
     - python
-
-    # Scientific Python Stack
     - {{ pin_compatible('numpy') }}
-    - menpo >=0.9.0,<0.11.0
+    - menpo >=0.9.0,<0.12.0
     - mayavi >=4.7.0
     - moderngl
-    # TODO: Unpin PyQT when conda-forge updates pyqt
-    # https://github.com/enthought/mayavi/issues/595#issuecomment-386097374
-    - pyqt 5.6.*
+    - pyqt >=5.12
 
 test:
   requires:
-    - pytest >=5.0,<6.0
+    - pytest >=6.0,<7.0
     - pytest-cov >=2.0,<3.0
-    - mock >=3.0,<4.0
+    - pytest-mock >=3.0,<4.0
 
   files:
     - .coveragerc

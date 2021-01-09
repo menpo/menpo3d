@@ -1,5 +1,7 @@
-from menpo3d.result import (ParametricIterativeResult,
-                            MultiScaleParametricIterativeResult)
+from menpo3d.result import (
+    ParametricIterativeResult,
+    MultiScaleParametricIterativeResult,
+)
 
 
 class MMAlgorithmResult(ParametricIterativeResult):
@@ -50,15 +52,29 @@ class MMAlgorithmResult(ParametricIterativeResult):
         that the cost function cannot be computed for the specific
         algorithm. It must have the same length as `meshes`.
     """
-    def __init__(self, shape_parameters, texture_parameters, meshes,
-                 camera_transforms, image=None, initial_mesh=None,
-                 initial_camera_transform=None, gt_mesh=None, costs=None):
+
+    def __init__(
+        self,
+        shape_parameters,
+        texture_parameters,
+        meshes,
+        camera_transforms,
+        image=None,
+        initial_mesh=None,
+        initial_camera_transform=None,
+        gt_mesh=None,
+        costs=None,
+    ):
         super(MMAlgorithmResult, self).__init__(
-            shape_parameters=shape_parameters, meshes=meshes,
-            camera_transforms=camera_transforms, image=image,
+            shape_parameters=shape_parameters,
+            meshes=meshes,
+            camera_transforms=camera_transforms,
+            image=image,
             initial_mesh=initial_mesh,
-            initial_camera_transform=initial_camera_transform, gt_mesh=gt_mesh,
-            costs=costs)
+            initial_camera_transform=initial_camera_transform,
+            gt_mesh=gt_mesh,
+            costs=costs,
+        )
         self._texture_parameters = texture_parameters
 
     @property
@@ -107,12 +123,24 @@ class MMResult(MultiScaleParametricIterativeResult):
         used in order to generate 2D pointclouds projected in the image plane.
         If ``None``, then the 2D pointclouds will not be generated.
     """
-    def __init__(self, results, affine_transforms, n_scales, image=None,
-                 gt_mesh=None, model_landmarks_index=None):
+
+    def __init__(
+        self,
+        results,
+        affine_transforms,
+        n_scales,
+        image=None,
+        gt_mesh=None,
+        model_landmarks_index=None,
+    ):
         super(MMResult, self).__init__(
-            results=results, affine_transforms=affine_transforms,
-            n_scales=n_scales, image=image, gt_mesh=gt_mesh,
-            model_landmarks_index=model_landmarks_index)
+            results=results,
+            affine_transforms=affine_transforms,
+            n_scales=n_scales,
+            image=image,
+            gt_mesh=gt_mesh,
+            model_landmarks_index=model_landmarks_index,
+        )
         # Create texture parameters list
         self._texture_parameters = None
         if results[0].texture_parameters is not None:

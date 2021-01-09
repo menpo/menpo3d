@@ -3,7 +3,7 @@ from collections import namedtuple
 
 optimise = None  # expensive, from scipy
 
-RadialFitResult = namedtuple('RadialFitResult', ['centre', 'radius'])
+RadialFitResult = namedtuple("RadialFitResult", ["centre", "radius"])
 
 
 def radial_fit(p):
