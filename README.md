@@ -39,9 +39,9 @@ platform-specific viewing mechanisms like QT or WX.
 
 In order to view 3D items you will need to first use the `%matplotlib qt`
 IPython magic command to set up QT for rendering (you do this instead of
-`%matplotlib inline` which is what is needed for using the usual Menpo
-Widgets). As a complete example, to view a mesh in IPython you
-would run something like:
+`%matplotlib inline` which is what is needed for rendering directly
+in Jupyter/Ipython notebooks). As a complete example, to view a
+mesh in IPython you would run something like:
 ```python
 import menpo3d
 mesh = menpo3d.io.import_builtin_asset('james.obj')
