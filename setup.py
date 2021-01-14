@@ -4,8 +4,6 @@ import site
 
 from setuptools import Extension, find_packages, setup
 
-import versioneer
-
 SYS_PLATFORM = platform.system().lower()
 IS_LINUX = "linux" in SYS_PLATFORM
 IS_OSX = "darwin" == SYS_PLATFORM
@@ -36,6 +34,20 @@ elif len(NUMPY_INC_PATHS) > 1:
     )
     print("Taking first (highest precedence on path): {}".format(NUMPY_INC_PATHS[0]))
 NUMPY_INC_PATH = NUMPY_INC_PATHS[0]
+
+
+def get_version_and_cmdclass(package_path):
+    """Load version.py module without importing the whole package.
+
+    Template code from miniver
+    """
+    import os
+    from importlib.util import module_from_spec, spec_from_file_location
+
+    spec = spec_from_file_location("version", os.path.join(package_path, "_version.py"))
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.__version__, module.cmdclass
 
 
 # ---- C/C++ EXTENSIONS ---- #
@@ -97,12 +109,14 @@ cython_modules = [
 ]
 cython_exts = cythonize(cython_modules, quiet=True)
 
+version, cmdclass = get_version_and_cmdclass("menpo3d")
+
 install_requires = ["menpo>=0.9.0,<0.12.0", "mayavi>=4.7.0", "moderngl>=5.5.*,<6.0"]
 
 setup(
     name="menpo3d",
-    version=versioneer.get_version(),
-    cmdclass=versioneer.get_cmdclass(),
+    version=version,
+    cmdclass=cmdclass,
     description="Menpo library providing tools for 3D Computer Vision research",
     author="James Booth",
     author_email="james.booth08@imperial.ac.uk",
