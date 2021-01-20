@@ -695,23 +695,15 @@ class MayaviLandmarkViewer3d(MayaviRenderer):
         self.figure.scene.disable_render = True
         for i, (label, pc) in enumerate(sub_pointclouds):
             # render pointcloud
-            pc.view(
-                figure_id=self.figure_id,
-                new_figure=False,
-                render_lines=render_lines,
-                line_colour=line_colour[i],
-                line_width=line_width,
-                render_markers=render_markers,
-                marker_style=marker_style,
-                marker_size=marker_size,
-                marker_colour=marker_colour[i],
-                marker_resolution=marker_resolution,
-                step=step,
-                alpha=alpha,
-                render_numbering=render_numbering,
-                numbers_colour=numbers_colour,
-                numbers_size=numbers_size,
-            )
+            pc.view(figure_id=self.figure_id, new_figure=False,
+                    render_lines=render_lines, line_colour=line_colour[i],
+                    line_width=line_width, render_markers=render_markers,
+                    marker_style=marker_style, marker_size=marker_size,
+                    marker_colour=marker_colour[i],
+                    marker_resolution=marker_resolution, step=step,
+                    alpha=alpha, render_numbering=render_numbering,
+                    numbers_colour=numbers_colour, numbers_size=numbers_size,
+                    inline=False)
         self.figure.scene.disable_render = False
 
         return self
