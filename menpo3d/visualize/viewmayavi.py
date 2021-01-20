@@ -498,7 +498,8 @@ class MayaviLandmarkViewer3d(MayaviRenderer):
                     marker_colour=marker_colour[i],
                     marker_resolution=marker_resolution, step=step,
                     alpha=alpha, render_numbering=render_numbering,
-                    numbers_colour=numbers_colour, numbers_size=numbers_size)
+                    numbers_colour=numbers_colour, numbers_size=numbers_size,
+                    inline=False)
         self.figure.scene.disable_render = False
 
         return self
