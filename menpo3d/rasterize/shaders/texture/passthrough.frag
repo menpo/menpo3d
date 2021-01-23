@@ -2,8 +2,8 @@
 uniform sampler2D Texture;
 in vec2 v_text;
 in vec3 v_f3v;
-out vec4 f_color;
-out vec3 f_f3v;
+layout(location = 0) out vec4 f_color;
+layout(location = 1) out vec3 f_f3v;
 
 void main() {
    // Note the Y texture coordinates are flipped
