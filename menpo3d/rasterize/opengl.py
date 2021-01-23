@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from enum import IntEnum
 from pathlib import Path
 
@@ -45,6 +46,14 @@ def _verify_opengl_homogeneous_matrix(matrix):
     if matrix.shape != (4, 4):
         raise ValueError("OpenGL matrices must have shape (4,4)")
     return np.require(matrix, dtype=np.float32, requirements="C")
+
+
+@contextmanager
+def safe_release(obj):
+    try:
+        yield obj
+    except:
+        obj.release()
 
 
 class BasePassthroughProgram:
@@ -151,7 +160,7 @@ class TexturePassthroughProgram(BasePassthroughProgram):
             self.texture = self.context.texture(
                 size=shape, components=3, data=pixels.tobytes(), dtype="f4"
             )
-        elif self._pixels_ref is not pixels:
+        elif not np.allclose(self._pixels_ref, pixels):
             assert self.texture is not None
             self.texture.write(pixels.tobytes())
 
@@ -305,7 +314,7 @@ class GLRasterizer:
         )
         self._depth_renderbuffer = self.opengl_ctx.depth_renderbuffer(self.size)
         self._fbo = self.opengl_ctx.framebuffer(
-            [self._f3v_renderbuffer, self._rgba_renderbuffer], self._depth_renderbuffer
+            [self._rgba_renderbuffer, self._f3v_renderbuffer], self._depth_renderbuffer
         )
 
     def __del__(self):
@@ -420,7 +429,7 @@ class GLRasterizer:
                 "coloured (colours) TriMeshes are supported"
             )
 
-    def _rasterize(self, mesh, per_vertex_f3v):
+    def _rasterize(self, mesh, per_vertex_f3v, fetch_f3v=True):
         """
         This defines the main rasterize method with moderngl. Ensures that
         the program is setup correctly and that the outputs are also parsed
@@ -429,17 +438,24 @@ class GLRasterizer:
         Parameters
         ----------
         mesh : `menpo.shape.ColouredTriMesh` or `menpo.shape.TexturedTriMesh`
+            Mesh to render
         per_vertex_f3v : ndarray, (n_points, 3)
+            Per vertex floats to render
+        fetch_f3v : bool
+            If True, then fetch the per-vertex floats, otherwise skip fetching them.
+            Note that at the moment they are always rendered but we can skip
+            fetching them if we don't use them.
 
         Returns
         -------
         rgb_image : ndarray float32, [H, W, 3]
             RGB image representing the rasterized image (with either the
             texture rasterized or the per vertex colours)
-        f3v_image : ndarray float32, [H, W, 3]
+        f3v_image : ndarray float32, [H, W, 3] or None if fetch_f3v is False
             RGB image representing the rasterized per-vertex arbitrary floating
             point values
         mask : ndarray bool, [H, W, 1]
+            True where pixels were written to, False otherwise
         """
         self._active_program.set_mvp(self.mvp_matrix)
         vao = self._active_program.create_vao(mesh, per_vertex_f3v)
@@ -450,18 +466,28 @@ class GLRasterizer:
         self.opengl_ctx.enable(moderngl.DEPTH_TEST | moderngl.CULL_FACE)
         if self._shader_type == _LOADED_SHADER_TYPE.TEXTURE:
             self._active_program.texture.use()
-        vao.render()
 
-        f3v_data = self._fbo.read(components=3, attachment=0, alignment=1, dtype="f4")
-        rgba_data = self._fbo.read(components=4, attachment=1, alignment=1, dtype="f4")
+        with safe_release(vao):
+            vao.render()
+
+        # Note that this is dependent on the shader output locations and
+        # how the renderbuffers are wired up
+        rgba_data = self._fbo.read(components=4, attachment=0, dtype="f4")
+        f3v_data = None
+        if fetch_f3v:
+            f3v_data = self._fbo.read(components=3, attachment=1, dtype="f4")
 
         rgba_image = np.frombuffer(rgba_data, dtype=np.float32)
         rgba_image = rgba_image.reshape(self.height, self.width, 4)[::-1]
-        f3v_image = np.frombuffer(f3v_data, dtype=np.float32)
-        f3v_image = f3v_image.reshape(self.height, self.width, 3)[::-1]
         rgba_image = np.require(rgba_image, dtype=np.float32, requirements=["C"])
-        f3v_image = np.require(f3v_image, dtype=np.float32, requirements=["C"])
-        return (rgba_image[..., :3], f3v_image, rgba_image[..., -1].astype(np.bool))
+
+        f3v_image = None
+        if f3v_data is not None:
+            f3v_image = np.frombuffer(f3v_data, dtype=np.float32)
+            f3v_image = f3v_image.reshape(self.height, self.width, 3)[::-1]
+            f3v_image = np.require(f3v_image, dtype=np.float32, requirements=["C"])
+
+        return rgba_image[..., :3], f3v_image, rgba_image[..., -1].astype(np.bool)
 
     def rasterize_mesh_with_f3v_interpolant(self, mesh, per_vertex_f3v=None):
         r"""
@@ -474,8 +500,7 @@ class GLRasterizer:
         per_vertex_f3v : optional, ndarray (n_points, 3)
             A per-vertex 3 vector of floats that will be interpolated across
             the image.
-            If None, the model's shape is used (making
-            this method equivalent to rasterize_mesh_with_shape_image)
+            If None, a zero is passed for every vertex.
 
         Returns
         -------
@@ -490,7 +515,7 @@ class GLRasterizer:
         """
         if not (hasattr(mesh, "points") and hasattr(mesh, "trilist")):
             raise ValueError(
-                "Rasterizable types must have points and " "trilist properties."
+                "Rasterizable types must have points and trilist properties."
             )
 
         if per_vertex_f3v is None:
@@ -504,13 +529,11 @@ class GLRasterizer:
             MaskedImage.init_from_channels_at_back(f3v_pixels, mask=mask),
         )
 
-        from menpo.landmark import Landmarkable
+        # Transform all landmarks and set them on the image
+        image_lms = self.model_to_image_transform.apply(mesh.landmarks)
+        for image in images:
+            image.landmarks = image_lms
 
-        if isinstance(mesh, Landmarkable):
-            # Transform all landmarks and set them on the image
-            image_lms = self.model_to_image_transform.apply(mesh.landmarks)
-            for image in images:
-                image.landmarks = image_lms
         return images
 
     def rasterize_mesh_with_shape_image(self, mesh):
@@ -551,7 +574,14 @@ class GLRasterizer:
             The result of the rasterization. Mask is true iff the pixel was
             rendered to by OpenGL.
         """
-        return self.rasterize_mesh_with_shape_image(mesh)[0]
+        self._set_active_program_by_mesh_type(mesh)
+
+        per_vertex_f3v = np.zeros(mesh.points.shape, dtype=np.float32)
+        rgb_pixels, _, mask = self._rasterize(mesh, per_vertex_f3v, fetch_f3v=False)
+        image = MaskedImage.init_from_channels_at_back(rgb_pixels, mask=mask)
+        image.landmarks = self.model_to_image_transform.apply(mesh.landmarks)
+
+        return image
 
     def rasterize_barycentric_coordinate_image(self, mesh):
         # Convert the mesh into a version with one vertex per triangle
