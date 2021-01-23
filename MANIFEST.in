@@ -1,7 +1,7 @@
-include versioneer.py
-include menpo3d/_version.py
 include LICENSE.txt
 recursive-include menpo3d *.h
 recursive-include menpo3d *.cpp
 recursive-include menpo3d *.pyx
 recursive-include menpo3d *.pxd
+recursive-include menpo3d/rasterize/shaders *.frag
+recursive-include menpo3d/rasterize/shaders *.vert
