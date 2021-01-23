@@ -121,7 +121,13 @@ setup(
     author="James Booth",
     author_email="james.booth08@imperial.ac.uk",
     packages=find_packages(),
-    package_data={"menpo3d": ["data/*", "rasterize/shaders/*"]},
+    package_data={
+        "menpo3d": [
+            "data/*",
+            "rasterize/shaders/per_vertex/*",
+            "rasterize/shaders/texture/*",
+        ]
+    },
     install_requires=install_requires,
     tests_require=["pytest>=5.0"],
     ext_modules=cython_exts,
