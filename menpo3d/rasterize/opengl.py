@@ -128,6 +128,7 @@ class TexturePassthroughProgram(BasePassthroughProgram):
         )
         self.texture = None
         self._texture_shape = None
+        self._pixels_ref = None
 
     def __del__(self):
         super().__del__()
@@ -145,9 +146,14 @@ class TexturePassthroughProgram(BasePassthroughProgram):
         shape = pixels.shape[:2][::-1]
         if self._texture_shape is None or self._texture_shape != shape:
             self._texture_shape = shape
+            # Note this keeps the texture alive and so uses lots of memory for large textures
+            self._pixels_ref = pixels
             self.texture = self.context.texture(
                 size=shape, components=3, data=pixels.tobytes(), dtype="f4"
             )
+        elif self._pixels_ref is not pixels:
+            assert self.texture is not None
+            self.texture.write(pixels.tobytes())
 
     def create_vao(self, mesh, per_vertex_f3v):
         """
