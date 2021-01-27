@@ -2,7 +2,7 @@ import menpo
 import menpo3d.io as mio
 import numpy as np
 from menpo.image import Image
-from menpo.shape import TriMesh, TexturedTriMesh, PointCloud
+from menpo.shape import ColouredTriMesh, PointCloud, TexturedTriMesh, TriMesh
 from numpy.testing import assert_allclose
 
 # ground truth bunny landmarks
@@ -42,6 +42,18 @@ def test_import_asset_james():
     assert isinstance(mesh.texture, Image)
     assert isinstance(mesh.tcoords, PointCloud)
     assert mesh.tcoords.points.shape[1] == 2
+
+
+def test_import_asset_template():
+    mesh = mio.import_builtin_asset("template.ply")
+    assert isinstance(mesh, ColouredTriMesh)
+    assert isinstance(mesh.points, np.ndarray)
+    assert mesh.points.shape[1] == 3
+    assert isinstance(mesh.trilist, np.ndarray)
+    assert mesh.trilist.shape[1] == 3
+    assert isinstance(mesh.colours, np.ndarray)
+    assert mesh.colours.shape[1] == 3
+    assert mesh.colours.max() == 1.0
 
 
 def test_import_incorrect_built_in():
