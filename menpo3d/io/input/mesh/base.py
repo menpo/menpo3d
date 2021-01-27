@@ -263,6 +263,7 @@ def ply_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float)
 
     trilist = np.require(vtk_ensure_trilist(polydata), requirements=["C"])
+    point_data = polydata.GetPointData()
 
     texture = None
     if texture_resolver is not None:
@@ -273,15 +274,21 @@ def ply_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     tcoords = None
     if texture is not None:
         try:
-            tcoords = vtk_to_numpy(polydata.GetPointData().GetTCoords())
+            tcoords = vtk_to_numpy(point_data.GetTCoords())
         except Exception:
             pass
 
         if isinstance(tcoords, np.ndarray) and tcoords.size == 0:
             tcoords = None
 
-    colour_per_vertex = None
-    return _construct_shape_type(points, trilist, tcoords, texture, colour_per_vertex)
+    scalar_per_vertex = point_data.GetScalars()
+    if scalar_per_vertex is not None:
+        scalar_per_vertex = vtk_to_numpy(scalar_per_vertex)[:, :3]
+        if scalar_per_vertex.dtype == np.uint8:
+            # Convert to [0, 1] floats
+            scalar_per_vertex = scalar_per_vertex * (1 / 255.0)
+
+    return _construct_shape_type(points, trilist, tcoords, texture, scalar_per_vertex)
 
 
 def stl_importer(filepath, asset=None, **kwargs):
