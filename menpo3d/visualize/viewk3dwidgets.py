@@ -45,6 +45,45 @@ def _calc_distance(points):
     return distance
 
 
+def rgb2int(rgb_array,  keep_alpha=False):
+    """
+    Convert rgb_array to an int color
+
+    Parameters
+    ----------
+    rgb_array:   ndarray
+                An RGBA array
+    keep_alpha: bool
+                If True, the alpha value is also used
+    Returns
+    --------
+    A ndarray with an int color value for each point
+    """
+
+    type_error_message = "RGB shape should be (num_points,3) or (num_points,3)"
+    if isinstance(rgb_array, np.ndarray):
+        if len(rgb_array.shape) != 2:
+            raise TypeError(type_error_message)
+        if rgb_array.shape[1] != 3 and rgb_array.shape[1] != 4:
+            print(rgb_array.shape[1])
+            raise TypeError(type_error_message)
+    else:
+        raise TypeError("RGB shape should be numpy ndarray")
+
+    if not keep_alpha:
+        rgb_array = rgb_array[:, :3]
+
+    num_points, num_colors = rgb_array.shape
+    if rgb_array.dtype in (np.float32, np.float64):
+        rgb_array = np.asarray(np.round(255*rgb_array), dtype='uint32')
+    # TODO
+    # check for overfloat
+    if num_colors == 4:
+        return ((rgb_array[:, 0] << 32) + (rgb_array[:, 1] << 16)
+                + (rgb_array[:, 2] << 8) + rgb_array[:, 3])
+
+    return ((rgb_array[:, 0] << 16) + (rgb_array[:, 1] << 8) + rgb_array[:, 2])
+
 def _parse_marker_size(marker_size, points):
     distance = _calc_distance(points)
     if marker_size is None:
@@ -337,7 +376,8 @@ class K3dwidgetsPointGraphViewer3d(K3dwidgetsRenderer):
     def _render(self, render_lines=True, line_colour='r', line_width=2,
                 render_markers=True, marker_style='flat', marker_size=10,
                 marker_colour='g', render_numbering=False,
-                numbers_colour='k', numbers_size=None):
+                numbers_colour='k', numbers_size=None,
+                colours=[], keep_alpha=False):
 
         widg_to_draw = super(K3dwidgetsPointGraphViewer3d, self)._render()
         # Render the lines if requested
@@ -369,16 +409,32 @@ class K3dwidgetsPointGraphViewer3d(K3dwidgetsRenderer):
         # Render the markers if requested
         if render_markers:
             marker_size = _parse_marker_size(marker_size, self.points)
+            if len(colours) != 0:
+                colours = rgb2int(colours, keep_alpha)
+                marker_colour = 'w'
+
             marker_colour = _parse_colour(marker_colour)
 
             if marker_style == 'sphere':
                 marker_style = 'mesh'
 
-            points_to_add = k3d_points(self.points, color=marker_colour,
+            # When the number of points is greater than 1000, it is recommended
+            # to use fast shaders: flat, 3d or 3dSpecular.
+            # The mesh shader generates much bigger overhead,
+            # but it has a properly triangularized sphere
+            # representing each point.
+            if self.points.shape[0] > 1000:
+                marker_style = '3dSpecular'
+
+            points_to_add = k3d_points(self.points, colors=colours,
+                                       color=marker_colour,
                                        point_size=marker_size,
                                        shader=marker_style)
             widg_to_draw += points_to_add
 
+            # TODO
+            # A class of k3d.texts that groups all texts should be created
+            # Till then, we go that way
             if render_numbering:
                 text_to_add = None
                 for i, point in enumerate(self.points):
