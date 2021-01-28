@@ -1,7 +1,7 @@
 import menpo.io as mio
 import menpo3d.io as m3dio
 import numpy as np
-from menpo3d.correspond import solve_pnp
+from menpo3d.correspond import solve_pnp_landmarks
 
 
 def test_solvepnp():
@@ -19,5 +19,5 @@ def test_solvepnp():
     )
 
     # Ransac is random and we can't control the seed so we do a fuzzy test
-    model_view_t, _ = solve_pnp(image, template, group="LJSON")
+    model_view_t, _ = solve_pnp_landmarks(image, template, group="LJSON")
     np.testing.assert_allclose(model_view_t.h_matrix, expected, atol=1e-2)
