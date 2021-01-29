@@ -1,1 +1,2 @@
 menpo3d/_version.py export-subst
+menpo3d/_static_version.py export-subst

@@ -2,12 +2,18 @@ import warnings
 from functools import partial
 
 from menpo.base import partial_doc
-from menpo.io.input.base import (glob_with_suffix, _import_glob_lazy_list,
-                                 _import, _import_object_attach_landmarks,
-                                 _data_dir_path, _data_path_to,
-                                 _ls_builtin_assets, BuiltinAssets,
-                                 _import_builtin_asset,
-                                 _register_importer)
+from menpo.io.input.base import (
+    glob_with_suffix,
+    _import_glob_lazy_list,
+    _import,
+    _import_object_attach_landmarks,
+    _data_dir_path,
+    _data_path_to,
+    _ls_builtin_assets,
+    BuiltinAssets,
+    _import_builtin_asset,
+    _register_importer,
+)
 from menpo.io.input import same_name, image_paths
 from menpo3d.base import menpo3d_src_dir_path
 from .extensions import mesh_types, mesh_landmark_types, lsfm_types
@@ -35,11 +41,12 @@ def same_name_texture(path, paths_callable=image_paths):
     is raised if more than one texture is found.
     """
     # pattern finding all landmarks with the same stem
-    pattern = path.with_suffix('.*')
+    pattern = path.with_suffix(".*")
     texture_paths = sorted(paths_callable(pattern))
     if len(texture_paths) > 1:
-        warnings.warn('More than one texture found for file, returning '
-                      'only the first.')
+        warnings.warn(
+            "More than one texture found for file, returning " "only the first."
+        )
     if not texture_paths:
         return None
     return texture_paths[0]
@@ -49,25 +56,28 @@ same_name_landmark = partial_doc(same_name, paths_callable=landmark_file_paths)
 
 menpo3d_data_dir_path = partial_doc(_data_dir_path, menpo3d_src_dir_path)
 
-menpo3d_ls_builtin_assets = partial_doc(_ls_builtin_assets, 
-                                        menpo3d_data_dir_path)
+menpo3d_ls_builtin_assets = partial_doc(_ls_builtin_assets, menpo3d_data_dir_path)
 
-menpo3d_data_path_to = partial_doc(_data_path_to, menpo3d_data_dir_path,
-                                   menpo3d_ls_builtin_assets)
+menpo3d_data_path_to = partial_doc(
+    _data_path_to, menpo3d_data_dir_path, menpo3d_ls_builtin_assets
+)
 
-_menpo3d_import_builtin_asset = partial_doc(_import_builtin_asset,
-                                            menpo3d_data_path_to,
-                                            mesh_types, mesh_landmark_types,
-                                            texture_resolver=same_name_texture)
+_menpo3d_import_builtin_asset = partial_doc(
+    _import_builtin_asset,
+    menpo3d_data_path_to,
+    mesh_types,
+    mesh_landmark_types,
+    texture_resolver=same_name_texture,
+)
 
 
 register_mesh_importer = partial_doc(_register_importer, mesh_types)
-register_landmark_importer = partial_doc(_register_importer, 
-                                         mesh_landmark_types)
+register_landmark_importer = partial_doc(_register_importer, mesh_landmark_types)
 
 
-def import_mesh(filepath, landmark_resolver=same_name_landmark,
-                texture_resolver=same_name_texture):
+def import_mesh(
+    filepath, landmark_resolver=same_name_landmark, texture_resolver=same_name_texture
+):
     r"""Single mesh (and associated landmarks and texture) importer.
 
     Iff an mesh file is found at `filepath`, returns a :map:`TriMesh`
@@ -92,17 +102,26 @@ def import_mesh(filepath, landmark_resolver=same_name_landmark,
     trimesh : :map:`TriMesh`
         An instantiated :map:`TriMesh` (or subclass thereof)
     """
-    kwargs = {'texture_resolver': texture_resolver}
-    return _import(filepath, mesh_types,
-                   landmark_resolver=landmark_resolver,
-                   landmark_ext_map=mesh_landmark_types,
-                   landmark_attach_func=_import_object_attach_landmarks,
-                   importer_kwargs=kwargs)
+    kwargs = {"texture_resolver": texture_resolver}
+    return _import(
+        filepath,
+        mesh_types,
+        landmark_resolver=landmark_resolver,
+        landmark_ext_map=mesh_landmark_types,
+        landmark_attach_func=_import_object_attach_landmarks,
+        importer_kwargs=kwargs,
+    )
 
 
-def import_meshes(pattern, max_meshes=None, shuffle=False,
-                  landmark_resolver=same_name, textures=True,
-                  as_generator=False, verbose=False):
+def import_meshes(
+    pattern,
+    max_meshes=None,
+    shuffle=False,
+    landmark_resolver=same_name,
+    textures=True,
+    as_generator=False,
+    verbose=False,
+):
     r"""Multiple mesh importer.
 
     Makes it's best effort to import and attach relevant related
@@ -152,13 +171,19 @@ def import_meshes(pattern, max_meshes=None, shuffle=False,
     ValueError
         If no meshes are found at the provided glob.
     """
-    kwargs = {'texture': textures}
+    kwargs = {"texture": textures}
     return _import_glob_lazy_list(
-        pattern, mesh_types, max_assets=max_meshes, shuffle=shuffle,
+        pattern,
+        mesh_types,
+        max_assets=max_meshes,
+        shuffle=shuffle,
         landmark_resolver=landmark_resolver,
         landmark_ext_map=mesh_landmark_types,
-        importer_kwargs=kwargs, as_generator=as_generator,
-        landmark_attach_func=_import_object_attach_landmarks, verbose=verbose)
+        importer_kwargs=kwargs,
+        as_generator=as_generator,
+        landmark_attach_func=_import_object_attach_landmarks,
+        verbose=verbose,
+    )
 
 
 def import_landmark_file(filepath, landmark_resolver=same_name):
@@ -178,12 +203,12 @@ def import_landmark_file(filepath, landmark_resolver=same_name):
         The :map:`LandmarkGroup` that the file format represents.
 
     """
-    return _import(filepath, mesh_landmark_types,
-                   landmark_resolver=landmark_resolver)
+    return _import(filepath, mesh_landmark_types, landmark_resolver=landmark_resolver)
 
 
-def import_landmark_files(pattern, max_landmarks=None, shuffle=False,
-                          as_generator=False, verbose=False):
+def import_landmark_files(
+    pattern, max_landmarks=None, shuffle=False, as_generator=False, verbose=False
+):
     r"""Multiple landmark file importer.
 
     Note that this is a function returns a :map:`LazyList`. Therefore, the
@@ -220,10 +245,14 @@ def import_landmark_files(pattern, max_landmarks=None, shuffle=False,
         If no landmarks are found at the provided glob.
 
     """
-    return _import_glob_lazy_list(pattern, mesh_landmark_types,
-                                  max_assets=max_landmarks,
-                                  shuffle=shuffle, as_generator=as_generator,
-                                  verbose=verbose)
+    return _import_glob_lazy_list(
+        pattern,
+        mesh_landmark_types,
+        max_assets=max_landmarks,
+        shuffle=shuffle,
+        as_generator=as_generator,
+        verbose=verbose,
+    )
 
 
 def import_lsfm_model(filepath):
@@ -241,11 +270,14 @@ def import_lsfm_model(filepath):
         The 3DMM contained in the LSFM mat file.
 
     """
-    return _import(filepath, lsfm_types,
-                   landmark_resolver=None)
+    return _import(filepath, lsfm_types, landmark_resolver=None)
+
 
 import_builtin_asset = BuiltinAssets(_menpo3d_import_builtin_asset)
 
 for asset in menpo3d_ls_builtin_assets():
-    setattr(import_builtin_asset, asset.replace('.', '_'),
-            partial(_menpo3d_import_builtin_asset, asset))
+    setattr(
+        import_builtin_asset,
+        asset.replace(".", "_"),
+        partial(_menpo3d_import_builtin_asset, asset),
+    )

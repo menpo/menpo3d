@@ -6,21 +6,21 @@ from menpo.base import Vectorizable, MenpoMissingDependencyError
 from menpo.transform import Transform, Translation, Rotation
 
 
-def align_2d_3d(points_3d, points_image, image_shape, focal_length=None,
-                distortion_coeffs=None):
+def align_2d_3d(
+    points_3d, points_image, image_shape, focal_length=None, distortion_coeffs=None
+):
     try:
         import cv2
     except ImportError:
-        raise MenpoMissingDependencyError('opencv3')
+        raise MenpoMissingDependencyError("opencv3")
     height, width = image_shape
     # Create camera matrix
-    focal_length = (max(height, width)
-                    if focal_length is None else focal_length)
+    focal_length = max(height, width) if focal_length is None else focal_length
     c_x = width / 2.0
     c_y = height / 2.0
-    camera_matrix = np.array([[focal_length, 0, c_x],
-                              [0, focal_length, c_y],
-                              [0, 0, 1.0]])
+    camera_matrix = np.array(
+        [[focal_length, 0, c_x], [0, focal_length, c_y], [0, 0, 1.0]]
+    )
 
     # If distortion coefficients are None, set them to zero
     if distortion_coeffs is None:
@@ -29,12 +29,12 @@ def align_2d_3d(points_3d, points_image, image_shape, focal_length=None,
     # mesh, its 2D projection on the image, the camera matrix and the
     # distortion coefficients
     lm2d = points_image.points[:, ::-1].copy()
-    converged, r_vec, t_vec = cv2.solvePnP(points_3d.points,
-                                           lm2d,
-                                           camera_matrix, distortion_coeffs)
+    converged, r_vec, t_vec = cv2.solvePnP(
+        points_3d.points, lm2d, camera_matrix, distortion_coeffs
+    )
 
     if not converged:
-        warnings.warn('cv2.SolvePnP did not converge to a solution')
+        warnings.warn("cv2.SolvePnP did not converge to a solution")
 
     # Create rotation and translation transform objects from the vectors
     # acquired at the previous step
@@ -46,7 +46,6 @@ def align_2d_3d(points_3d, points_image, image_shape, focal_length=None,
 
 
 class OrthographicProjection(Transform, Vectorizable):
-
     def __init__(self, focal_length, image_shape):
         self.focal_length = focal_length
         self.height = image_shape[0]
@@ -93,14 +92,25 @@ class PerspectiveProjection(OrthographicProjection):
         return output
 
     @classmethod
-    def init_from_2d_projected_shape(cls, points_3d, points_image,
-                                     image_shape, focal_length=None,
-                                     distortion_coeffs=None):
+    def init_from_2d_projected_shape(
+        cls,
+        points_3d,
+        points_image,
+        image_shape,
+        focal_length=None,
+        distortion_coeffs=None,
+    ):
         r, t, focal_length = align_2d_3d(
-            points_3d, points_image, image_shape, focal_length=focal_length,
-            distortion_coeffs=distortion_coeffs)
-        return OrthographicCamera(r, t, OrthographicProjection(focal_length,
-                                                               image_shape))
+            points_3d,
+            points_image,
+            image_shape,
+            focal_length=focal_length,
+            distortion_coeffs=distortion_coeffs,
+        )
+        return OrthographicCamera(
+            r, t, OrthographicProjection(focal_length, image_shape)
+        )
+
 
 class OrthographicCamera(Vectorizable):
     def __init__(self, rotation, translation, projection):
@@ -120,20 +130,28 @@ class OrthographicCamera(Vectorizable):
         return cls(r, t, p).from_vector(vector)
 
     @classmethod
-    def init_from_2d_projected_shape(cls, points_3d, points_image,
-                                     image_shape, focal_length=None,
-                                     distortion_coeffs=None):
-        raise NotImplementedError("Orthographic camera pose estimation not "
-                                  "implemented.")
+    def init_from_2d_projected_shape(
+        cls,
+        points_3d,
+        points_image,
+        image_shape,
+        focal_length=None,
+        distortion_coeffs=None,
+    ):
+        raise NotImplementedError(
+            "Orthographic camera pose estimation not " "implemented."
+        )
 
     def apply(self, instance, **kwargs):
         return self.camera_transform.apply(instance)
 
     @property
     def n_parameters(self):
-        return (self.projection_transform.n_parameters +
-                self.rotation_transform.n_parameters +
-                self.translation_transform.n_parameters)
+        return (
+            self.projection_transform.n_parameters
+            + self.rotation_transform.n_parameters
+            + self.translation_transform.n_parameters
+        )
 
     def as_vector(self):
         # focal_length, q_w, q_x, q_y, q_z, t_x, t_y, t_z
@@ -172,11 +190,19 @@ class PerspectiveCamera(OrthographicCamera):
         return cls(r, t, p).from_vector(vector)
 
     @classmethod
-    def init_from_2d_projected_shape(cls, points_3d, points_image,
-                                     image_shape, focal_length=None,
-                                     distortion_coeffs=None):
+    def init_from_2d_projected_shape(
+        cls,
+        points_3d,
+        points_image,
+        image_shape,
+        focal_length=None,
+        distortion_coeffs=None,
+    ):
         r, t, focal_length = align_2d_3d(
-            points_3d, points_image, image_shape, focal_length=focal_length,
-            distortion_coeffs=distortion_coeffs)
-        return PerspectiveCamera(r, t, PerspectiveProjection(focal_length,
-                                                             image_shape))
+            points_3d,
+            points_image,
+            image_shape,
+            focal_length=focal_length,
+            distortion_coeffs=distortion_coeffs,
+        )
+        return PerspectiveCamera(r, t, PerspectiveProjection(focal_length, image_shape))

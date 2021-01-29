@@ -23,8 +23,9 @@ def trimesh_to_vtk(trimesh):
     """
     import vtk
     from vtk.util.numpy_support import numpy_to_vtk, numpy_to_vtkIdTypeArray
+
     if trimesh.n_dims != 3:
-        raise ValueError('trimesh_to_vtk() only works on 3D TriMesh instances')
+        raise ValueError("trimesh_to_vtk() only works on 3D TriMesh instances")
 
     mesh = vtk.vtkPolyData()
     points = vtk.vtkPoints()
@@ -38,11 +39,15 @@ def trimesh_to_vtk(trimesh):
     # based on this. See numpy_to_vtkIdTypeArray() for details.
     isize = vtk.vtkIdTypeArray().GetDataTypeSize()
     req_dtype = np.int32 if isize == 4 else np.int64
-    cells.SetCells(trimesh.n_tris,
-                   numpy_to_vtkIdTypeArray(
-                       np.hstack((np.ones(trimesh.n_tris)[:, None] * 3,
-                                  trimesh.trilist)).astype(req_dtype).ravel(),
-                       deep=1))
+    cells.SetCells(
+        trimesh.n_tris,
+        numpy_to_vtkIdTypeArray(
+            np.hstack((np.ones(trimesh.n_tris)[:, None] * 3, trimesh.trilist))
+            .astype(req_dtype)
+            .ravel(),
+            deep=1,
+        ),
+    )
     mesh.SetPolys(cells)
     return mesh
 
@@ -62,6 +67,7 @@ def trimesh_from_vtk(vtk_mesh):
         A menpo :map:`TriMesh` representation of the VTK mesh data
     """
     from vtk.util.numpy_support import vtk_to_numpy
+
     points = vtk_to_numpy(vtk_mesh.GetPoints().GetData())
     trilist = vtk_to_numpy(vtk_mesh.GetPolys().GetData())
     return TriMesh(points, trilist=trilist.reshape([-1, 4])[:, 1:])
@@ -78,15 +84,17 @@ class VTKClosestPointLocator(object):
         data structure will be initialized around this mesh which will enable
         efficient future lookups.
     """
+
     def __init__(self, vtk_mesh):
         import vtk
+
         cell_locator = vtk.vtkCellLocator()
         cell_locator.SetDataSet(vtk_mesh)
         cell_locator.BuildLocator()
         self.cell_locator = cell_locator
 
         # prepare some private properties that will be filled in for us by VTK
-        self._c_point = [0., 0., 0.]
+        self._c_point = [0.0, 0.0, 0.0]
         self._cell_id = vtk.mutable(0)
         self._sub_id = vtk.mutable(0)
         self._distance = vtk.mutable(0.0)
@@ -130,10 +138,9 @@ class VTKClosestPointLocator(object):
             A tuple of the nearest point on the `vtkPolyData` and the triangle
             index of the triangle that the nearest point is located inside of.
         """
-        self.cell_locator.FindClosestPoint(point, self._c_point,
-                                           self._cell_id,
-                                           self._sub_id,
-                                           self._distance)
+        self.cell_locator.FindClosestPoint(
+            point, self._c_point, self._cell_id, self._sub_id, self._distance
+        )
         return self._c_point[:], self._cell_id.get()
 
 

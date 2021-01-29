@@ -43,9 +43,9 @@ Jupyter notebook extension for 3D visualization.
 
 In order to view 3D items through mayavi you will need to first use the `%matplotlib qt`
 IPython magic command to set up QT for rendering (you do this instead of
-`%matplotlib inline` which is what is needed for using the usual Menpo
-Widgets). As a complete example, to view a mesh in IPython you
-would run something like:
+`%matplotlib inline` which is what is needed for rendering directly
+in Jupyter/Ipython notebooks). As a complete example, to view a
+mesh in IPython you would run something like:
 ```python
 import menpo3d
 mesh = menpo3d.io.import_builtin_asset('james.obj')
@@ -54,29 +54,6 @@ mesh = menpo3d.io.import_builtin_asset('james.obj')
 %matplotlib qt
 mesh.view()
 ```
- If you are on Linux and get an error like:
-```
-ValueError: API 'QString' has already been set to version 1
-```
-Try adding the following to your `.bashrc` file:
-```bash
-export QT_API=pyqt
-export ETS_TOOLKIT=qt4
-```
-Open a new terminal and re-run IPython notebook in here, this should fix the issue.
-
-If you are running Windows and recieve this error, try:
-```cmd
-set QT_API=pyqt
-set ETS_TOOLKIT=qt4
-```
-Alternatively, try installing wxPython:
-```cmd
-conda install wxpython
-```
-and using `%matplotlib wx`.
-
-
 In the case of K3D Jupyter visualization to view a mesh in Jupyter cell  you
 would run something like:
 ```python

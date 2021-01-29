@@ -1,11 +1,11 @@
+from typing import Iterable
+
 import numpy as np
-from collections import Iterable
 
-from menpo.base import LazyList
+from menpo.base import LazyList, copy_landmarks_and_path
 from menpo.image import Image
+from menpo.shape import ColouredTriMesh, PointCloud, TriMesh
 from menpo.transform import Homogeneous
-from menpo.shape import PointCloud
-
 from menpo3d.extractimage import extract_per_vertex_colour
 from menpo3d.rasterize import rasterize_mesh
 
@@ -14,9 +14,6 @@ from menpo3d.rasterize import rasterize_mesh
 # have a PR which adds these convenience methods on mesh subclasses.
 #
 # Once those are in we can remove these functions.
-
-from menpo.base import copy_landmarks_and_path
-from menpo.shape import TriMesh, ColouredTriMesh
 
 
 def as_trimesh(self, copy=True):
@@ -35,9 +32,9 @@ def as_trimesh(self, copy=True):
     trimesh : :map:`TriMesh`
         A trimesh with the same points trilist and landmarks as this shape.
     """
-    return copy_landmarks_and_path(self, TriMesh(self.points,
-                                                 trilist=self.trilist,
-                                                 copy=copy))
+    return copy_landmarks_and_path(
+        self, TriMesh(self.points, trilist=self.trilist, copy=copy)
+    )
 
 
 def as_colouredtrimesh(self, colours=None, copy=True):
@@ -57,13 +54,12 @@ def as_colouredtrimesh(self, colours=None, copy=True):
     coloured : :map:`ColouredTriMesh`
         A version of this mesh with per-vertex colour assigned.
     """
-    ctm = ColouredTriMesh(self.points, trilist=self.trilist,
-                          colours=colours, copy=copy)
+    ctm = ColouredTriMesh(self.points, trilist=self.trilist, colours=colours, copy=copy)
     return copy_landmarks_and_path(self, ctm)
 
 
 def error_function(mesh, gt_mesh):
-    return 1.
+    return 1.0
 
 
 class Result(object):
@@ -93,9 +89,16 @@ class Result(object):
         The ground truth mesh associated with the image. If ``None``, then no
         ground truth mesh is assigned.
     """
-    def __init__(self, final_mesh, final_camera_transform, image=None,
-                 initial_mesh=None, initial_camera_transform=None,
-                 gt_mesh=None):
+
+    def __init__(
+        self,
+        final_mesh,
+        final_camera_transform,
+        image=None,
+        initial_mesh=None,
+        initial_camera_transform=None,
+        gt_mesh=None,
+    ):
         self._final_mesh = final_mesh
         self._final_camera_transform = final_camera_transform
         self._initial_mesh = initial_mesh
@@ -200,8 +203,10 @@ class Result(object):
         if self.gt_mesh is not None:
             return compute_error(self.final_mesh, self.gt_mesh)
         else:
-            raise ValueError('Ground truth mesh has not been set, so the '
-                             'final error cannot be computed')
+            raise ValueError(
+                "Ground truth mesh has not been set, so the "
+                "final error cannot be computed"
+            )
 
     def initial_error(self, compute_error):
         r"""
@@ -232,11 +237,15 @@ class Result(object):
         if compute_error is None:
             compute_error = error_function
         if self.initial_mesh is None:
-            raise ValueError('Initial shape has not been set, so the initial '
-                             'error cannot be computed')
+            raise ValueError(
+                "Initial shape has not been set, so the initial "
+                "error cannot be computed"
+            )
         elif self.gt_mesh is None:
-            raise ValueError('Ground truth shape has not been set, so the '
-                             'initial error cannot be computed')
+            raise ValueError(
+                "Ground truth shape has not been set, so the "
+                "initial error cannot be computed"
+            )
         else:
             return compute_error(self.initial_mesh, self.gt_mesh)
 
@@ -267,12 +276,13 @@ class Result(object):
             raise ValueError("The final camera transform does not exist.")
         if shape is None:
             if self.image is None:
-                raise ValueError("You need to provide an image shape, "
-                                 "since the image does not exist.")
+                raise ValueError(
+                    "You need to provide an image shape, "
+                    "since the image does not exist."
+                )
             else:
                 shape = self.image.shape
-        return rasterize_mesh(
-            self.final_camera_transform.apply(self.final_mesh), shape)
+        return rasterize_mesh(self.final_camera_transform.apply(self.final_mesh), shape)
 
     def rasterized_initial_mesh(self, shape=None):
         r"""
@@ -305,18 +315,29 @@ class Result(object):
             raise ValueError("The initial camera transform does not exist.")
         if shape is None:
             if self.image is None:
-                raise ValueError("You need to provide an image shape, "
-                                 "since the image does not exist.")
+                raise ValueError(
+                    "You need to provide an image shape, "
+                    "since the image does not exist."
+                )
             else:
                 shape = self.image.shape
         return rasterize_mesh(
-            self.initial_camera_transform.apply(self.initial_mesh), shape)
+            self.initial_camera_transform.apply(self.initial_mesh), shape
+        )
 
-    def view_final_mesh(self, figure_id=None, new_figure=False,
-                        textured=True, mesh_type='surface',
-                        mesh_colour=(1, 0, 0), line_width=2,
-                        ambient_light=0.0, specular_light=0.0, step=None,
-                        alpha=1.0):
+    def view_final_mesh(
+        self,
+        figure_id=None,
+        new_figure=False,
+        textured=True,
+        mesh_type="surface",
+        mesh_colour=(1, 0, 0),
+        line_width=2,
+        ambient_light=0.0,
+        specular_light=0.0,
+        step=None,
+        alpha=1.0,
+    ):
         """
         Visualize the final mesh.
 
@@ -353,16 +374,31 @@ class Result(object):
             The Menpo3D rendering object.
         """
         return self.final_mesh.view(
-            figure_id=figure_id, new_figure=new_figure, textured=textured,
-            mesh_type=mesh_type, mesh_colour=mesh_colour,
-            line_width=line_width, ambient_light=ambient_light,
-            specular_light=specular_light, step=step, alpha=alpha)
+            figure_id=figure_id,
+            new_figure=new_figure,
+            textured=textured,
+            mesh_type=mesh_type,
+            mesh_colour=mesh_colour,
+            line_width=line_width,
+            ambient_light=ambient_light,
+            specular_light=specular_light,
+            step=step,
+            alpha=alpha,
+        )
 
-    def view_initial_mesh(self, figure_id=None, new_figure=False,
-                          textured=True, mesh_type='surface',
-                          mesh_colour=(1, 0, 0), line_width=2,
-                          ambient_light=0.0, specular_light=0.0, step=None,
-                          alpha=1.0):
+    def view_initial_mesh(
+        self,
+        figure_id=None,
+        new_figure=False,
+        textured=True,
+        mesh_type="surface",
+        mesh_colour=(1, 0, 0),
+        line_width=2,
+        ambient_light=0.0,
+        specular_light=0.0,
+        step=None,
+        alpha=1.0,
+    ):
         """
         Visualize the initial mesh, if it exists.
 
@@ -402,15 +438,31 @@ class Result(object):
             raise ValueError("The initial mesh does not exist.")
         else:
             return self.initial_mesh.view(
-                figure_id=figure_id, new_figure=new_figure, textured=textured,
-                mesh_type=mesh_type, mesh_colour=mesh_colour,
-                line_width=line_width, ambient_light=ambient_light,
-                specular_light=specular_light, step=step, alpha=alpha)
+                figure_id=figure_id,
+                new_figure=new_figure,
+                textured=textured,
+                mesh_type=mesh_type,
+                mesh_colour=mesh_colour,
+                line_width=line_width,
+                ambient_light=ambient_light,
+                specular_light=specular_light,
+                step=step,
+                alpha=alpha,
+            )
 
-    def view_gt_mesh(self, figure_id=None, new_figure=False,
-                     mesh_type='wireframe', line_width=2, colour=(1, 0, 0),
-                     marker_style='sphere', marker_size=0.05,
-                     marker_resolution=8, step=None, alpha=1.0):
+    def view_gt_mesh(
+        self,
+        figure_id=None,
+        new_figure=False,
+        mesh_type="wireframe",
+        line_width=2,
+        colour=(1, 0, 0),
+        marker_style="sphere",
+        marker_size=0.05,
+        marker_resolution=8,
+        step=None,
+        alpha=1.0,
+    ):
         """
         Visualize the ground truth mesh, if it exists.
 
@@ -462,14 +514,20 @@ class Result(object):
             raise ValueError("The ground truth mesh does not exist.")
         else:
             return self.gt_mesh.view(
-                figure_id=figure_id, new_figure=new_figure, mesh_type=mesh_type,
-                line_width=line_width, colour=colour, marker_style=marker_style,
-                marker_size=marker_size, marker_resolution=marker_resolution,
-                step=step, alpha=alpha)
+                figure_id=figure_id,
+                new_figure=new_figure,
+                mesh_type=mesh_type,
+                line_width=line_width,
+                colour=colour,
+                marker_style=marker_style,
+                marker_size=marker_size,
+                marker_resolution=marker_resolution,
+                step=step,
+                alpha=alpha,
+            )
 
     def __str__(self):
-        out = "Fitting result of mesh with {} points.".format(
-            self.final_mesh.n_points)
+        out = "Fitting result of mesh with {} points.".format(self.final_mesh.n_points)
         if self.gt_mesh is not None:
             if self.initial_mesh is not None:
                 out += "\nInitial error: {:.4f}".format(self.initial_error())
@@ -513,12 +571,25 @@ class NonParametricIterativeResult(Result):
         that the cost function cannot be computed for the specific
         algorithm. It must have the same length as `meshes`.
     """
-    def __init__(self, meshes, camera_transforms, image=None, initial_mesh=None,
-                 initial_camera_transform=None, gt_mesh=None, costs=None):
+
+    def __init__(
+        self,
+        meshes,
+        camera_transforms,
+        image=None,
+        initial_mesh=None,
+        initial_camera_transform=None,
+        gt_mesh=None,
+        costs=None,
+    ):
         super(NonParametricIterativeResult, self).__init__(
-            final_mesh=meshes[-1], final_camera_transform=camera_transforms[-1],
-            image=image, initial_mesh=initial_mesh,
-            initial_camera_transform=initial_camera_transform, gt_mesh=gt_mesh)
+            final_mesh=meshes[-1],
+            final_camera_transform=camera_transforms[-1],
+            image=image,
+            initial_mesh=initial_mesh,
+            initial_camera_transform=initial_camera_transform,
+            gt_mesh=gt_mesh,
+        )
         self._n_iters = len(meshes)
         # If initial mesh is provided, then add it in the beginning of meshes
         self._meshes = meshes
@@ -528,8 +599,9 @@ class NonParametricIterativeResult(Result):
         # of meshes
         self._camera_transforms = camera_transforms
         if self.initial_camera_transform is not None:
-            self._camera_transforms = ([self.initial_camera_transform] +
-                                       self._camera_transforms)
+            self._camera_transforms = [
+                self.initial_camera_transform
+            ] + self._camera_transforms
         # Add costs as property
         self._costs = costs
 
@@ -573,8 +645,7 @@ class NonParametricIterativeResult(Result):
         """
         return self._n_iters
 
-    def to_result(self, pass_image=True, pass_initial_mesh=True,
-                  pass_gt_mesh=True):
+    def to_result(self, pass_image=True, pass_initial_mesh=True, pass_gt_mesh=True):
         r"""
         Returns a :map:`Result` instance of the object, i.e. a fitting result
         object that does not store the iterations. This can be useful for
@@ -606,10 +677,14 @@ class NonParametricIterativeResult(Result):
         gt_mesh = None
         if pass_gt_mesh:
             gt_mesh = self.gt_mesh
-        return Result(self.final_mesh, self.final_camera_transform,
-                      image=image, initial_mesh=initial_mesh,
-                      initial_camera_transform=initial_camera_transform,
-                      gt_mesh=gt_mesh)
+        return Result(
+            self.final_mesh,
+            self.final_camera_transform,
+            image=image,
+            initial_mesh=initial_mesh,
+            initial_camera_transform=initial_camera_transform,
+            gt_mesh=gt_mesh,
+        )
 
     def errors(self, compute_error=None):
         r"""
@@ -636,24 +711,42 @@ class NonParametricIterativeResult(Result):
         if compute_error is None:
             compute_error = error_function
         if self.gt_mesh is not None:
-            return [compute_error(t, self.gt_mesh)
-                    for t in self.meshes]
+            return [compute_error(t, self.gt_mesh) for t in self.meshes]
         else:
-            raise ValueError('Ground truth shape has not been set, so the '
-                             'errors per iteration cannot be computed')
+            raise ValueError(
+                "Ground truth shape has not been set, so the "
+                "errors per iteration cannot be computed"
+            )
 
-    def plot_errors(self, compute_error=None, figure_id=None,
-                    new_figure=False, render_lines=True, line_colour='b',
-                    line_style='-', line_width=2, render_markers=True,
-                    marker_style='o', marker_size=4, marker_face_colour='b',
-                    marker_edge_colour='k', marker_edge_width=1.,
-                    render_axes=True, axes_font_name='sans-serif',
-                    axes_font_size=10, axes_font_style='normal',
-                    axes_font_weight='normal', axes_x_limits=0.,
-                    axes_y_limits=None, axes_x_ticks=None,
-                    axes_y_ticks=None, figure_size=(10, 6),
-                    render_grid=True, grid_line_style='--',
-                    grid_line_width=0.5):
+    def plot_errors(
+        self,
+        compute_error=None,
+        figure_id=None,
+        new_figure=False,
+        render_lines=True,
+        line_colour="b",
+        line_style="-",
+        line_width=2,
+        render_markers=True,
+        marker_style="o",
+        marker_size=4,
+        marker_face_colour="b",
+        marker_edge_colour="k",
+        marker_edge_width=1.0,
+        render_axes=True,
+        axes_font_name="sans-serif",
+        axes_font_size=10,
+        axes_font_style="normal",
+        axes_font_weight="normal",
+        axes_x_limits=0.0,
+        axes_y_limits=None,
+        axes_x_ticks=None,
+        axes_y_ticks=None,
+        figure_size=(10, 6),
+        render_grid=True,
+        grid_line_style="--",
+        grid_line_width=0.5,
+    ):
         r"""
         Plot of the error evolution at each fitting iteration.
 
@@ -766,24 +859,41 @@ class NonParametricIterativeResult(Result):
             The renderer object.
         """
         from menpo.visualize import plot_curve
+
         errors = self.errors(compute_error=compute_error)
         return plot_curve(
-            x_axis=list(range(len(errors))), y_axis=[errors], figure_id=figure_id,
-            new_figure=new_figure, title='Fitting Errors per Iteration',
-            x_label='Iteration', y_label='Fitting Error',
-            axes_x_limits=axes_x_limits, axes_y_limits=axes_y_limits,
-            axes_x_ticks=axes_x_ticks, axes_y_ticks=axes_y_ticks,
-            render_lines=render_lines, line_colour=line_colour,
-            line_style=line_style, line_width=line_width,
-            render_markers=render_markers, marker_style=marker_style,
-            marker_size=marker_size, marker_face_colour=marker_face_colour,
+            x_axis=list(range(len(errors))),
+            y_axis=[errors],
+            figure_id=figure_id,
+            new_figure=new_figure,
+            title="Fitting Errors per Iteration",
+            x_label="Iteration",
+            y_label="Fitting Error",
+            axes_x_limits=axes_x_limits,
+            axes_y_limits=axes_y_limits,
+            axes_x_ticks=axes_x_ticks,
+            axes_y_ticks=axes_y_ticks,
+            render_lines=render_lines,
+            line_colour=line_colour,
+            line_style=line_style,
+            line_width=line_width,
+            render_markers=render_markers,
+            marker_style=marker_style,
+            marker_size=marker_size,
+            marker_face_colour=marker_face_colour,
             marker_edge_colour=marker_edge_colour,
-            marker_edge_width=marker_edge_width, render_legend=False,
-            render_axes=render_axes, axes_font_name=axes_font_name,
-            axes_font_size=axes_font_size, axes_font_style=axes_font_style,
-            axes_font_weight=axes_font_weight, figure_size=figure_size,
-            render_grid=render_grid,  grid_line_style=grid_line_style,
-            grid_line_width=grid_line_width)
+            marker_edge_width=marker_edge_width,
+            render_legend=False,
+            render_axes=render_axes,
+            axes_font_name=axes_font_name,
+            axes_font_size=axes_font_size,
+            axes_font_style=axes_font_style,
+            axes_font_weight=axes_font_weight,
+            figure_size=figure_size,
+            render_grid=render_grid,
+            grid_line_style=grid_line_style,
+            grid_line_width=grid_line_width,
+        )
 
     def displacements(self):
         r"""
@@ -792,10 +902,12 @@ class NonParametricIterativeResult(Result):
 
         :type: `list` of `ndarray`
         """
-        return [np.linalg.norm(s1.points - s2.points, axis=1)
-                for s1, s2 in zip(self.meshes, self.meshes[1:])]
+        return [
+            np.linalg.norm(s1.points - s2.points, axis=1)
+            for s1, s2 in zip(self.meshes, self.meshes[1:])
+        ]
 
-    def displacements_stats(self, stat_type='mean'):
+    def displacements_stats(self, stat_type="mean"):
         r"""
         A list containing a statistical metric on the displacements between
         the mesh of each iteration and the mesh of the previous one.
@@ -816,29 +928,46 @@ class NonParametricIterativeResult(Result):
         ValueError
             type must be 'mean', 'median', 'min' or 'max'
         """
-        if stat_type == 'mean':
+        if stat_type == "mean":
             return [np.mean(d) for d in self.displacements()]
-        elif stat_type == 'median':
+        elif stat_type == "median":
             return [np.median(d) for d in self.displacements()]
-        elif stat_type == 'max':
+        elif stat_type == "max":
             return [np.max(d) for d in self.displacements()]
-        elif stat_type == 'min':
+        elif stat_type == "min":
             return [np.min(d) for d in self.displacements()]
         else:
             raise ValueError("type must be 'mean', 'median', 'min' or 'max'")
 
-    def plot_displacements(self, stat_type='mean', figure_id=None,
-                           new_figure=False, render_lines=True, line_colour='b',
-                           line_style='-', line_width=2, render_markers=True,
-                           marker_style='o', marker_size=4,
-                           marker_face_colour='b', marker_edge_colour='k',
-                           marker_edge_width=1., render_axes=True,
-                           axes_font_name='sans-serif', axes_font_size=10,
-                           axes_font_style='normal', axes_font_weight='normal',
-                           axes_x_limits=0., axes_y_limits=None,
-                           axes_x_ticks=None, axes_y_ticks=None,
-                           figure_size=(10, 6), render_grid=True,
-                           grid_line_style='--', grid_line_width=0.5):
+    def plot_displacements(
+        self,
+        stat_type="mean",
+        figure_id=None,
+        new_figure=False,
+        render_lines=True,
+        line_colour="b",
+        line_style="-",
+        line_width=2,
+        render_markers=True,
+        marker_style="o",
+        marker_size=4,
+        marker_face_colour="b",
+        marker_edge_colour="k",
+        marker_edge_width=1.0,
+        render_axes=True,
+        axes_font_name="sans-serif",
+        axes_font_size=10,
+        axes_font_style="normal",
+        axes_font_weight="normal",
+        axes_x_limits=0.0,
+        axes_y_limits=None,
+        axes_x_ticks=None,
+        axes_y_ticks=None,
+        figure_size=(10, 6),
+        render_grid=True,
+        grid_line_style="--",
+        grid_line_width=0.5,
+    ):
         r"""
         Plot of a statistical metric of the displacement between the mesh of
         each iteration and the mesh of the previous one.
@@ -952,40 +1081,56 @@ class NonParametricIterativeResult(Result):
             The renderer object.
         """
         from menpo.visualize import plot_curve
+
         # set labels
-        if stat_type == 'max':
-            name = 'Maximum'
-        elif stat_type == 'min':
-            name = 'Minimum'
-        elif stat_type == 'mean':
-            name = 'Mean'
-        elif stat_type == 'median':
-            name = 'Median'
+        if stat_type == "max":
+            name = "Maximum"
+        elif stat_type == "min":
+            name = "Minimum"
+        elif stat_type == "mean":
+            name = "Mean"
+        elif stat_type == "median":
+            name = "Median"
         else:
-            raise ValueError('stat_type must be one of {max, min, mean, '
-                             'median}.')
-        y_label = '{} Displacement'.format(name)
-        title = '{} displacement per Iteration'.format(name)
+            raise ValueError("stat_type must be one of {max, min, mean, " "median}.")
+        y_label = "{} Displacement".format(name)
+        title = "{} displacement per Iteration".format(name)
 
         # plot
         displacements = self.displacements_stats(stat_type=stat_type)
         return plot_curve(
-            x_axis=list(range(len(displacements))), y_axis=[displacements],
-            figure_id=figure_id, new_figure=new_figure, title=title,
-            x_label='Iteration', y_label=y_label,
-            axes_x_limits=axes_x_limits, axes_y_limits=axes_y_limits,
-            axes_x_ticks=axes_x_ticks, axes_y_ticks=axes_y_ticks,
-            render_lines=render_lines, line_colour=line_colour,
-            line_style=line_style, line_width=line_width,
-            render_markers=render_markers, marker_style=marker_style,
-            marker_size=marker_size, marker_face_colour=marker_face_colour,
+            x_axis=list(range(len(displacements))),
+            y_axis=[displacements],
+            figure_id=figure_id,
+            new_figure=new_figure,
+            title=title,
+            x_label="Iteration",
+            y_label=y_label,
+            axes_x_limits=axes_x_limits,
+            axes_y_limits=axes_y_limits,
+            axes_x_ticks=axes_x_ticks,
+            axes_y_ticks=axes_y_ticks,
+            render_lines=render_lines,
+            line_colour=line_colour,
+            line_style=line_style,
+            line_width=line_width,
+            render_markers=render_markers,
+            marker_style=marker_style,
+            marker_size=marker_size,
+            marker_face_colour=marker_face_colour,
             marker_edge_colour=marker_edge_colour,
-            marker_edge_width=marker_edge_width, render_legend=False,
-            render_axes=render_axes, axes_font_name=axes_font_name,
-            axes_font_size=axes_font_size, axes_font_style=axes_font_style,
-            axes_font_weight=axes_font_weight, figure_size=figure_size,
-            render_grid=render_grid,  grid_line_style=grid_line_style,
-            grid_line_width=grid_line_width)
+            marker_edge_width=marker_edge_width,
+            render_legend=False,
+            render_axes=render_axes,
+            axes_font_name=axes_font_name,
+            axes_font_size=axes_font_size,
+            axes_font_style=axes_font_style,
+            axes_font_weight=axes_font_weight,
+            figure_size=figure_size,
+            render_grid=render_grid,
+            grid_line_style=grid_line_style,
+            grid_line_width=grid_line_width,
+        )
 
     @property
     def costs(self):
@@ -997,17 +1142,34 @@ class NonParametricIterativeResult(Result):
         """
         return self._costs
 
-    def plot_costs(self, figure_id=None, new_figure=False, render_lines=True,
-                   line_colour='b', line_style='-', line_width=2,
-                   render_markers=True, marker_style='o', marker_size=4,
-                   marker_face_colour='b', marker_edge_colour='k',
-                   marker_edge_width=1., render_axes=True,
-                   axes_font_name='sans-serif', axes_font_size=10,
-                   axes_font_style='normal', axes_font_weight='normal',
-                   axes_x_limits=0., axes_y_limits=None, axes_x_ticks=None,
-                   axes_y_ticks=None, figure_size=(10, 6),
-                   render_grid=True, grid_line_style='--',
-                   grid_line_width=0.5):
+    def plot_costs(
+        self,
+        figure_id=None,
+        new_figure=False,
+        render_lines=True,
+        line_colour="b",
+        line_style="-",
+        line_width=2,
+        render_markers=True,
+        marker_style="o",
+        marker_size=4,
+        marker_face_colour="b",
+        marker_edge_colour="k",
+        marker_edge_width=1.0,
+        render_axes=True,
+        axes_font_name="sans-serif",
+        axes_font_size=10,
+        axes_font_style="normal",
+        axes_font_weight="normal",
+        axes_x_limits=0.0,
+        axes_y_limits=None,
+        axes_x_ticks=None,
+        axes_y_ticks=None,
+        figure_size=(10, 6),
+        render_grid=True,
+        grid_line_style="--",
+        grid_line_width=0.5,
+    ):
         r"""
         Plot of the cost function evolution at each fitting iteration.
 
@@ -1112,30 +1274,47 @@ class NonParametricIterativeResult(Result):
             The renderer object.
         """
         from menpo.visualize import plot_curve
+
         costs = self.costs
         if costs is not None:
             return plot_curve(
-                x_axis=list(range(len(costs))), y_axis=[costs],
-                figure_id=figure_id, new_figure=new_figure,
-                title='Cost per Iteration', x_label='Iteration',
-                y_label='Cost Function', axes_x_limits=axes_x_limits,
-                axes_y_limits=axes_y_limits, axes_x_ticks=axes_x_ticks,
-                axes_y_ticks=axes_y_ticks, render_lines=render_lines,
-                line_colour=line_colour, line_style=line_style,
-                line_width=line_width, render_markers=render_markers,
-                marker_style=marker_style, marker_size=marker_size,
+                x_axis=list(range(len(costs))),
+                y_axis=[costs],
+                figure_id=figure_id,
+                new_figure=new_figure,
+                title="Cost per Iteration",
+                x_label="Iteration",
+                y_label="Cost Function",
+                axes_x_limits=axes_x_limits,
+                axes_y_limits=axes_y_limits,
+                axes_x_ticks=axes_x_ticks,
+                axes_y_ticks=axes_y_ticks,
+                render_lines=render_lines,
+                line_colour=line_colour,
+                line_style=line_style,
+                line_width=line_width,
+                render_markers=render_markers,
+                marker_style=marker_style,
+                marker_size=marker_size,
                 marker_face_colour=marker_face_colour,
                 marker_edge_colour=marker_edge_colour,
-                marker_edge_width=marker_edge_width, render_legend=False,
-                render_axes=render_axes, axes_font_name=axes_font_name,
+                marker_edge_width=marker_edge_width,
+                render_legend=False,
+                render_axes=render_axes,
+                axes_font_name=axes_font_name,
                 axes_font_size=axes_font_size,
                 axes_font_style=axes_font_style,
-                axes_font_weight=axes_font_weight, figure_size=figure_size,
-                render_grid=render_grid,  grid_line_style=grid_line_style,
-                grid_line_width=grid_line_width)
+                axes_font_weight=axes_font_weight,
+                figure_size=figure_size,
+                render_grid=render_grid,
+                grid_line_style=grid_line_style,
+                grid_line_width=grid_line_width,
+            )
         else:
-            raise ValueError('costs are either not returned or not well '
-                             'defined for the selected fitting algorithm')
+            raise ValueError(
+                "costs are either not returned or not well "
+                "defined for the selected fitting algorithm"
+            )
 
 
 class ParametricIterativeResult(NonParametricIterativeResult):
@@ -1185,19 +1364,32 @@ class ParametricIterativeResult(NonParametricIterativeResult):
         that the cost function cannot be computed for the specific
         algorithm. It must have the same length as `meshes`.
     """
-    def __init__(self, shape_parameters, meshes, camera_transforms,
-                 image=None, initial_mesh=None,
-                 initial_camera_transform=None, gt_mesh=None, costs=None):
+
+    def __init__(
+        self,
+        shape_parameters,
+        meshes,
+        camera_transforms,
+        image=None,
+        initial_mesh=None,
+        initial_camera_transform=None,
+        gt_mesh=None,
+        costs=None,
+    ):
         # Assign shape parameters
         self._shape_parameters = shape_parameters
         # Get reconstructed initial shape
         self._reconstructed_initial_mesh = meshes[0]
         # Call superclass
         super(ParametricIterativeResult, self).__init__(
-            meshes=meshes, camera_transforms=camera_transforms, image=image,
+            meshes=meshes,
+            camera_transforms=camera_transforms,
+            image=image,
             initial_mesh=initial_mesh,
             initial_camera_transform=initial_camera_transform,
-            gt_mesh=gt_mesh, costs=costs)
+            gt_mesh=gt_mesh,
+            costs=costs,
+        )
         # Correct n_iters. The initial mesh's reconstruction should not count
         # in the number of iterations.
         self._n_iters -= 1
@@ -1284,13 +1476,18 @@ class ParametricIterativeResult(NonParametricIterativeResult):
         """
         if shape is None:
             if self.image is None:
-                raise ValueError("You need to provide an image shape, "
-                                 "since the image does not exist.")
+                raise ValueError(
+                    "You need to provide an image shape, "
+                    "since the image does not exist."
+                )
             else:
                 shape = self.image.shape
         return rasterize_mesh(
             self.reconstructed_initial_camera_transform.apply(
-                self.reconstructed_initial_mesh), shape)
+                self.reconstructed_initial_mesh
+            ),
+            shape,
+        )
 
     @property
     def _reconstruction_indices(self):
@@ -1331,8 +1528,10 @@ class ParametricIterativeResult(NonParametricIterativeResult):
         if compute_error is None:
             compute_error = error_function
         if self.gt_mesh is None:
-            raise ValueError('Ground truth mesh has not been set, so the '
-                             'reconstructed initial error cannot be computed')
+            raise ValueError(
+                "Ground truth mesh has not been set, so the "
+                "reconstructed initial error cannot be computed"
+            )
         else:
             return compute_error(self.reconstructed_initial_mesh, self.gt_mesh)
 
@@ -1375,8 +1574,16 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
         used in order to generate 2D pointclouds projected in the image plane.
         If ``None``, then the 2D pointclouds will not be generated.
     """
-    def __init__(self, results, affine_transforms, n_scales, image=None,
-                 gt_mesh=None, model_landmarks_index=None):
+
+    def __init__(
+        self,
+        results,
+        affine_transforms,
+        n_scales,
+        image=None,
+        gt_mesh=None,
+        model_landmarks_index=None,
+    ):
         # Make sure results are iterable with the correct length
         if not isinstance(results, Iterable):
             results = [results]
@@ -1386,8 +1593,9 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
         if not isinstance(affine_transforms, Iterable):
             affine_transforms = [affine_transforms]
         if len(affine_transforms) != n_scales:
-            raise ValueError("The provided affine_transforms and n_scales do "
-                             "not match.")
+            raise ValueError(
+                "The provided affine_transforms and n_scales do " "not match."
+            )
         # Get initial mesh and initial camera transform
         initial_mesh = None
         if results[0].initial_mesh is not None:
@@ -1410,26 +1618,31 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
                 meshes += results[i].meshes[1:]
             if results[i].initial_camera_transform is None:
                 camera_transforms += results[i].camera_transforms
-                self._affine_transforms += (
-                    [_affine_2d_to_3d(affine_transforms[i])] *
-                    len(results[i].camera_transforms))
+                self._affine_transforms += [
+                    _affine_2d_to_3d(affine_transforms[i])
+                ] * len(results[i].camera_transforms)
             else:
                 camera_transforms += results[i].camera_transforms[1:]
-                self._affine_transforms += (
-                    [_affine_2d_to_3d(affine_transforms[i])] *
-                    len(results[i].camera_transforms[1:]))
+                self._affine_transforms += [
+                    _affine_2d_to_3d(affine_transforms[i])
+                ] * len(results[i].camera_transforms[1:])
         # Call superclass
         super(MultiScaleNonParametricIterativeResult, self).__init__(
-            meshes=meshes, camera_transforms=camera_transforms, image=image,
+            meshes=meshes,
+            camera_transforms=camera_transforms,
+            image=image,
             initial_mesh=initial_mesh,
-            initial_camera_transform=initial_camera_transform, gt_mesh=gt_mesh)
+            initial_camera_transform=initial_camera_transform,
+            gt_mesh=gt_mesh,
+        )
         # Get attributes
         self._n_iters_per_scale = n_iters_per_scale
         self._n_scales = n_scales
         # Correct affine transforms, if neccessary
         if self.initial_camera_transform is not None:
-            self._affine_transforms = ([self._affine_transforms[0]] +
-                                       self._affine_transforms)
+            self._affine_transforms = [
+                self._affine_transforms[0]
+            ] + self._affine_transforms
         # Create costs list. We assume that if the costs of the first result
         # object is None, then the costs property of all objects is None.
         # Similarly, if the costs property of the the first object is not
@@ -1487,12 +1700,15 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
             raise ValueError("The final camera transform does not exist.")
         if shape is None:
             if self.image is None:
-                raise ValueError("You need to provide an image shape, "
-                                 "since the image does not exist.")
+                raise ValueError(
+                    "You need to provide an image shape, "
+                    "since the image does not exist."
+                )
             else:
                 shape = self.image.shape
         instance_in_img = self._affine_transforms[-1].apply(
-            self.final_camera_transform.apply(self.final_mesh))
+            self.final_camera_transform.apply(self.final_mesh)
+        )
         return rasterize_mesh(instance_in_img, shape)
 
     def rasterized_initial_mesh(self, shape=None):
@@ -1526,12 +1742,15 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
             raise ValueError("The initial camera transform does not exist.")
         if shape is None:
             if self.image is None:
-                raise ValueError("You need to provide an image shape, "
-                                 "since the image does not exist.")
+                raise ValueError(
+                    "You need to provide an image shape, "
+                    "since the image does not exist."
+                )
             else:
                 shape = self.image.shape
         instance_in_img = self._affine_transforms[0].apply(
-            self.initial_camera_transform.apply(self.initial_mesh))
+            self.initial_camera_transform.apply(self.initial_mesh)
+        )
         return rasterize_mesh(instance_in_img, shape)
 
     def rasterized_meshes(self, shape=None):
@@ -1557,19 +1776,19 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
         """
         if shape is None:
             if self.image is None:
-                raise ValueError("You need to provide an image shape, "
-                                 "since the image does not exist.")
+                raise ValueError(
+                    "You need to provide an image shape, "
+                    "since the image does not exist."
+                )
             else:
                 shape = self.image.shape
 
         def rast(x):
             affine, camera, mesh = x
-            instance_in_img = affine.compose_after(
-                camera.camera_transform).apply(mesh)
+            instance_in_img = affine.compose_after(camera.camera_transform).apply(mesh)
             return rasterize_mesh(instance_in_img, shape)
 
-        xs = list(zip(self._affine_transforms, self.camera_transforms,
-                      self.meshes))
+        xs = list(zip(self._affine_transforms, self.camera_transforms, self.meshes))
         return LazyList.init_from_iterable(xs, f=rast)
 
     def sparse_final_mesh_projected_in_2d(self):
@@ -1591,9 +1810,11 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
         if self.final_camera_transform is None:
             raise ValueError("The final camera transform does not exist.")
         sparse_instance = PointCloud(
-            self.final_mesh.points[self._model_landmarks_index])
+            self.final_mesh.points[self._model_landmarks_index]
+        )
         instance_in_img = self._affine_transforms[-1].apply(
-            self.final_camera_transform.apply(sparse_instance))
+            self.final_camera_transform.apply(sparse_instance)
+        )
         return PointCloud(instance_in_img.points[:, :2])
 
     def sparse_initial_mesh_projected_in_2d(self):
@@ -1617,9 +1838,11 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
         if self.initial_camera_transform is None:
             raise ValueError("The initial camera transform does not exist.")
         sparse_instance = PointCloud(
-            self.initial_mesh.points[self._model_landmarks_index])
+            self.initial_mesh.points[self._model_landmarks_index]
+        )
         instance_in_img = self._affine_transforms[0].apply(
-            self.initial_camera_transform.apply(sparse_instance))
+            self.initial_camera_transform.apply(sparse_instance)
+        )
         return PointCloud(instance_in_img.points[:, :2])
 
     def sparse_meshes_projected_in_2d(self):
@@ -1629,15 +1852,14 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
         :type: `list` of `menpo.shape.PointCloud`
             The list of sparse meshes projected in the image plane.
         """
+
         def project(x):
             mesh, affine, camera = x
-            sparse_instance = PointCloud(
-                mesh.points[self._model_landmarks_index])
+            sparse_instance = PointCloud(mesh.points[self._model_landmarks_index])
             instance_in_img = affine.apply(camera.apply(sparse_instance))
             return PointCloud(instance_in_img.points[:, :2])
 
-        xs = list(zip(self.meshes, self._affine_transforms,
-                      self.camera_transforms))
+        xs = list(zip(self.meshes, self._affine_transforms, self.camera_transforms))
         return LazyList.init_from_iterable(xs, f=project)
 
     def final_mesh_projected_in_2d(self):
@@ -1655,7 +1877,8 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
         if self.final_camera_transform is None:
             raise ValueError("The final camera transform does not exist.")
         mesh_in_img = self._affine_transforms[-1].apply(
-            self.final_camera_transform.apply(self.final_mesh))
+            self.final_camera_transform.apply(self.final_mesh)
+        )
         return as_trimesh(mesh_in_img.with_dims([0, 1]))
 
     def initial_mesh_projected_in_2d(self):
@@ -1673,7 +1896,8 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
         if self.initial_camera_transform is None:
             raise ValueError("The initial camera transform does not exist.")
         mesh_in_img = self._affine_transforms[0].apply(
-            self.initial_camera_transform.apply(self.initial_mesh))
+            self.initial_camera_transform.apply(self.initial_mesh)
+        )
         return as_trimesh(mesh_in_img.with_dims([0, 1]))
 
     def meshes_projected_in_2d(self):
@@ -1683,13 +1907,13 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
         :type: `list` of `menpo.shape.TriMesh`
             The list of meshes projected in the image plane.
         """
+
         def project(x):
             mesh, affine, camera = x
             mesh_in_img = affine.apply(camera.apply(mesh))
             return as_trimesh(mesh_in_img.with_dims([0, 1]))
 
-        xs = list(zip(self.meshes, self._affine_transforms,
-                      self.camera_transforms))
+        xs = list(zip(self.meshes, self._affine_transforms, self.camera_transforms))
         return LazyList.init_from_iterable(xs, f=project)
 
     def final_mesh_with_image_texture(self):
@@ -1711,7 +1935,8 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
         if self.image is None:
             raise ValueError("The image does not exist.")
         mesh_in_img = self._affine_transforms[-1].apply(
-            self.final_camera_transform.apply(self.final_mesh))
+            self.final_camera_transform.apply(self.final_mesh)
+        )
         colours = extract_per_vertex_colour(mesh_in_img, self.image)
         return as_colouredtrimesh(self.final_mesh, colours=colours)
 
@@ -1738,7 +1963,8 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
         if self.image is None:
             raise ValueError("The image does not exist.")
         mesh_in_img = self._affine_transforms[0].apply(
-            self.initial_camera_transform.apply(self.initial_mesh))
+            self.initial_camera_transform.apply(self.initial_mesh)
+        )
         colours = extract_per_vertex_colour(mesh_in_img, self.image)
         return as_colouredtrimesh(self.initial_mesh, colours=colours)
 
@@ -1764,8 +1990,7 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
             colours = extract_per_vertex_colour(mesh_in_img, self.image)
             return as_colouredtrimesh(mesh, colours=colours)
 
-        xs = list(zip(self.meshes, self._affine_transforms,
-                      self.camera_transforms))
+        xs = list(zip(self.meshes, self._affine_transforms, self.camera_transforms))
         return LazyList.init_from_iterable(xs, f=mesh_with_image_texture)
 
 
@@ -1805,13 +2030,25 @@ class MultiScaleParametricIterativeResult(MultiScaleNonParametricIterativeResult
         used in order to generate 2D pointclouds projected in the image plane.
         If ``None``, then the 2D pointclouds will not be generated.
     """
-    def __init__(self, results, affine_transforms, n_scales, image=None,
-                 gt_mesh=None, model_landmarks_index=None):
+
+    def __init__(
+        self,
+        results,
+        affine_transforms,
+        n_scales,
+        image=None,
+        gt_mesh=None,
+        model_landmarks_index=None,
+    ):
         # Call superclass
         super(MultiScaleParametricIterativeResult, self).__init__(
-            results=results, affine_transforms=affine_transforms,
-            n_scales=n_scales, image=image, gt_mesh=gt_mesh,
-            model_landmarks_index=model_landmarks_index)
+            results=results,
+            affine_transforms=affine_transforms,
+            n_scales=n_scales,
+            image=image,
+            gt_mesh=gt_mesh,
+            model_landmarks_index=model_landmarks_index,
+        )
         # Create shape parameters
         self._shape_parameters = []
         for r in results:
@@ -1874,15 +2111,18 @@ class MultiScaleParametricIterativeResult(MultiScaleNonParametricIterativeResult
         """
         if shape is None:
             if self.image is None:
-                raise ValueError("You need to provide an image shape, "
-                                 "since the image does not exist.")
+                raise ValueError(
+                    "You need to provide an image shape, "
+                    "since the image does not exist."
+                )
             else:
                 shape = self.image.shape
         ids = self._reconstruction_indices
         rasterized_meshes = []
         for i in ids:
             instance_in_img = self._affine_transforms[i].apply(
-                self.camera_transforms[i].apply(self.meshes[i]))
+                self.camera_transforms[i].apply(self.meshes[i])
+            )
             rasterized_meshes.append(rasterize_mesh(instance_in_img, shape))
         return rasterized_meshes
 
@@ -1932,8 +2172,9 @@ class MultiScaleParametricIterativeResult(MultiScaleNonParametricIterativeResult
         if compute_error is None:
             compute_error = error_function
         if self.gt_mesh is None:
-            raise ValueError('Ground truth mesh has not been set, so the '
-                             'reconstructed initial error cannot be computed')
+            raise ValueError(
+                "Ground truth mesh has not been set, so the "
+                "reconstructed initial error cannot be computed"
+            )
         else:
-            return compute_error(self.reconstructed_initial_meshes[0],
-                                 self.gt_mesh)
+            return compute_error(self.reconstructed_initial_meshes[0], self.gt_mesh)
