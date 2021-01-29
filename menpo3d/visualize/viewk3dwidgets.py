@@ -732,11 +732,7 @@ class K3dwidgetsPCAModelViewer3d(GridBox, K3dwidgetIdentity):
                  components, eigenvalues, n_parameters, parameters_bound,
                  landmarks_indices, widget_style):
 
-        try:
-            from menpowidgets.options import LinearModelParametersWidget
-        except ImportError as e:
-            from menpo.visualize import MenpowidgetsMissingError
-            raise MenpowidgetsMissingError(e)
+        from .menpowidgets import LinearModelParametersWidget
 
         self.figure_id = _check_figure_id(self, figure_id, new_figure)
         self.new_figure = new_figure
