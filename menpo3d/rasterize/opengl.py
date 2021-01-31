@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from enum import IntEnum
+from functools import wraps
 from pathlib import Path
 
 import moderngl
@@ -54,6 +55,23 @@ def safe_release(obj):
         yield obj
     except:
         obj.release()
+
+
+def with_context(method):
+    """
+    Because it's possible to make multiple GLRasterizers in the same Python
+    process it's important we ensure that the correct OpenGL context is activated
+    when rasterization is performed. This is particularly important given that
+    the rasterizers may be created inside Python processes that have OpenGL
+    contexts not even owned by menpo3d (e.g. VTK or otherwise).
+    """
+
+    @wraps(method)
+    def _impl(self, *method_args, **method_kwargs):
+        with self.opengl_ctx:
+            return method(self, *method_args, **method_kwargs)
+
+    return _impl
 
 
 class BasePassthroughProgram:
@@ -429,6 +447,7 @@ class GLRasterizer:
                 "coloured (colours) TriMeshes are supported"
             )
 
+    @with_context
     def _rasterize(self, mesh, per_vertex_f3v, fetch_f3v=True):
         """
         This defines the main rasterize method with moderngl. Ensures that
