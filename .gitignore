@@ -61,3 +61,4 @@ menpo3d.iml
 *.mat
 
 .ipynb_checkpoints
+.DS_Store
