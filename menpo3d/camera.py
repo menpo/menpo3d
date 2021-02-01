@@ -1,48 +1,6 @@
-from __future__ import division
 import numpy as np
-import warnings
-
-from menpo.base import Vectorizable, MenpoMissingDependencyError
-from menpo.transform import Transform, Translation, Rotation
-
-
-def align_2d_3d(
-    points_3d, points_image, image_shape, focal_length=None, distortion_coeffs=None
-):
-    try:
-        import cv2
-    except ImportError:
-        raise MenpoMissingDependencyError("opencv3")
-    height, width = image_shape
-    # Create camera matrix
-    focal_length = max(height, width) if focal_length is None else focal_length
-    c_x = width / 2.0
-    c_y = height / 2.0
-    camera_matrix = np.array(
-        [[focal_length, 0, c_x], [0, focal_length, c_y], [0, 0, 1.0]]
-    )
-
-    # If distortion coefficients are None, set them to zero
-    if distortion_coeffs is None:
-        distortion_coeffs = np.zeros(4)
-    # Estimate the camera pose given the 3D sparse pointcloud on the
-    # mesh, its 2D projection on the image, the camera matrix and the
-    # distortion coefficients
-    lm2d = points_image.points[:, ::-1].copy()
-    converged, r_vec, t_vec = cv2.solvePnP(
-        points_3d.points, lm2d, camera_matrix, distortion_coeffs
-    )
-
-    if not converged:
-        warnings.warn("cv2.SolvePnP did not converge to a solution")
-
-    # Create rotation and translation transform objects from the vectors
-    # acquired at the previous step
-    rotation_matrix = cv2.Rodrigues(r_vec)[0]
-    r = Rotation(rotation_matrix)
-    t = Translation(t_vec.ravel())
-
-    return r, t, focal_length
+from menpo.base import Vectorizable
+from menpo.transform import Homogeneous, Rotation, Transform, Translation
 
 
 class OrthographicProjection(Transform, Vectorizable):
@@ -100,15 +58,20 @@ class PerspectiveProjection(OrthographicProjection):
         focal_length=None,
         distortion_coeffs=None,
     ):
-        r, t, focal_length = align_2d_3d(
-            points_3d,
+        from menpo3d.correspond import solve_pnp  # Avoid circular import
+
+        model_view_t, _ = solve_pnp(
             points_image,
-            image_shape,
-            focal_length=focal_length,
-            distortion_coeffs=distortion_coeffs,
+            points_3d,
+            pinhole_intrinsic_matrix(
+                image_shape[0], image_shape[1], focal_length=focal_length
+            ),
+            distortion_coefficients=distortion_coeffs,
         )
+        rotation = Rotation(model_view_t.h_matrix[:3, :3])
+        translation = Translation(model_view_t.h_matrix[:3, -1])
         return OrthographicCamera(
-            r, t, OrthographicProjection(focal_length, image_shape)
+            rotation, translation, OrthographicProjection(focal_length, image_shape)
         )
 
 
@@ -198,11 +161,59 @@ class PerspectiveCamera(OrthographicCamera):
         focal_length=None,
         distortion_coeffs=None,
     ):
-        r, t, focal_length = align_2d_3d(
-            points_3d,
+        from menpo3d.correspond import solve_pnp  # Avoid circular import
+
+        model_view_t, _ = solve_pnp(
             points_image,
-            image_shape,
-            focal_length=focal_length,
-            distortion_coeffs=distortion_coeffs,
+            points_3d,
+            pinhole_intrinsic_matrix(
+                image_shape[0], image_shape[1], focal_length=focal_length
+            ),
+            distortion_coefficients=distortion_coeffs,
         )
-        return PerspectiveCamera(r, t, PerspectiveProjection(focal_length, image_shape))
+        rotation = Rotation(model_view_t.h_matrix[:3, :3])
+        translation = Translation(model_view_t.h_matrix[:3, -1])
+        return PerspectiveCamera(
+            rotation, translation, PerspectiveProjection(focal_length, image_shape)
+        )
+
+
+def pinhole_intrinsic_matrix(image_height, image_width, focal_length=None):
+    r"""
+    Create a basic "pinhole" type camera intrinsic matrix. Focal length is in pixels
+    and principal point is in the image center. Note this follows OpenCV image
+    conventions and thus the "first" axis is the x-axis rather than the typical
+    menpo convention of the "first" axis being the y-axis.
+
+        [fx,  0, cx, 0]
+        [ 0, fy, cy, 0]
+        [ 0,  0,  1, 0]
+        [ 0,  0,  0, 1]
+
+    Parameters
+    ----------
+    image_height : int
+        Image height
+    image_width : int
+        Image width
+    focal_length : float, optional
+        If given, the focal length (fx=fy) in pixels. If not given, the max
+        of the width and height is used.
+
+    Returns
+    -------
+    :map`Homogeneous`
+        3D camera intrinsics matrix as a Homogeneous matrix
+    """
+    if focal_length is None:
+        focal_length = max(image_height, image_width)
+    return Homogeneous(
+        np.array(
+            [
+                [focal_length, 0, image_width / 2, 0],
+                [0, focal_length, image_height / 2, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+            ]
+        )
+    )
