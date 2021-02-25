@@ -236,55 +236,31 @@ class K3dwidgetsRenderer(Plot, K3dwidgetIdentity):
         # return self.figure
         pass
 
-#    def save_figure(self, filename, format='png', size=None,
-#                    magnification='auto', overwrite=False):
-#        r"""
-#        Method for saving the figure of the current `figure_id` to file.
-#
-#        Parameters
-#        ----------
-#        filename : `str` or `file`-like object
-#            The string path or file-like object to save the figure at/into.
-#        format : `str`
-#            The format to use. This must match the file path if the file path is
-#            a `str`.
-#        size : `tuple` of `int` or ``None``, optional
-#            The size of the image created (unless magnification is set,
-#            in which case it is the size of the window used for rendering). If
-#            ``None``, then the figure size is used.
-#        magnification :	`double` or ``'auto'``, optional
-#            The magnification is the scaling between the pixels on the screen,
-#            and the pixels in the file saved. If you do not specify it, it will
-#            be calculated so that the file is saved with the specified size.
-#            If you specify a magnification, Mayavi will use the given size as a
-#            screen size, and the file size will be ``magnification * size``.
-#            If ``'auto'``, then the magnification will be set automatically.
-#        overwrite : `bool`, optional
-#            If ``True``, the file will be overwritten if it already exists.
-#        """
-#        from menpo.io.output.base import _export
-#        savefig_args = {'size': size, 'figure': self.figure,
-#                        'magnification': magnification}
-#        # Use the export code so that we have a consistent interface
-#        _export(savefig_args, filename, self._extensions_map, format,
-#                overwrite=overwrite)
-
-    @property
-    def _width(self):
+    def save_figure(self, filename, format='png', size=None,
+                    magnification='auto', overwrite=False):
         r"""
-        The width of the scene in pixels.  An underscore has been added in the
-        begining of the name due to conflict with K3d Plot class
-        :type: `int`
-        """
-        pass
+        Method for saving the figure of the current `figure_id` to file.
 
-    @property
-    def _height(self):
-        r"""
-        The height of the scene in pixels.  An underscore has been added in the
-        begining of the name due to conflict with K3d Plot class
-
-        :type: `int`
+        Parameters
+        ----------
+        filename : `str` or `file`-like object
+            The string path or file-like object to save the figure at/into.
+        format : `str`
+            The format to use. This must match the file path if the file path is
+            a `str`.
+        size : `tuple` of `int` or ``None``, optional
+            The size of the image created (unless magnification is set,
+            in which case it is the size of the window used for rendering). If
+            ``None``, then the figure size is used.
+        magnification :	`double` or ``'auto'``, optional
+            The magnification is the scaling between the pixels on the screen,
+            and the pixels in the file saved. If you do not specify it, it will
+            be calculated so that the file is saved with the specified size.
+            If you specify a magnification, Mayavi will use the given size as a
+            screen size, and the file size will be ``magnification * size``.
+            If ``'auto'``, then the magnification will be set automatically.
+        overwrite : `bool`, optional
+            If ``True``, the file will be overwritten if it already exists.
         """
         pass
 
@@ -295,8 +271,6 @@ class K3dwidgetsRenderer(Plot, K3dwidgetIdentity):
 
         :type: ``(4, 4)`` `ndarray`
         """
-        # camera = self.figure.scene.camera
-        # return camera.view_transform_matrix.to_array().astype(np.float32)
         pass
 
     @property
@@ -306,13 +280,6 @@ class K3dwidgetsRenderer(Plot, K3dwidgetIdentity):
 
         :type: ``(4, 4)`` `ndarray`
         """
-#         scene = self.figure.scene
-#         camera = scene.camera
-#         scene_size = tuple(scene.get_size())
-#         aspect_ratio = float(scene_size[0]) / float(scene_size[1])
-#         p = camera.get_projection_transform_matrix(
-#             aspect_ratio, -1, 1).to_array().astype(np.float32)
-#         return p
         pass
 
     @property
@@ -333,11 +300,7 @@ class K3dwidgetsRenderer(Plot, K3dwidgetIdentity):
                 * ``'projection_matrix'`` (`ndarray`) : The projection array.
 
         """
-        return {'width': self.width,
-                'height': self.height,
-                'model_matrix': np.eye(4, dtype=np.float32),
-                'view_matrix': self.modelview_matrix,
-                'projection_matrix': self.projection_matrix}
+        pass
 
     def force_draw(self):
         r"""
@@ -417,6 +380,8 @@ class K3dwidgetsPointGraphViewer3d(K3dwidgetsRenderer):
 
             marker_colour = _parse_colour(marker_colour)
 
+            # In order to be compatible with mayavi, we just change the
+            # default value for marker_style to mesh
             if marker_style == 'sphere':
                 marker_style = 'mesh'
 
@@ -439,13 +404,15 @@ class K3dwidgetsPointGraphViewer3d(K3dwidgetsRenderer):
             # Till then, we go that way
             if render_numbering:
                 text_to_add = None
+
+                numbers_colour = _parse_colour(numbers_colour)
                 for i, point in enumerate(self.points):
                     if text_to_add is None:
-                        text_to_add = k3d_text(str(i), position=point,
-                                               label_box=False)
+                        text_to_add = k3d_text(str(i), color=numbers_colour,
+                                               position=point, label_box=False)
                     else:
-                        text_to_add += k3d_text(str(i), position=point,
-                                                label_box=False)
+                        text_to_add += k3d_text(str(i), color=numbers_colour,
+                                                position=point, label_box=False)
                 widg_to_draw += text_to_add
 
         return widg_to_draw
@@ -657,13 +624,14 @@ class K3dwidgetsLandmarkViewer3d(K3dwidgetsRenderer):
             widg_to_draw += points_to_add
         if render_numbering:
             text_to_add = None
+            numbers_colour = _parse_colour(numbers_colour)
             for i, point in enumerate(self.landmark_group.points):
                 if text_to_add is None:
-                    text_to_add = k3d_text(str(i), position=point,
-                                           label_box=False)
+                    text_to_add = k3d_text(str(i), color=numbers_colour,
+                                           position=point, label_box=False)
                 else:
-                    text_to_add += k3d_text(str(i), position=point,
-                                            label_box=False)
+                    text_to_add += k3d_text(str(i), color=numbers_colour,
+                                            position=point, label_box=False)
             widg_to_draw += text_to_add
         # widg_to_draw.camera = _calc_camera_position(pc.points)
         # widg_to_draw.camera_auto_fit = False
