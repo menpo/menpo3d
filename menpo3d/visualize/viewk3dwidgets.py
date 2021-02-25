@@ -60,7 +60,7 @@ def rgb2int(rgb_array,  keep_alpha=False):
     A ndarray with an int color value for each point
     """
 
-    type_error_message = "RGB shape should be (num_points,3) or (num_points,3)"
+    type_error_message = "RGB shape should be (num_points,3) or (num_points,4)"
     if isinstance(rgb_array, np.ndarray):
         if len(rgb_array.shape) != 2:
             raise TypeError(type_error_message)
@@ -377,7 +377,7 @@ class K3dwidgetsPointGraphViewer3d(K3dwidgetsRenderer):
                 render_markers=True, marker_style='flat', marker_size=10,
                 marker_colour='g', render_numbering=False,
                 numbers_colour='k', numbers_size=None,
-                colours=[], keep_alpha=False):
+                colours=None, keep_alpha=False):
 
         widg_to_draw = super(K3dwidgetsPointGraphViewer3d, self)._render()
         # Render the lines if requested
@@ -409,9 +409,11 @@ class K3dwidgetsPointGraphViewer3d(K3dwidgetsRenderer):
         # Render the markers if requested
         if render_markers:
             marker_size = _parse_marker_size(marker_size, self.points)
-            if len(colours) != 0:
+            if colours is not None:
                 colours = rgb2int(colours, keep_alpha)
                 marker_colour = 'w'
+            else:
+                colours = []
 
             marker_colour = _parse_colour(marker_colour)
 
