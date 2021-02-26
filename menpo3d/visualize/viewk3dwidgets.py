@@ -338,7 +338,7 @@ class K3dwidgetsPointGraphViewer3d(K3dwidgetsRenderer):
 
     def _render(self, render_lines=True, line_colour='r', line_width=2,
                 render_markers=True, marker_style='flat', marker_size=10,
-                marker_colour='g', render_numbering=False,
+                marker_colour='g', alpha=1.0, render_numbering=False,
                 numbers_colour='k', numbers_size=None,
                 colours=None, keep_alpha=False):
 
@@ -396,6 +396,7 @@ class K3dwidgetsPointGraphViewer3d(K3dwidgetsRenderer):
             points_to_add = k3d_points(self.points, colors=colours,
                                        color=marker_colour,
                                        point_size=marker_size,
+                                       opacity=alpha,
                                        shader=marker_style)
             widg_to_draw += points_to_add
 
@@ -426,13 +427,13 @@ class K3dwidgetsTriMeshViewer3d(K3dwidgetsRenderer):
         self.landmarks = landmarks
 
     def _render_mesh(self, line_width, colour, mesh_type,
-                     marker_style, marker_size):
+                     marker_style, marker_size, alpha=1.0):
         marker_size = _parse_marker_size(marker_size, self.points)
         colour = _parse_colour(colour)
 
         widg_to_draw = super(K3dwidgetsTriMeshViewer3d, self)._render()
         wireframe = False
-        opacity = 1.0
+        opacity = alpha
         if mesh_type == 'wireframe':
             wireframe = True
             opacity = 0.3
@@ -444,17 +445,20 @@ class K3dwidgetsTriMeshViewer3d(K3dwidgetsRenderer):
         widg_to_draw += mesh_to_add
 
         if hasattr(self.landmarks, 'points'):
-            self.landmarks.view(inline=True, new_figure=False,
-                                figure_id=self.figure_id)
+            self.landmarks.view(figure_id=self.figure_id,
+                                new_figure=False,
+                                marker_style=marker_style,
+                                marker_size=marker_size,
+                                inline=True)
         return widg_to_draw
 
     def _render(self, line_width=2, colour='r', mesh_type='surface',
-                marker_style='sphere', marker_size=None,
+                marker_style='mesh', marker_size=None,
                 normals=None, normals_colour='k', normals_line_width=2,
-                normals_marker_size=None):
+                normals_marker_size=None, alpha=1.0):
 
         widg_to_draw = self._render_mesh(line_width, colour, mesh_type,
-                                         marker_style, marker_size)
+                                         marker_style, marker_size, alpha)
         if normals is not None:
             tmp_normals_widget = K3dwidgetsVectorViewer3d(self.figure_id,
                                                           False, self.points,
@@ -556,11 +560,9 @@ class K3dwidgetsColouredTriMeshViewer3d(K3dwidgetsRenderer):
                 normals_marker_size=None):
         if normals is not None:
             K3dwidgetsVectorViewer3d(self.figure_id, False,
-                                     self.points, normals).render(
-                colour=normals_colour, line_width=normals_line_width, step=step,
-                marker_style=normals_marker_style,
-                marker_resolution=normals_marker_resolution,
-                marker_size=normals_marker_size, alpha=alpha)
+                                     self.points, normals)._render(
+                colour=normals_colour, line_width=normals_line_width,
+                marker_size=normals_marker_size)
         self._render_mesh()
         return self
 
@@ -587,9 +589,9 @@ class K3dwidgetsLandmarkViewer3d(K3dwidgetsRenderer):
         self.landmark_group = landmark_group
 
     def _render(self, render_lines=True, line_colour='r', line_width=2,
-                render_markers=True, marker_style='sphere', marker_size=None,
-                marker_colour='r', marker_resolution=8, step=None, alpha=1.0,
-                render_numbering=False, numbers_colour='k', numbers_size=None):
+                render_markers=True, marker_style='mesh', marker_size=None,
+                marker_colour='r', alpha=1.0, render_numbering=False,
+                numbers_colour='k', numbers_size=None):
         # Regarding the labels colours, we may get passed either no colours (in
         # which case we generate random colours) or a single colour to colour
         # all the labels with
@@ -597,13 +599,14 @@ class K3dwidgetsLandmarkViewer3d(K3dwidgetsRenderer):
         n_labels = self.landmark_group.n_labels
         line_colour = _check_colours_list(
             render_lines, line_colour, n_labels,
-            'Must pass a list of line colours with length n_labels or a single '
+            'Must pass a list of line colours with length n_labels or a single'
             'line colour for all labels.')
         marker_colour = _check_colours_list(
             render_markers, marker_colour, n_labels,
             'Must pass a list of marker colours with length n_labels or a '
             'single marker face colour for all labels.')
-        marker_size = _parse_marker_size(marker_size, self.landmark_group.points)
+        marker_size = _parse_marker_size(marker_size,
+                                         self.landmark_group.points)
         numbers_size = _parse_marker_size(numbers_size,
                                           self.landmark_group.points)
 
@@ -653,7 +656,6 @@ class K3dwidgetsHeatmapViewer3d(K3dwidgetsRenderer):
                      scalar_range, show_statistics=False):
 
         marker_size = _parse_marker_size(None, self.points)
-
         widg_to_draw = super(K3dwidgetsHeatmapViewer3d, self)._render()
 
         try:
@@ -671,8 +673,10 @@ class K3dwidgetsHeatmapViewer3d(K3dwidgetsRenderer):
         widg_to_draw += mesh_to_add
 
         if hasattr(self.landmarks, 'points'):
-            self.landmarks.view(inline=True, new_figure=False,
-                                figure_id=self.figure_id)
+            self.landmarks.view(figure_id=self.figure_id,
+                                new_figure=False,
+                                marker_size=marker_size,
+                                inline=True)
 
         if show_statistics:
             text = '\\begin{{matrix}} \\mu &  {:.3} \\\\ \\sigma^2 & {:.3} \\\\ \\max & {:.3}  \\end{{matrix}}'\
@@ -733,19 +737,21 @@ class K3dwidgetsPCAModelViewer3d(GridBox, K3dwidgetIdentity):
 
         self.dict_figure_id_to_model_id[figure_id] = self.model_id
 
-    def _render_mesh(self, mesh_type, line_width, colour, marker_size,
-                     marker_resolution, marker_style, step, alpha):
+    def _render_mesh(self, mesh_type, line_width, colour,
+                     marker_size, marker_style, alpha):
         marker_size = _parse_marker_size(marker_size, self.points)
         colour = _parse_colour(colour)
 
         if self.trilist is None:
             mesh_to_add = k3d_points(self.points, color=colour,
+                                     opacity=alpha,
                                      point_size=marker_size,
                                      shader='3dSpecular')
         else:
             mesh_to_add = k3d_mesh(self.points, self.trilist.flatten(),
-                                   flat_shading=False, color=colour,
-                                   name='Instance', side='double')
+                                   flat_shading=False, opacity=alpha,
+                                   color=colour, name='Instance',
+                                   side='double')
 
         self.mesh_window += mesh_to_add
 
@@ -774,12 +780,10 @@ class K3dwidgetsPCAModelViewer3d(GridBox, K3dwidgetIdentity):
             self.mesh_window.objects[1].positions = new_points[self.landmarks_indices]
 
     def _render(self, mesh_type='wireframe', line_width=2, colour='r',
-                marker_style='sphere', marker_size=None, marker_resolution=8,
-                normals=None, normals_colour='k', normals_line_width=2,
-                normals_marker_resolution=8, step=None, alpha=1.0):
+                marker_style='mesh', marker_size=None, alpha=1.0):
 
-        return self._render_mesh(mesh_type, line_width, colour, marker_size,
-                                 marker_resolution, marker_style, step, alpha)
+        return self._render_mesh(mesh_type, line_width, colour,
+                                 marker_size, marker_style, alpha)
 
     def remove_widget(self):
         super(K3dwidgetsPCAModelViewer3d, self).close()
