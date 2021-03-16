@@ -163,7 +163,7 @@ class MayaviRenderer(Renderer):
             The size of the image created (unless magnification is set,
             in which case it is the size of the window used for rendering). If
             ``None``, then the figure size is used.
-        magnification :	`double` or ``'auto'``, optional
+        magnification : `double` or ``'auto'``, optional
             The magnification is the scaling between the pixels on the screen,
             and the pixels in the file saved. If you do not specify it, it will
             be calculated so that the file is saved with the specified size.
@@ -279,6 +279,11 @@ class MayaviRenderer(Renderer):
         _gui.set_busy(busy=True)
         _gui.set_busy(busy=orig_val)
         _gui.process_events()
+
+    def _ipython_display_(self):
+        from IPython.display import display
+
+        return display(self.figure)
 
 
 class MayaviVectorViewer3d(MayaviRenderer):
