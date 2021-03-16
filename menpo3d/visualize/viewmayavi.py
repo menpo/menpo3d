@@ -361,12 +361,11 @@ class MayaviPointGraphViewer3d(MayaviRenderer):
             )
             # Connect them
             src.mlab_source.dataset.lines = self.edges
-            # The stripper filter cleans up connected lines
-            lines = mlab.pipeline.stripper(src)
+            src.update()
 
             # Finally, display the set of lines
             mlab.pipeline.surface(
-                lines,
+                src,
                 figure=self.figure,
                 opacity=alpha,
                 line_width=line_width,
