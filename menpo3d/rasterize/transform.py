@@ -4,12 +4,20 @@ import numpy as np
 from menpo.transform import Homogeneous, NonUniformScale, Scale, Translation
 
 
-def rotate_y_180_rotate_z_180():
+def gl_lookat_transform(invert_y_axis=True, invert_z_axis=True):
     """
-    Equivalent to rotating y by 180, then rotating z by 180.
-    This simulates calling gluLookAt to lookat the origin
+    Equivalent to rotating y by 180, then rotating z by 180 if both invert_y_axis
+    and invert_z_axis and True, then it simulates calling gluLookAt to
+    look at the origin
 
         gluLookAt(0,0,0,0,0,1,0,-1,0)
+
+    Parameters
+    ----------
+    invert_y_axis : bool
+        If True, invert the Y-axis
+    invert_z_axis : bool
+        If True, invert the Z-axis
 
     Returns
     -------
@@ -17,8 +25,8 @@ def rotate_y_180_rotate_z_180():
         The matrix for applying the transformation
     """
     axes_flip_matrix = np.eye(4)
-    axes_flip_matrix[1, 1] = -1
-    axes_flip_matrix[2, 2] = -1
+    axes_flip_matrix[1, 1] = -1 if invert_y_axis else 1
+    axes_flip_matrix[2, 2] = -1 if invert_z_axis else 1
     return Homogeneous(axes_flip_matrix)
 
 
@@ -154,7 +162,8 @@ def opengl_clip_matrix(
     image_height,
     near_plane,
     far_plane,
-    include_axes_transformation=True,
+    invert_y_axis=True,
+    invert_z_axis=True,
 ):
     """
     Build the transformation matrix that can project points into the OpenGL
@@ -184,9 +193,12 @@ def opengl_clip_matrix(
     far_plane :
         Far plane (e.g. any vertices further than this from the camera are culled from
         the view frustrum)
-    include_axes_transformation : bool
-        If True, apply the standard OpenGL axes transformation equivalent to calling
-        gluLookAt(0,0,0,0,0,1,0,-1,0)
+    invert_y_axis : bool
+        If True, invert the Y-axis to account for the fact that OpenGL normally
+        has the Y-axis flipped to a standard computer vision camera
+    invert_z_axis : bool
+        If True, invert the Z-axis to account for the fact that OpenGL normally
+        has the Z-axis flipped to a standard computer vision camera
 
     Returns
     -------
@@ -194,17 +206,17 @@ def opengl_clip_matrix(
         A homogeneous transform that can be used as a projection matrix in the
         rasterizer for transforming the vertices into OpenGL "clip space".
     """
-    plane_sum = far_plane + near_plane
     plane_prod = far_plane * near_plane
-    denom = far_plane - near_plane
+    far_sub_near = far_plane - near_plane
 
     fx = intrinsic_matrix.h_matrix[0, 0]
     fy = intrinsic_matrix.h_matrix[1, 1]
     cx = intrinsic_matrix.h_matrix[0, 2]
     cy = intrinsic_matrix.h_matrix[1, 2]
 
+    # This assumes the window coordinate system has y pointing down
     clip_fx = 2 * fx / image_width
-    clip_fy = 2 * fy / image_height
+    clip_fy = -2 * fy / image_height
     clip_cx = (image_width - 2 * cx) / image_width
     clip_cy = (image_height - 2 * cy) / image_height
 
@@ -213,16 +225,22 @@ def opengl_clip_matrix(
             [
                 [clip_fx, 0, clip_cx, 0],
                 [0, clip_fy, clip_cy, 0],
-                [0, 0, (-plane_sum) / denom, (-2.0 * plane_prod) / denom],
+                [
+                    0,
+                    0,
+                    (-far_plane - near_plane) / far_sub_near,
+                    (-2.0 * plane_prod) / far_sub_near,
+                ],
                 [0, 0, -1, 0],
             ]
         )
     )
 
-    if include_axes_transformation:
-        clip_matrix = rotate_y_180_rotate_z_180().compose_before(clip_matrix)
+    lookat = gl_lookat_transform(
+        invert_y_axis=invert_y_axis, invert_z_axis=invert_z_axis
+    )
 
-    return clip_matrix
+    return lookat.compose_before(clip_matrix)
 
 
 def opengl_clip_matrix_from_mesh(
@@ -230,8 +248,8 @@ def opengl_clip_matrix_from_mesh(
     image_width,
     image_height,
     mesh,
-    plane_scale=1.1,
-    include_axes_transformation=True,
+    invert_y_axis=True,
+    invert_z_axis=True,
 ):
     r"""
     See documentation for ``opengl_clip_matrix`` for more information. This uses
@@ -249,12 +267,12 @@ def opengl_clip_matrix_from_mesh(
         Mesh to use for computing the near and far planes. Must be in "eye space" to
         ensure the planes are computed correctly. See
         `estimate_near_and_far_planes` for more information about "eye space".
-    plane_scale : float
-        How much to scale the mesh range by to ensure that the mesh is within the
-        near and far planes without worrying about numerical issues.
-    include_axes_transformation : bool
-        If True, apply the standard OpenGL axes transformation equivalent to calling
-        gluLookAt(0,0,0,0,0,1,0,-1,0)
+    invert_y_axis : bool
+        If True, invert the Y-axis to account for the fact that OpenGL normally
+        has the Y-axis flipped to a standard computer vision camera
+    invert_z_axis : bool
+        If True, invert the Z-axis to account for the fact that OpenGL normally
+        has the Z-axis flipped to a standard computer vision camera
 
     Returns
     -------
@@ -269,11 +287,12 @@ def opengl_clip_matrix_from_mesh(
         image_height=image_height,
         near_plane=near_plane,
         far_plane=far_plane,
-        include_axes_transformation=include_axes_transformation,
+        invert_y_axis=invert_y_axis,
+        invert_z_axis=invert_z_axis,
     )
 
 
-def estimate_near_and_far_planes(mesh, scale=1.1):
+def estimate_near_and_far_planes(mesh):
     """
     Identify how far and near the mesh is in "eye space". We want to ensure that the
     near and far planes are set such that all of the mesh is displayed.
@@ -303,8 +322,9 @@ def estimate_near_and_far_planes(mesh, scale=1.1):
         The far plane
     """
     near_bounds, far_bounds = mesh.bounds()
-    average_plane = (near_bounds[-1] + far_bounds[-1]) * 0.5
-    padded_range = mesh.range()[-1] * scale
-    near_plane = average_plane - padded_range
-    far_plane = average_plane + padded_range
-    return near_plane, far_plane
+    z_near, z_far = near_bounds[-1], far_bounds[-1]
+    # We assume that the mesh is already in eye space which means that it just
+    # has to be converted into clip space. In this case the mesh cannot be
+    # closer to the camera than 0 and the mesh is already as far away as it needs
+    # to be
+    return max(np.floor(z_near), 0), np.ceil(z_far)
