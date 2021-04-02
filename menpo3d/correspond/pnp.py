@@ -166,7 +166,8 @@ def solve_pnp_landmarks(
 
     Examples
     --------
-    >>> from camera import pinhole_intrinsic_matrix    >>> from menpo3d.correspond import solve_pnp
+    >>> from camera import pinhole_intrinsic_matrix
+    >>> from menpo3d.correspond import solve_pnp
     >>> from menpo3d.rasterize.transform import (
     >>>      opengl_clip_matrix_from_mesh
     >>> )
@@ -184,6 +185,7 @@ def solve_pnp_landmarks(
     >>>     image.width,
     >>>     image.height,
     >>>     view_t.apply(template),
+    >>>     invert_y_axis=False,
     >>> )
     >>> rasterizer = GLRasterizer(height=image.height, width=image.width,
     >>>                           model_matrix=model_view_t.h_matrix,
