@@ -16,9 +16,6 @@ workflows:
               only: /.*/
           context:
             - menpo
-      - linux_python_3.10:
-          context:
-            - menpo
 
 template: &linux_template
   docker:
@@ -52,8 +49,3 @@ jobs:
     environment:
       CONDACI_PYPI_SDIST_UPLOAD_PY_VER: 3.9
       PYTHON_VERSION: 3.9
-  linux_python_3.10:
-    <<: *linux_template
-    environment:
-      CONDACI_PYPI_SDIST_UPLOAD_PY_VER: 3.9
-      PYTHON_VERSION: "3.10"
