@@ -1,3 +1,4 @@
+import typing as t
 from contextlib import contextmanager
 from enum import IntEnum
 from functools import wraps
@@ -5,10 +6,10 @@ from pathlib import Path
 
 import moderngl
 import numpy as np
-
 from menpo.image import MaskedImage
 from menpo.shape import TriMesh
 from menpo.transform import Homogeneous
+
 from .transform import clip_to_image_transform
 
 CONTAINING_DIR = Path(__file__).parent
@@ -298,16 +299,17 @@ class PerVertexPassthroughProgram(BasePassthroughProgram):
 class GLRasterizer:
     def __init__(
         self,
-        width=1024,
-        height=768,
-        model_matrix=None,
-        view_matrix=None,
-        projection_matrix=None,
-    ):
+        width: int = 1024,
+        height: int = 768,
+        model_matrix: t.Optional[np.ndarray] = None,
+        view_matrix: t.Optional[np.ndarray] = None,
+        projection_matrix: t.Optional[np.ndarray] = None,
+        opengl_context: t.Optional[moderngl.Context] = None,
+    ) -> None:
         # Make a single OpenGL context that will be managed by the lifetime of
         # this class. We will dynamically create two default "pass through"
         # programs based on the type of the input mesh
-        self.opengl_ctx = moderngl.create_standalone_context()
+        self.opengl_ctx = opengl_context or moderngl.create_standalone_context()
         self.width = width
         self.height = height
 
