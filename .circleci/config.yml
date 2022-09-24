@@ -30,7 +30,6 @@ template: &linux_template
     - run:
         name: Run conda build
         command: |
-          ~/miniconda/bin/conda update -n base -c conda-forge conda
           ~/miniconda/bin/python condaci.py build ./conda
 
 jobs:
