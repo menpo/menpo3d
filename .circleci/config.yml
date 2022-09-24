@@ -54,5 +54,5 @@ jobs:
   linux_python_3.10:
     <<: *linux_template
     environment:
-      CONDACI_PYPI_SDIST_UPLOAD_PY_VER: 3.10
-      PYTHON_VERSION: 3.10
+      CONDACI_PYPI_SDIST_UPLOAD_PY_VER: "3.10"
+      PYTHON_VERSION: "3.10"
