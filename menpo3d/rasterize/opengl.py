@@ -1,7 +1,7 @@
 import typing as t
 from contextlib import contextmanager
 from enum import IntEnum
-from functools import wraps
+from functools import cached_property, wraps
 from pathlib import Path
 
 import moderngl
@@ -87,9 +87,14 @@ class BasePassthroughProgram:
             The context used for rendering
         """
         self.context = context
-        self.program = None
         self.packed_vbo = None
         self.index_buffer_vbo = None
+
+    @property
+    def program(self):
+        # Subclasses should lazily instantiate the program to ensure the GL
+        # context is valid
+        return None
 
     def __del__(self):
         # Make sure to always release the VBOs when the object is destroyed
@@ -150,13 +155,16 @@ class TexturePassthroughProgram(BasePassthroughProgram):
             The context used for rendering
         """
         super().__init__(context)
-        self.program = self.context.program(
-            vertex_shader=PASSTHROUGH_TEXTURE_VERT_SHADER.read_text(encoding="ascii"),
-            fragment_shader=PASSTHROUGH_TEXTURE_FRAG_SHADER.read_text(encoding="ascii"),
-        )
         self.texture = None
         self._texture_shape = None
         self._pixels_ref = None
+
+    @cached_property
+    def program(self):
+        return self.context.program(
+            vertex_shader=PASSTHROUGH_TEXTURE_VERT_SHADER.read_text(encoding="ascii"),
+            fragment_shader=PASSTHROUGH_TEXTURE_FRAG_SHADER.read_text(encoding="ascii"),
+        )
 
     def __del__(self):
         super().__del__()
@@ -239,7 +247,10 @@ class PerVertexPassthroughProgram(BasePassthroughProgram):
             The context used for rendering
         """
         super().__init__(context)
-        self.program = self.context.program(
+
+    @cached_property
+    def program(self):
+        return self.context.program(
             vertex_shader=PASSTHROUGH_PER_VERTEX_VERT_SHADER.read_text(
                 encoding="ascii"
             ),
@@ -326,15 +337,27 @@ class GLRasterizer:
         self._texture_program = None
         self._per_vertex_program = None
 
-        self._f3v_renderbuffer = self.opengl_ctx.renderbuffer(
-            self.size, components=3, dtype="f4"
-        )
-        self._rgba_renderbuffer = self.opengl_ctx.renderbuffer(
-            self.size, components=4, dtype="f4"
-        )
-        self._depth_renderbuffer = self.opengl_ctx.depth_renderbuffer(self.size)
-        self._fbo = self.opengl_ctx.framebuffer(
-            [self._rgba_renderbuffer, self._f3v_renderbuffer], self._depth_renderbuffer
+    @cached_property
+    def _f3v_renderbuffer(self):
+        # Lazily instantiate all buffers to ensure the GL context is active
+        return self.opengl_ctx.renderbuffer(self.size, components=3, dtype="f4")
+
+    @cached_property
+    def _rgba_renderbuffer(self):
+        # Lazily instantiate all buffers to ensure the GL context is active
+        return self.opengl_ctx.renderbuffer(self.size, components=4, dtype="f4")
+
+    @cached_property
+    def _depth_renderbuffer(self):
+        # Lazily instantiate all buffers to ensure the GL context is active
+        return self.opengl_ctx.depth_renderbuffer(self.size)
+
+    @cached_property
+    def _fbo(self):
+        # Lazily instantiate all buffers to ensure the GL context is active
+        return self.opengl_ctx.framebuffer(
+            [self._rgba_renderbuffer, self._f3v_renderbuffer],
+            self._depth_renderbuffer,
         )
 
     def __del__(self):
@@ -490,6 +513,10 @@ class GLRasterizer:
 
         with safe_release(vao):
             vao.render()
+
+        # Snure that the context has finished drawing (block) before we start
+        # to read from buffers
+        self.opengl_ctx.finish()
 
         # Note that this is dependent on the shader output locations and
         # how the renderbuffers are wired up
