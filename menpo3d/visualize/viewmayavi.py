@@ -695,23 +695,15 @@ class MayaviLandmarkViewer3d(MayaviRenderer):
         self.figure.scene.disable_render = True
         for i, (label, pc) in enumerate(sub_pointclouds):
             # render pointcloud
-            pc.view(
-                figure_id=self.figure_id,
-                new_figure=False,
-                render_lines=render_lines,
-                line_colour=line_colour[i],
-                line_width=line_width,
-                render_markers=render_markers,
-                marker_style=marker_style,
-                marker_size=marker_size,
-                marker_colour=marker_colour[i],
-                marker_resolution=marker_resolution,
-                step=step,
-                alpha=alpha,
-                render_numbering=render_numbering,
-                numbers_colour=numbers_colour,
-                numbers_size=numbers_size,
-            )
+            pc.view(figure_id=self.figure_id, new_figure=False,
+                    render_lines=render_lines, line_colour=line_colour[i],
+                    line_width=line_width, render_markers=render_markers,
+                    marker_style=marker_style, marker_size=marker_size,
+                    marker_colour=marker_colour[i],
+                    marker_resolution=marker_resolution, step=step,
+                    alpha=alpha, render_numbering=render_numbering,
+                    numbers_colour=numbers_colour, numbers_size=numbers_size,
+                    inline=False)
         self.figure.scene.disable_render = False
 
         return self
@@ -721,3 +713,51 @@ class MayaviLandmarkViewer3d(MayaviRenderer):
             (label, self.landmark_group.get_label(label))
             for label in self.landmark_group.labels
         ]
+
+
+class MayaviHeatmapViewer3d(MayaviRenderer):
+    def __init__(self, figure_id, new_figure, points, trilist):
+        super(MayaviHeatmapViewer3d, self).__init__(figure_id, new_figure)
+        self.points = points
+        self.trilist = trilist
+
+    def _render_mesh(self, scaled_distances_between_meshes,
+                     type_cmap, scalar_range, show_statistics):
+        from mayavi import mlab
+        # v = mlab.figure(figure=figure_name, size=size,
+        #                bgcolor=(1, 1, 1), fgcolor=(0, 0, 0))
+        src = mlab.pipeline.triangular_mesh_source(self.points[:, 0],
+                                                   self.points[:, 1],
+                                                   self.points[:, 2],
+                                                   self.trilist,
+                                                   scalars=scaled_distances_between_meshes)
+        surf = mlab.pipeline.surface(src, colormap=type_cmap)
+        # When font size bug resolved, uncomment
+        # cb=mlab.colorbar(title='Distances in mm',
+        # orientation='vertical', nb_labels=5)
+        # cb.title_text_property.font_size = 20
+        # cb.label_text_property.font_family = 'times'
+        # cb.label_text_property.font_size=10
+        cb = mlab.colorbar(orientation='vertical', nb_labels=5)
+        cb.data_range = scalar_range
+        cb.scalar_bar_representation.position = [0.8, 0.15]
+        cb.scalar_bar_representation.position2 = [0.15, 0.7]
+        text = mlab.text(0.8, 0.85, 'Distances in mm')
+        text.width = 0.20
+        if show_statistics:
+            text2 = mlab.text(0.5, 0.02,
+                              'Mean error {:.3}mm \nMax error {:.3}mm \
+                          '.format(scaled_distances_between_meshes.mean(),
+                                   scaled_distances_between_meshes.max()))
+            text2.width = 0.20
+        surf.module_manager.scalar_lut_manager.reverse_lut = True
+        # perhaps we shouud usew kwargs
+        # if camera_settings is None:
+        mlab.gcf().scene.z_plus_view()
+
+    def render(self, scaled_distances_between_meshes, type_cmap='hot',
+               scalar_range=(0, 2), show_statistics=False):
+
+        self._render_mesh(scaled_distances_between_meshes, type_cmap,
+                          scalar_range, show_statistics)
+        return self

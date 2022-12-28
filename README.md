@@ -34,10 +34,14 @@ menpo3d adds support for viewing 3D objects through
 [Mayavi](http://code.enthought.com/projects/mayavi/), which is based on VTK.
 One of the main reasons menpo3d is a seperate project to the menpo core
 library is to isolate the more complex dependencies that this brings to the
-project. 3D visualization is not yet supported in the browser, so we rely on
-platform-specific viewing mechanisms like QT or WX.
+project. ~~3D visualization is not yet supported in the browser, so we rely on
+platform-specific viewing mechanisms like QT or WX.~~ In addition, menpo3d 
+supports 3D visualization in the browser using [K3D Jupyter](https://github.com/K3D-tools/K3D-jupyter) library which is a 
+Jupyter notebook extension for 3D visualization.
 
-In order to view 3D items you will need to first use the `%matplotlib qt`
+
+
+In order to view 3D items through mayavi you will need to first use the `%matplotlib qt`
 IPython magic command to set up QT for rendering (you do this instead of
 `%matplotlib inline` which is what is needed for rendering directly
 in Jupyter/Ipython notebooks). As a complete example, to view a
@@ -49,4 +53,13 @@ mesh = menpo3d.io.import_builtin_asset('james.obj')
 ```python
 %matplotlib qt
 mesh.view()
+```
+In the case of K3D Jupyter visualization to view a mesh in Jupyter cell  you
+would run something like:
+```python
+import menpo3d
+mesh = menpo3d.io.import_builtin_asset('james.obj')
+```
+```python
+mesh.view(inline=True)
 ```

@@ -142,3 +142,43 @@ class VTKClosestPointLocator(object):
             point, self._c_point, self._cell_id, self._sub_id, self._distance
         )
         return self._c_point[:], self._cell_id.get()
+
+
+def decimate_mesh(mesh, reduction=0.75, type_reduction='quadric', **kwargs):
+    """
+    Decimate this mesh specifying the percentage (0,1) of triangles to
+    be removed
+
+    Parameters
+    ----------
+    reduction: float (default: 0.75) 
+               The percentage of triangles to be removed. 
+               It should be in (0, 1)
+
+    type_reduction : str (default: quadric)
+                     The type of decimation as:
+                         'quadric' : Quadric decimation
+                         'progressive : Progressive decimation
+    Returns
+    -------
+    mesh : :map:`TriMesh`
+        A new mesh that has been decimated.
+    """
+    import vtk
+    if type_reduction == 'quadric':
+        decimate = vtk.vtkQuadricDecimation()
+    elif type_reduction == 'progressive':
+        decimate = vtk.vtkDecimatePro()
+    else:
+        raise Exception('Wrong type of reduction. It should be quadric or progressive')
+
+    inputPolyData = trimesh_to_vtk(mesh)
+    decimate.SetInputData(inputPolyData)
+    decimate.SetTargetReduction(reduction)
+
+    if kwargs.get('preserve_topology', False) and type_reduction == 'progressive':
+        decimate.PreserveTopologyOn()
+
+    decimate.Update()
+
+    return trimesh_from_vtk(decimate.GetOutput())

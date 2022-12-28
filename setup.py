@@ -110,9 +110,20 @@ cython_modules = [
 cython_exts = cythonize(cython_modules, quiet=True)
 
 version, cmdclass = get_version_and_cmdclass("menpo3d")
+install_requires = ['menpo>=0.9.0,<0.12.0',
+                    'vtk',
+                    'scikit-sparse>=0.3.1',
+                    'moderngl>=5.6.*,<6.0',
+                     # jedi==0.17.2 is not technically necessary,
+                     # but avoids incompatibilities with 
+                     # ipython 7.18 and 7.19 20 January 2021
+                     'jedi==0.17.2',
+                    'k3d']
 
-install_requires = ["menpo>=0.9.0,<0.12.0", "mayavi>=4.7.0", "moderngl>=5.6.*,<6.0"]
-
+if IS_WIN:
+    install_requires.extend(['pywin32==225', 
+                             'mayavi>=4.7.0',
+                             'pyqt5'])
 setup(
     name="menpo3d",
     version=version,
