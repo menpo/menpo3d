@@ -1,0 +1,12 @@
+name: menpofit_rtd
+channels:
+  - menpo
+dependencies:
+  - python
+  - setuptools
+
+  - menpo >=0.7,<0.8
+  - pip:
+      - sphinx
+      - sphinx_rtd_theme
+      - sphinxmapxrefrole>0.2
