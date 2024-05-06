@@ -1,5 +1,6 @@
 import numpy as np
 
+
 # TODO: Should inherit from PCAModel (?)
 class MultilinearModel(object):
     """Usage for a morphable model:

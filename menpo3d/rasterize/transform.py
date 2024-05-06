@@ -150,7 +150,7 @@ def clip_to_image_transform(width, height):
     # 5. [0, 1] [0, 1] -> [0, w - 1] [0, h - 1]
     im_scale = Scale([width - 1, height - 1])
     # 6. [0, w] [0, h] -> [0, h] [0, w]
-    xy_yx = Homogeneous(np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]], dtype=np.float))
+    xy_yx = Homogeneous(np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]], dtype=np.float64))
     # reduce the full transform chain to a single affine matrix
     transforms = [rem_z, invert_y, t, unit_scale, im_scale, xy_yx]
     return reduce(lambda a, b: a.compose_before(b), transforms)

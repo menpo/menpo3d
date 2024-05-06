@@ -70,7 +70,6 @@ try:
             factor = cholesky_AAt(sparse_X.T)
         return factor(sparse_X.T.dot(dense_b)).toarray()
 
-
 except ImportError:
     # fallback to (much slower) scipy solve
     from scipy.sparse.linalg import spsolve as scipy_spsolve
@@ -452,19 +451,19 @@ def non_rigid_icp_generator(
             # problematic = [i for i, (s, t) in enumerate(zip(source, U))
             #                if len(intersect(s, t)[0]) > 0]
             # print(len(problematic) * 1.0 / n)
-            # w_i_i = np.ones(v_i_tm.n_points, dtype=np.bool)
+            # w_i_i = np.ones(v_i_tm.n_points, dtype=bool)
             # w_i_i[problematic] = False
 
             # Form the overall w_i from the normals, edge case
             # for now disable the edge constraint (it was noisy anyway)
             w_i = w_i_n
 
-            # w_i = np.logical_and(w_i_n, w_i_e).astype(np.float)
+            # w_i = np.logical_and(w_i_n, w_i_e).astype(np.float64)
 
             # we could add self intersection at a later date too...
             # w_i = np.logical_and(np.logical_and(w_i_n,
             #                                     w_i_e,
-            #                                     w_i_i).astype(np.float)
+            #                                     w_i_i).astype(np.float64)
 
             prop_w_i = (n - w_i.sum() * 1.0) / n
             prop_w_i_n = (n - w_i_n.sum() * 1.0) / n
@@ -474,7 +473,7 @@ def non_rigid_icp_generator(
                 w_i = w_i * gamma
 
             # Build the sparse diagonal weight matrix
-            W_s = sp.diags(w_i.astype(np.float)[None, :], [0])
+            W_s = sp.diags(w_i.astype(np.float64)[None, :], [0])
 
             data = np.hstack((v_i.ravel(), o))
             D_s = sp.coo_matrix((data, (row, col)))

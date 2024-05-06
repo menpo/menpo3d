@@ -535,7 +535,7 @@ class GLRasterizer:
             f3v_image = f3v_image.reshape(self.height, self.width, 3)[::-1]
             f3v_image = np.require(f3v_image, dtype=np.float32, requirements=["C"])
 
-        return rgba_image[..., :3], f3v_image, rgba_image[..., -1].astype(np.bool)
+        return rgba_image[..., :3], f3v_image, rgba_image[..., -1].astype(bool)
 
     def rasterize_mesh_with_f3v_interpolant(self, mesh, per_vertex_f3v=None):
         r"""

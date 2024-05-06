@@ -136,7 +136,7 @@ def wrl_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     polydata = vtk.vtkPolyData.SafeDownCast(mapper_dataset)
 
     # We must have point data!
-    points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float)
+    points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float64)
 
     trilist = vtk_ensure_trilist(polydata)
 
@@ -203,7 +203,7 @@ def obj_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     polydata = obj_importer.GetOutput()
 
     # We must have point data!
-    points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float)
+    points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float64)
 
     trilist = np.require(vtk_ensure_trilist(polydata), requirements=["C"])
 
@@ -260,7 +260,7 @@ def ply_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     polydata = ply_importer.GetOutput()
 
     # We must have point data!
-    points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float)
+    points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float64)
 
     trilist = np.require(vtk_ensure_trilist(polydata), requirements=["C"])
     point_data = polydata.GetPointData()
@@ -320,7 +320,7 @@ def stl_importer(filepath, asset=None, **kwargs):
     polydata = stl_importer.GetOutput()
 
     # We must have point data!
-    points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float)
+    points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float64)
     trilist = np.require(vtk_ensure_trilist(polydata), requirements=["C"])
 
     colour_per_vertex = None

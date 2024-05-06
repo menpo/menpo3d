@@ -70,7 +70,7 @@ def ply_exporter(mesh, file_path, binary=False, **kwargs):
     polydata.SetPoints(points)
 
     cells = vtk.vtkCellArray()
-    counts = np.empty((mesh.trilist.shape[0], 1), dtype=np.int)
+    counts = np.empty((mesh.trilist.shape[0], 1), dtype=np.int64)
     counts.fill(3)
     tris = np.concatenate((counts, mesh.trilist), axis=1)
     cells.SetCells(mesh.trilist.shape[0], numpy_to_vtkIdTypeArray(tris))

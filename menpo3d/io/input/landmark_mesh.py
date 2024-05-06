@@ -89,14 +89,14 @@ def lm3_importer(filepath, asset=None, **kwargs):
             ys.append(float(p[1]))
             zs.append(float(p[2]))
 
-    xs = np.array(xs, dtype=np.float).reshape((-1, 1))
-    ys = np.array(ys, dtype=np.float).reshape((-1, 1))
-    zs = np.array(zs, dtype=np.float).reshape((-1, 1))
+    xs = np.array(xs, dtype=np.float64).reshape((-1, 1))
+    ys = np.array(ys, dtype=np.float64).reshape((-1, 1))
+    zs = np.array(zs, dtype=np.float64).reshape((-1, 1))
 
     points = np.hstack([xs, ys, zs])
     # Create the mask whereby there is one landmark per label
     # (identity matrix)
-    masks = np.eye(num_points).astype(np.bool)
+    masks = np.eye(num_points).astype(bool)
     masks = np.vsplit(masks, num_points)
     masks = [np.squeeze(m) for m in masks]
     labels_to_masks = OrderedDict(zip(labels, masks))
@@ -182,7 +182,9 @@ def bnd_importer(filepath, asset=None, **kwargs):
     points = np.zeros([n_points, 3])
     for i, l in enumerate(landmark_text):
         # Skip the first number as it's an index into the mesh
-        points[i, :] = np.array([float(l[1]), float(l[2]), float(l[3])], dtype=np.float)
+        points[i, :] = np.array(
+            [float(l[1]), float(l[2]), float(l[3])], dtype=np.float64
+        )
     labels_to_masks = OrderedDict(
         [
             ("left_eye", _indices_to_mask(n_points, np.arange(8))),
@@ -215,6 +217,6 @@ def _indices_to_mask(n_points, indices):
         The mask for the set of landmarks where each index from indices is set
         to `True` and the rest are `False`
     """
-    mask = np.zeros(n_points, dtype=np.bool)
+    mask = np.zeros(n_points, dtype=bool)
     mask[indices] = True
     return mask

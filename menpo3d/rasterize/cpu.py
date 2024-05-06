@@ -77,7 +77,7 @@ def pixel_sample_uniform(xy, n_samples):
 
 
 def unique_locations(xy, width, height):
-    mask = np.zeros([width, height], dtype=np.bool)
+    mask = np.zeros([width, height], dtype=bool)
     mask[xy[:, 0], xy[:, 1]] = True
     return np.vstack(np.nonzero(mask)).T
 
@@ -148,7 +148,7 @@ def rasterize_barycentric_coordinate_images(mesh, image_shape):
 
     tri_indices_img = np.zeros((1, h, w), dtype=int)
     bcoords_img = np.zeros((3, h, w))
-    mask = np.zeros((h, w), dtype=np.bool)
+    mask = np.zeros((h, w), dtype=bool)
     mask[yx[:, 0], yx[:, 1]] = True
     tri_indices_img[:, yx[:, 0], yx[:, 1]] = tri_indices
     bcoords_img[:, yx[:, 0], yx[:, 1]] = bcoords.T

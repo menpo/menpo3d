@@ -101,13 +101,13 @@ class LucasKanade(object):
         # Cost of shape prior
         if shape_prior_weight is not None:
             current_cost += shape_prior_weight * np.sum(
-                (shape_parameters ** 2) * self.J_shape_prior
+                (shape_parameters**2) * self.J_shape_prior
             )
 
         # Cost of texture prior
         if texture_prior_weight is not None:
             current_cost += texture_prior_weight * np.sum(
-                (texture_parameters ** 2) * self.J_texture_prior
+                (texture_parameters**2) * self.J_texture_prior
             )
 
         # Cost of landmarks prior

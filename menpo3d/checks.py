@@ -35,7 +35,7 @@ def check_max_iters(max_iters, n_scales):
             "containing 1 or {} elements or "
             "None".format(n_scales)
         )
-    return np.require(max_iters, dtype=np.int)
+    return np.require(max_iters, dtype=np.int64)
 
 
 def check_multi_scale_param(n_scales, types, param_name, param):

@@ -19,7 +19,7 @@ def _parse_marker_size(marker_size, points):
         x_max, y_max, z_max = xyz_max
         distance = np.sqrt(
             ((x_max - x_min) ** 2 + (y_max - y_min) ** 2 + (z_max - z_min) ** 2)
-            / (4 * pc.n_points ** 0.33)
+            / (4 * pc.n_points**0.33)
         )
         if distance == 0:
             marker_size = 1
