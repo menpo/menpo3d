@@ -44,7 +44,8 @@ in Jupyter/Ipython notebooks). As a complete example, to view a
 mesh in IPython you would run something like:
 ```python
 import menpo3d
-mesh = menpo3d.io.import_builtin_asset('james.obj')
+
+mesh = menpo3d.io.import_builtin_asset("james.obj")
 ```
 ```python
 %matplotlib qt

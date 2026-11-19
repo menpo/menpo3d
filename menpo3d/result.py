@@ -1092,7 +1092,7 @@ class NonParametricIterativeResult(Result):
         elif stat_type == "median":
             name = "Median"
         else:
-            raise ValueError("stat_type must be one of {max, min, mean, " "median}.")
+            raise ValueError("stat_type must be one of {max, min, mean, median}.")
         y_label = "{} Displacement".format(name)
         title = "{} displacement per Iteration".format(name)
 
@@ -1594,7 +1594,7 @@ class MultiScaleNonParametricIterativeResult(NonParametricIterativeResult):
             affine_transforms = [affine_transforms]
         if len(affine_transforms) != n_scales:
             raise ValueError(
-                "The provided affine_transforms and n_scales do " "not match."
+                "The provided affine_transforms and n_scales do not match."
             )
         # Get initial mesh and initial camera transform
         initial_mesh = None

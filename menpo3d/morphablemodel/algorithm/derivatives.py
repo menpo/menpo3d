@@ -74,7 +74,7 @@ def d_camera_d_shape_parameters(camera, warped_uv, shape_pc_uv):
     elif camera.__class__ == OrthographicCamera:
         dp_da = d_orthographic_camera_d_shape_parameters(shape_pc_uv, camera)
     else:
-        raise ValueError("Camera must be either Perspective or " "Orthographic.")
+        raise ValueError("Camera must be either Perspective or Orthographic.")
     return dp_da
 
 
@@ -274,5 +274,5 @@ def d_camera_d_camera_parameters(camera, warped_uv, with_focal_length):
             with_first_quaternion=False,
         )
     else:
-        raise ValueError("Camera must be either Perspective or " "Orthographic.")
+        raise ValueError("Camera must be either Perspective or Orthographic.")
     return dp_dr

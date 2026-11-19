@@ -102,7 +102,7 @@ class OrthographicCamera(Vectorizable):
         distortion_coeffs=None,
     ):
         raise NotImplementedError(
-            "Orthographic camera pose estimation not " "implemented."
+            "Orthographic camera pose estimation not implemented."
         )
 
     def apply(self, instance, **kwargs):

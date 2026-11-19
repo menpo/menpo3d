@@ -300,8 +300,9 @@ class MMFitter(object):
         # as the landmarks of the model
         if initial_shape.n_points != self.mm.landmarks.n_points:
             raise ValueError(
-                "The provided 2D initial shape must have {} landmark "
-                "points.".format(self.mm.landmarks.n_points)
+                "The provided 2D initial shape must have {} landmark points.".format(
+                    self.mm.landmarks.n_points
+                )
             )
 
         # Rescale image and extract features
@@ -393,7 +394,7 @@ class LucasKanadeMMFitter(MMFitter):
             self.camera_cls = camera_cls
         else:
             raise ValueError(
-                "Camera can be either PerspectiveCamera or" "OrthographicCamera"
+                "Camera can be either PerspectiveCamera orOrthographicCamera"
             )
 
         # Create list of algorithms
@@ -455,4 +456,4 @@ def set_model_components(model, n_components):
         if type(n_components) is int or type(n_components) is float:
             model.n_active_components = n_components
         else:
-            raise ValueError("n_components can be an integer or a float or " "None")
+            raise ValueError("n_components can be an integer or a float or None")
