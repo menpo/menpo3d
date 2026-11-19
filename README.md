@@ -2,8 +2,6 @@
   <img src="menpo3d-logo.png" alt="menpo" width="30%"></center>
   <br><br>
   <a href="https://github.com/menpo/menpo3d/blob/master/LICENSE.txt"><img src="http://img.shields.io/badge/License-BSD-green.svg" alt="BSD License"/></a>
-  <img src="https://img.shields.io/badge/Python-3.6-green.svg" alt="Python 3.6 Support"/>
-  <img src="https://img.shields.io/badge/Python-3.7-green.svg" alt="Python 3.7 Support"/>
 </p>
 
 
@@ -17,19 +15,14 @@ with 3D data.
 
 Installation
 ------------
-Here in the Menpo team, we are firm believers in making installation as simple
-as possible. Unfortunately, we are a complex project that relies on satisfying
-a number of complex 3rd party library dependencies. The default Python packing
-environment does not make this an easy task. Therefore, we evangelise the use
-of the conda ecosystem, provided by
-[Anaconda](https://store.continuum.io/cshop/anaconda/). In order to make things
-as simple as possible, we suggest that you use conda too! To try and persuade
-you, go to the [Menpo website](http://www.menpo.io/installation/) to find
-installation instructions for all major platforms.
+```
+pip install menpo3d          # wheels for CPython 3.10-3.14
+conda install -c conda-forge menpo3d
+```
+`menpo3d.correspond.solve_pnp` needs OpenCV (`pip install "menpo3d[opencv]"`).
 
 Visualizing 3D objects
 ----------------------
-
 menpo3d adds support for viewing 3D objects through
 [Mayavi](http://code.enthought.com/projects/mayavi/), which is based on VTK.
 One of the main reasons menpo3d is a seperate project to the menpo core
@@ -51,3 +44,11 @@ mesh = menpo3d.io.import_builtin_asset("james.obj")
 %matplotlib qt
 mesh.view()
 ```
+
+
+Releasing
+---------
+Releases are made from git tags: tag `vX.Y.Z` (a signed, annotated tag) and push it. The
+`Release` workflow builds the wheels and the sdist and publishes them to PyPI with trusted
+publishing after the `pypi` environment is approved; conda-forge's bot then updates the feedstock.
+A manual run of the workflow with `publish: testpypi` is a dry run on TestPyPI.

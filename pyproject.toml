@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=77", "setuptools-scm>=8", "cython>=3.0", "numpy>=2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "menpo3d"
+dynamic = ["version"]
+description = "Menpo library providing tools for 3D Computer Vision research"
+readme = "README.md"
+license = "BSD-3-Clause"
+license-files = ["LICENSE.txt", "AUTHORS.txt"]
+authors = [{ name = "The Menpo Team", email = "hello@menpo.org" }]
+requires-python = ">=3.10"
+dependencies = ["menpo>=0.12.1", "mayavi>=4.8", "moderngl>=5.6", "numpy>=1.23"]
+classifiers = ["Programming Language :: Cython"]
+
+[project.optional-dependencies]
+# menpo3d.correspond.pnp (solve_pnp)
+opencv = ["opencv-python"]
+
+[project.urls]
+Homepage = "https://www.menpo.org"
+Source = "https://github.com/menpo/menpo3d"
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-mock>=3", "ruff", "opencv-python-headless"]
+
+[tool.setuptools.packages.find]
+include = ["menpo3d*"]
+
+[tool.setuptools.package-data]
+menpo3d = ["data/*", "rasterize/shaders/per_vertex/*", "rasterize/shaders/texture/*"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["*.c", "*.cpp", "*.pyx"]
+
+[tool.setuptools_scm]
+# Version comes from the vX.Y.Z git tag; the generated file replaces the old vendored miniver.
+version_file = "menpo3d/_version.py"
+local_scheme = "no-local-version"
+
+[tool.pytest.ini_options]
+testpaths = ["menpo3d"]
+
+[tool.ruff]
+line-length = 88
+extend-exclude = ["menpo3d/_version.py"]
+
+[tool.ruff.lint]
+select = ["E9", "F"]
+ignore = ["F401", "F403", "F405", "F841"]
+
+[tool.cibuildwheel]
+# One wheel per CPython 3.10-3.14 for the tripixel extension (not abi3, not free-threading aware).
+build = ["cp310-*", "cp311-*", "cp312-*", "cp313-*", "cp314-*"]
+skip = ["*-win32", "*_i686", "*t-*", "*-musllinux_*"]
+# mayavi and vtk have no musllinux wheels; the tests run the installed wheel
+test-requires = ["pytest", "pytest-mock", "opencv-python-headless"]
+test-command = "pytest --pyargs menpo3d -q -p no:cacheprovider"
+# no display in CI: Mayavi and Qt must not try to open one
+environment = { ETS_TOOLKIT = "null", QT_QPA_PLATFORM = "offscreen", MPLBACKEND = "Agg" }
+
+[tool.cibuildwheel.macos]
+environment = { MACOSX_DEPLOYMENT_TARGET = "11.0", ETS_TOOLKIT = "null", QT_QPA_PLATFORM = "offscreen", MPLBACKEND = "Agg" }

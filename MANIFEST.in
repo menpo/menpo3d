@@ -1,7 +1,5 @@
-include LICENSE.txt
-recursive-include menpo3d *.h
-recursive-include menpo3d *.cpp
-recursive-include menpo3d *.pyx
-recursive-include menpo3d *.pxd
-recursive-include menpo3d/rasterize/shaders *.frag
-recursive-include menpo3d/rasterize/shaders *.vert
+include LICENSE.txt AUTHORS.txt
+recursive-include menpo3d *.pyx *.pxd
+recursive-include menpo3d/rasterize/shaders *.frag *.vert
+# the sdist ships the Cython source only; the C++ is generated at build time (see setup.py)
+exclude menpo3d/rasterize/tripixel.cpp

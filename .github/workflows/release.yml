@@ -1,0 +1,110 @@
+name: Release
+
+# Builds wheels + sdist on every PR, on manual runs and on version tags. Publishing uses PyPI
+# trusted publishing (OIDC, no tokens) and uploads PEP 740 attestations automatically.
+#   * push a tag `vX.Y.Z`                 -> PyPI (+ GitHub release; aN/bN/rcN/.devN are pre-releases)
+#   * manual run with `publish: testpypi` -> TestPyPI
+# menpo3d has no Read the Docs project (menpo3d.readthedocs.io does not exist), so unlike menpo
+# there is no docs gate.
+on:
+  pull_request:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Where to publish the built files"
+        type: choice
+        options: [none, testpypi]
+        default: none
+
+permissions:
+  contents: read
+
+jobs:
+  wheels:
+    name: wheels (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest      # linux x86_64 (manylinux)
+          - ubuntu-24.04-arm   # linux aarch64
+          - windows-latest     # win amd64
+          - macos-15-intel     # macOS x86_64
+          - macos-latest       # macOS arm64
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }   # setuptools-scm needs tags
+      - uses: pypa/cibuildwheel@v4.3.5
+        # build selection, tests and per-platform settings are configured in pyproject.toml
+        env:
+          # vtk (a dependency of mayavi) links libGL and the X libraries, which the manylinux
+          # container does not have; the OpenGL rasterizer tests skip without a context
+          CIBW_BEFORE_TEST_LINUX: dnf install -y mesa-libGL mesa-libEGL libXrender libX11
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: wheelhouse/*.whl
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build --sdist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  check:
+    needs: [wheels, sdist]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - run: ls -l dist
+      - run: pipx run twine check --strict dist/*
+
+  publish-pypi:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: check
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write        # trusted publishing
+      contents: write        # GitHub release
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - name: Tag must match the built version
+        run: |
+          test -f "dist/menpo3d-${GITHUB_REF_NAME#v}.tar.gz" \
+            || { echo "tag ${GITHUB_REF_NAME} does not match built files:"; ls dist; exit 1; }
+      - uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # PEP 440 pre-releases (a/b/rc/dev) must not become the "latest" GitHub release
+          flags=()
+          if [[ "$GITHUB_REF_NAME" =~ ([0-9](a|b|rc)[0-9]+|\.dev[0-9]+)$ ]]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes --title "$GITHUB_REF_NAME" "${flags[@]}"
+
+  publish-testpypi:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish == 'testpypi'
+    needs: check
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
