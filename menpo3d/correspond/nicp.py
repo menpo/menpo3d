@@ -379,7 +379,7 @@ def non_rigid_icp_generator(
         target_lms = target.landmarks[landmark_group]
         U_L = target_lms.points
         n_landmarks = target_lms.n_points
-        lm_mask = np.in1d(row, source_lm_index)
+        lm_mask = np.isin(row, source_lm_index)
         col_lm = col[lm_mask]
         # pull out the rows for the lms - but the values are
         # all wrong! need to map them back to the order of the landmarks
@@ -426,7 +426,7 @@ def non_rigid_icp_generator(
             # Are any of the corresponding tris on the edge of the target?
             # Where they are we return a false weight (we *don't* want to
             # include these points in the solve)
-            w_i_e = np.in1d(tri_indices, edge_tris, invert=True)
+            w_i_e = np.isin(tri_indices, edge_tris, invert=True)
 
             # 2. Normals
             # Calculate the normals of the current v_i

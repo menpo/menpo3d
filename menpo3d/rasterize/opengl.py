@@ -7,7 +7,7 @@ from pathlib import Path
 import moderngl
 import numpy as np
 from menpo.image import MaskedImage
-from menpo.shape import TriMesh
+from menpo.shape import ColouredTriMesh, TriMesh
 from menpo.transform import Homogeneous
 
 from .transform import clip_to_image_transform
@@ -634,6 +634,11 @@ class GLRasterizer:
     def rasterize_barycentric_coordinate_image(self, mesh):
         # Convert the mesh into a version with one vertex per triangle
         mesh, _ = dedup_vertices(mesh)
+        # The rasterizer picks its shader from the type of the mesh and only
+        # knows about coloured and textured meshes: the colours are not used
+        mesh = ColouredTriMesh(
+            mesh.points, mesh.trilist, colours=np.zeros(mesh.points.shape)
+        )
 
         per_vertex_f3v = tri_bcoords_for_mesh(mesh)
 

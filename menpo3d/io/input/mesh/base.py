@@ -91,7 +91,7 @@ def vtk_ensure_trilist(polydata):
 
 
 def wrl_importer(filepath, asset=None, texture_resolver=None, **kwargs):
-    """Allows importing VRML 2.0 meshes.
+    r"""Allows importing VRML 2.0 meshes.
 
     Uses VTK and assumes that the first actor in the scene is the one
     that we want.
@@ -172,7 +172,7 @@ def wrl_importer(filepath, asset=None, texture_resolver=None, **kwargs):
 
 
 def obj_importer(filepath, asset=None, texture_resolver=None, **kwargs):
-    """Allows importing Wavefront (OBJ) files.
+    r"""Allows importing Wavefront (OBJ) files.
 
     Uses VTK.
 
@@ -228,7 +228,7 @@ def obj_importer(filepath, asset=None, texture_resolver=None, **kwargs):
 
 
 def ply_importer(filepath, asset=None, texture_resolver=None, **kwargs):
-    """Allows importing Wavefront (OBJ) files.
+    r"""Allows importing Wavefront (OBJ) files.
 
     Uses VTK.
 
@@ -292,7 +292,7 @@ def ply_importer(filepath, asset=None, texture_resolver=None, **kwargs):
 
 
 def stl_importer(filepath, asset=None, **kwargs):
-    """Allows importing Stereolithography CAD (STL) files.
+    r"""Allows importing Stereolithography CAD (STL) files.
 
     Uses VTK.
 
@@ -330,7 +330,7 @@ def stl_importer(filepath, asset=None, **kwargs):
 
 
 def mjson_importer(filepath, asset=None, texture_resolver=True, **kwargs):
-    """
+    r"""
     Import meshes that are in a simple JSON format.
 
     Parameters

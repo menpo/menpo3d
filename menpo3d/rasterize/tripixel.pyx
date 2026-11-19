@@ -1,16 +1,15 @@
 #cython: boundscheck=False, wraparound=False, nonecheck=False
-cimport numpy as np
 import numpy as np
 
 
-def pixels_to_check(long[:, :] start, long[:, :] end, long n_pixels):
+def pixels_to_check(long long[:, :] start, long long[:, :] end, long long n_pixels):
 
-    cdef long [:, :] pixel_locations = np.empty((n_pixels, 2), dtype=long)
-    cdef long [:] tri_indices = np.empty(n_pixels, dtype=long)
+    cdef long long[:, :] pixel_locations = np.empty((n_pixels, 2), dtype=np.int64)
+    cdef long long[:] tri_indices = np.empty(n_pixels, dtype=np.int64)
 
-    cdef long n_tris = start.shape[0]
-    cdef long i, j, k, sx, sy, ex, ey
-    cdef long n = 0
+    cdef long long n_tris = start.shape[0]
+    cdef long long i, j, k, sx, sy, ex, ey
+    cdef long long n = 0
 
     for i in range(n_tris):
         sx = start[i, 0]

@@ -202,7 +202,7 @@ class SimultaneousForwardAdditive(LucasKanade):
 
         # Initialize iteration counter and epsilon
         k = 0
-        eps = np.Inf
+        eps = np.inf
 
         # Main loop
         while k < max_iters and eps > self.eps:
@@ -499,7 +499,7 @@ class WibergForwardAdditive(LucasKanade):
 
         # Initialize iteration counter and epsilon
         k = 0
-        eps = np.Inf
+        eps = np.inf
 
         # Main loop
         while k < max_iters and eps > self.eps:

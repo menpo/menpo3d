@@ -20,7 +20,7 @@ class MultilinearModel(object):
     def n_active_components(self, values):
         try:
             for mdl, v in zip(self.models, values):
-                mdl.n_active_components = value
+                mdl.n_active_components = v
         except TypeError:
             self.models[0].n_active_components = values
 
