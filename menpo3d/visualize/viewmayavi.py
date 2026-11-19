@@ -635,6 +635,7 @@ class MayaviSurfaceViewer3d(MayaviRenderer):
         marker_resolution=8,
         marker_size=0.05,
         alpha=1.0,
+        **kwargs,
     ):
         from mayavi import mlab
 

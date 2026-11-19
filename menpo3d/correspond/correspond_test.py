@@ -20,4 +20,10 @@ def test_solvepnp():
 
     # Ransac is random and we can't control the seed so we do a fuzzy test
     model_view_t, _ = solve_pnp_landmarks(image, template, group="LJSON")
-    np.testing.assert_allclose(model_view_t.h_matrix, expected, atol=1e-2)
+    actual = model_view_t.h_matrix
+    np.testing.assert_allclose(actual[:3, :3], expected[:3, :3], atol=1e-2)
+    # the translation is ~5e5 along the optical axis and varies by a few tens
+    # between OpenCV versions and RANSAC runs: compare it relative to its size
+    error = np.linalg.norm(actual[:3, 3] - expected[:3, 3])
+    assert error / np.linalg.norm(expected[:3, 3]) < 1e-3
+    np.testing.assert_array_equal(actual[3], expected[3])

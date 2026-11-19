@@ -29,9 +29,10 @@ def pixel_locations_and_tri_indices(mesh):
     vertex_trilist = mesh.points[mesh.trilist]
     start = np.floor(vertex_trilist.min(axis=1)[:, :2])
     end = np.ceil(vertex_trilist.max(axis=1)[:, :2])
-    start = start.astype(int)
-    end = end.astype(int)
-    n_sites = np.product((end - start), axis=1).sum()
+    # int64, whatever the platform's C long: this is what the Cython code takes
+    start = start.astype(np.int64)
+    end = end.astype(np.int64)
+    n_sites = np.prod((end - start), axis=1).sum()
     return pixels_to_check(start, end, n_sites)
 
 
