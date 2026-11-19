@@ -59,3 +59,30 @@ jobs:
           uv pip install --python .venv-sdist dist/*.tar.gz pytest pytest-mock opencv-python-headless
           cd "$(mktemp -d)"
           xvfb-run -a "$GITHUB_WORKSPACE/.venv-sdist/bin/python" -m pytest --pyargs menpo3d -q -rs
+
+  docs:
+    runs-on: ubuntu-latest
+    env:
+      READTHEDOCS: "True"   # as on Read the Docs: use the installed menpo3d
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: astral-sh/setup-uv@v5
+      - name: Only one Read the Docs config (it prefers a legacy readthedocs.yml over .readthedocs.yaml)
+        run: |
+          if ls readthedocs.yml readthedocs.yaml .readthedocs.yml 2>/dev/null; then
+            echo "legacy Read the Docs config file(s) above must be removed"; exit 1
+          fi
+      - name: Validate the Read the Docs configuration against its schema
+        run: uvx check-jsonschema --builtin-schema vendor.readthedocs .readthedocs.yaml
+      - name: System libraries that Read the Docs installs (.readthedocs.yaml apt_packages)
+        run: sudo apt-get update && sudo apt-get install -y libgl1 libglx-mesa0 libegl1 libxrender1
+      - name: Install what Read the Docs installs
+        run: |
+          uv venv --python 3.13 .venv-docs
+          uv pip install --python .venv-docs -r docs/requirements.txt .
+      - name: Build the docs
+        run: .venv-docs/bin/python -m sphinx -b html -j auto docs/source docs/_build 2>&1 | tee docs-build.log
+      - name: Autodoc must be able to import everything, and the cross-references must resolve
+        run: |
+          if grep -E "autodoc: failed to import|sphinxmapxrefrole\] - Failed" docs-build.log; then exit 1; fi
