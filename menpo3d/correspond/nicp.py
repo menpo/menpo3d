@@ -9,7 +9,7 @@ from io import UnsupportedOperation
 from menpo.shape import TriMesh, PointCloud
 from menpo.transform import Translation, UniformScale, AlignmentSimilarity
 from menpo3d.morphablemodel.shapemodel import ShapeModel
-from menpo3d.vtkutils import trimesh_to_vtk, VTKClosestPointLocator
+from menpo3d.closest_point import ClosestPointLocator
 
 
 @contextmanager
@@ -296,8 +296,7 @@ def non_rigid_icp_generator(
     M_kron_G_s = sp.kron(M_s, G)
 
     # build octree for finding closest points on target.
-    target_vtk = trimesh_to_vtk(target)
-    closest_points_on_target = VTKClosestPointLocator(target_vtk)
+    closest_points_on_target = ClosestPointLocator.from_trimesh(target)
 
     # save out the target normals. We need them for the weight matrix.
     target_tri_normals = target.tri_normals()

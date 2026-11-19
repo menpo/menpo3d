@@ -59,33 +59,34 @@ def ply_exporter(mesh, file_path, binary=False, **kwargs):
     binary: `bool`, optional
         Specify whether to format output in binary or ascii, defaults to False
     """
-    import vtk
-    from vtk.util.numpy_support import numpy_to_vtk, numpy_to_vtkIdTypeArray
-
     file_path = _enforce_only_paths_supported(file_path, "PLY")
 
-    polydata = vtk.vtkPolyData()
-    points = vtk.vtkPoints()
-    points.SetData(numpy_to_vtk(mesh.points))
-    polydata.SetPoints(points)
-
-    cells = vtk.vtkCellArray()
-    counts = np.empty((mesh.trilist.shape[0], 1), dtype=np.int64)
-    counts.fill(3)
-    tris = np.concatenate((counts, mesh.trilist), axis=1)
-    cells.SetCells(mesh.trilist.shape[0], numpy_to_vtkIdTypeArray(tris))
-    polydata.SetPolys(cells)
-
+    # float32 vertex data, matching what the previous (VTK based) writer produced
+    columns = [mesh.points.astype(np.float32)]
+    names = ["x", "y", "z"]
     if isinstance(mesh, TexturedTriMesh):
-        pointdata = polydata.GetPointData()
-        pointdata.SetTCoords(numpy_to_vtk(mesh.tcoords.points))
+        columns.append(mesh.tcoords.points.astype(np.float32))
+        names += ["u", "v"]
+    vertices = np.hstack(columns)
+    trilist = np.asarray(mesh.trilist, dtype=np.int32)
 
-    ply_writer = vtk.vtkPLYWriter()
-    ply_writer.SetFileName(str(file_path))
-    ply_writer.SetInputData(polydata)
-    if not binary:
-        ply_writer.SetFileTypeToASCII()
-    else:
-        ply_writer.SetFileTypeToBinary()
-    ply_writer.Update()
-    ply_writer.Write()
+    header = ["ply"]
+    header.append("format binary_little_endian 1.0" if binary else "format ascii 1.0")
+    header.append("comment menpo3d generated PLY File")
+    header.append("element vertex {}".format(len(vertices)))
+    header += ["property float {}".format(name) for name in names]
+    header.append("element face {}".format(len(trilist)))
+    header.append("property list uchar int vertex_indices")
+    header.append("end_header")
+
+    with open(str(file_path), "wb") as f:
+        f.write(("\n".join(header) + "\n").encode("ascii"))
+        if binary:
+            f.write(vertices.astype("<f4").tobytes())
+            faces = np.empty(len(trilist), dtype=[("n", "u1"), ("i", "<i4", (3,))])
+            faces["n"] = 3
+            faces["i"] = trilist
+            f.write(faces.tobytes())
+        else:
+            np.savetxt(f, vertices, fmt="%.9g")
+            np.savetxt(f, np.hstack([np.full((len(trilist), 1), 3), trilist]), fmt="%d")
