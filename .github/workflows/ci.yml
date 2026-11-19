@@ -51,12 +51,6 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: astral-sh/setup-uv@v5
       - run: uv build --sdist
-      - name: The sdist must contain the Cython source, not generated C++
-        run: |
-          tar tzf dist/*.tar.gz | grep -q 'rasterize/tripixel.pyx'
-          if tar tzf dist/*.tar.gz | grep -E 'tripixel\.cpp$'; then
-            echo "the sdist contains generated C++"; exit 1
-          fi
       - name: Build and test from the sdist (conda-forge builds from it; no git)
         run: |
           sudo apt-get update

@@ -16,7 +16,6 @@ def a_triangle():
 
 def test_cpu_rasterizes_a_triangle():
     # np.product, used to count the pixels to check, was removed in NumPy 2
-    # and tripixel used the Python 2 `long`
     bcoords, tri_indices = rasterize_barycentric_coordinate_images(
         a_triangle(), (50, 50)
     )
@@ -27,16 +26,30 @@ def test_cpu_rasterizes_a_triangle():
     assert np.all(tri_indices.pixels[0][mask] == 0)
 
 
-def test_cython_pixel_checking_matches_the_python_fallback():
-    rng = np.random.RandomState(0)
-    start = rng.randint(0, 20, size=(30, 2)).astype(np.int64)
-    end = start + rng.randint(0, 6, size=(30, 2)).astype(np.int64)
-    n_pixels = int(np.prod(end - start, axis=1).sum())
-    expected = cpu._pixels_to_check_python(start, end, n_pixels)
-    from menpo3d.rasterize.tripixel import pixels_to_check
+def pixels_to_check_with_loops(start, end):
+    locations, tri_indices = [], []
+    for i, ((sx, sy), (ex, ey)) in enumerate(zip(start, end)):
+        for x in range(sx, ex):
+            for y in range(sy, ey):
+                locations.append((x, y))
+                tri_indices.append(i)
+    return np.array(locations).reshape(-1, 2), np.array(tri_indices, dtype=int)
 
-    for got, want in zip(pixels_to_check(start, end, n_pixels), expected):
-        assert np.array_equal(got, want)
+
+def test_pixels_to_check_matches_plain_loops():
+    rng = np.random.RandomState(0)
+    start = rng.randint(0, 20, size=(40, 2))
+    end = start + rng.randint(0, 6, size=(40, 2))  # including empty boxes
+    n_pixels = int(np.prod(end - start, axis=1).sum())
+    got = cpu.pixels_to_check(start, end, n_pixels)
+    for have, want in zip(got, pixels_to_check_with_loops(start, end)):
+        assert np.array_equal(have, want)
+
+
+def test_pixels_to_check_with_nothing_to_check():
+    empty = np.zeros((3, 2), dtype=int)
+    locations, tri_indices = cpu.pixels_to_check(empty, empty, 0)
+    assert locations.shape == (0, 2) and tri_indices.shape == (0,)
 
 
 def a_coloured_bunny():
