@@ -20,6 +20,7 @@ opencv = ["opencv-python"]
 [project.urls]
 Homepage = "https://www.menpo.org"
 Source = "https://github.com/menpo/menpo3d"
+Documentation = "https://menpo3d.readthedocs.io/en/stable/"
 
 [dependency-groups]
 dev = ["pytest>=8", "pytest-mock>=3", "ruff", "opencv-python-headless"]
@@ -40,7 +41,7 @@ testpaths = ["menpo3d"]
 
 [tool.ruff]
 line-length = 88
-extend-exclude = ["menpo3d/_version.py"]
+extend-exclude = ["docs", "menpo3d/_version.py"]
 
 [tool.ruff.lint]
 select = ["E9", "F"]

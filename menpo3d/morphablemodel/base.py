@@ -273,7 +273,7 @@ class TexturedMorphableModel(MorphableModel):
     ----------
     shape_model : `menpo.model.PCAModel`
         The PCA model of the 3D shape. It is assumed that a shape instance is
-        defined as a :map:`menpo.shape.TriMesh`.
+        defined as a :map:`TriMesh`.
     texture_model : :map:`PCAModel`.
         The PCA model of texture. It is assumed that a texture instance is
         defined as a `menpo.image.Image`. Note that the texture model can be

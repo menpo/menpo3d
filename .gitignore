@@ -66,3 +66,4 @@ menpo3d.iml
 # setuptools-scm
 menpo3d/_version.py
 .venv/
+docs/_build/

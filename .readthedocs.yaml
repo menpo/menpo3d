@@ -1,0 +1,27 @@
+# Read the Docs configuration (https://docs.readthedocs.com/platform/stable/config-file/v2.html)
+version: 2
+
+build:
+  os: ubuntu-lts-latest
+  tools:
+    python: "3.13"
+  apt_packages:
+    # VTK (a dependency of Mayavi) links libGL, which autodoc loads when it imports menpo3d
+    - libgl1
+    - libglx-mesa0
+    - libegl1
+    - libxrender1
+  jobs:
+    post_checkout:
+      # the version comes from git tags (setuptools-scm) but Read the Docs clones shallowly
+      - git fetch --unshallow || true
+      - git fetch --tags || true
+
+sphinx:
+  configuration: docs/source/conf.py
+
+python:
+  install:
+    - requirements: docs/requirements.txt
+    - method: pip
+      path: .

@@ -2,6 +2,7 @@
   <img src="menpo3d-logo.png" alt="menpo" width="30%"></center>
   <br><br>
   <a href="https://github.com/menpo/menpo3d/blob/master/LICENSE.txt"><img src="http://img.shields.io/badge/License-BSD-green.svg" alt="BSD License"/></a>
+  <a href="https://menpo3d.readthedocs.io/en/stable/"><img src="https://readthedocs.org/projects/menpo3d/badge/?version=stable" alt="Documentation"/></a>
 </p>
 
 

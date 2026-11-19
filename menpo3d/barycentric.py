@@ -39,7 +39,7 @@ def barycentric_points_from_contained_points(self, pointcloud, tri_index):
 
 
 def snap_pointcloud_to_surface(self, pointcloud):
-    r"""Constrain points in a :map:`PointCloud: to lie as close as possible to
+    r"""Constrain points in a :map:`PointCloud` to lie as close as possible to
     this :map:`TriMesh`.
 
     Each point in the provided `pointcloud` will be projected to the surface
@@ -53,7 +53,7 @@ def snap_pointcloud_to_surface(self, pointcloud):
     Returns
     -------
     snapped_pointcloud, tri_indices : :map:`PointCloud`, ``(n_points, )`` `ndarray`
-        A tuple of the snapped :map`PointCloud` and the indices of the
+        A tuple of the snapped :map:`PointCloud` and the indices of the
         triangles involved in the snapping.
     """
     vtk_mesh = trimesh_to_vtk(self)
@@ -63,7 +63,7 @@ def snap_pointcloud_to_surface(self, pointcloud):
 
 
 def barycentric_coordinates_of_pointcloud(self, pointcloud):
-    r"""Return the barycentric coordinates of points in a :map:`PointCloud:
+    r"""Return the barycentric coordinates of points in a :map:`PointCloud`
     that have been constrained to lie as close as possible to this
     :map:`TriMesh`.
 

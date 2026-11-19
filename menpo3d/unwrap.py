@@ -56,7 +56,7 @@ def optimal_cylindrical_unwrap(points):
     which optimally cylindrically unwraps the points provided. This is done by:
 
     #. Find an optimal :map:`Translation` to centre the points in ``x-z`` plane
-    #. Use :map:`circle_fit` to find the optimal radius for fitting the points
+    #. Use :map:`radial_fit` to find the optimal radius for fitting the points
     #. Calculate a :map:`CylindricalUnwrap` using the optimal radius
     #. Return a composition of the two.
 
