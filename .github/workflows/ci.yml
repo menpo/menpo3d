@@ -1,0 +1,67 @@
+name: CI
+on:
+  push: { branches: [master] }
+  pull_request:
+
+env:
+  # there is no display: Mayavi must not try to open a window
+  ETS_TOOLKIT: "null"
+  QT_QPA_PLATFORM: offscreen
+  MPLBACKEND: Agg
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uvx ruff check .
+      - run: uvx ruff format --check .
+
+  test:
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.10", "3.14"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }   # setuptools-scm needs tags
+      - uses: astral-sh/setup-uv@v5
+      - name: Software OpenGL and a virtual display (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1 libglx-mesa0 libgl1-mesa-dri libegl1 libxrender1
+      - run: uv sync --python ${{ matrix.python }} --group dev
+      # The OpenGL rasterizer tests skip when there is no OpenGL 3.3 context (Windows runners)
+      - name: Tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a uv run pytest -q -rs
+      - name: Tests
+        if: runner.os != 'Linux'
+        run: uv run pytest -q -rs
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build --sdist
+      - name: The sdist must contain the Cython source, not generated C++
+        run: |
+          tar tzf dist/*.tar.gz | grep -q 'rasterize/tripixel.pyx'
+          if tar tzf dist/*.tar.gz | grep -E 'tripixel\.cpp$'; then
+            echo "the sdist contains generated C++"; exit 1
+          fi
+      - name: Build and test from the sdist (conda-forge builds from it; no git)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1 libglx-mesa0 libgl1-mesa-dri libegl1 libxrender1
+          uv venv .venv-sdist
+          uv pip install --python .venv-sdist dist/*.tar.gz pytest pytest-mock opencv-python-headless
+          cd "$(mktemp -d)"
+          xvfb-run -a "$GITHUB_WORKSPACE/.venv-sdist/bin/python" -m pytest --pyargs menpo3d -q -rs

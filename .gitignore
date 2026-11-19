@@ -62,3 +62,7 @@ menpo3d.iml
 
 .ipynb_checkpoints
 .DS_Store
+
+# setuptools-scm
+menpo3d/_version.py
+.venv/
