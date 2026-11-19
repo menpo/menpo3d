@@ -3,35 +3,43 @@ from menpo.transform.piecewiseaffine.base import barycentric_vectors
 from menpo.image import BooleanImage, MaskedImage
 
 
-def _pixels_to_check_python(start, end, n_pixels):
-    pixel_locations = np.empty((n_pixels, 2), dtype=int)
-    tri_indices = np.empty(n_pixels, dtype=int)
+def pixels_to_check(start, end, n_pixels):
+    r"""
+    Every pixel site (x, y) in the bounding box of every triangle, and the
+    index of the triangle each belongs to.
 
-    n = 0
-    for i, ((s_x, s_y), (e_x, e_y)) in enumerate(zip(start, end)):
-        for x in range(s_x, e_x):
-            for y in range(s_y, e_y):
-                pixel_locations[n] = (x, y)
-                tri_indices[n] = i
-                n += 1
+    Parameters
+    ----------
+    start, end : ``(n_tris, 2)`` `ndarray` of `int`
+        The (x, y) corners of the bounding boxes: ``start`` is included,
+        ``end`` is not.
+    n_pixels : `int`
+        The total number of sites, ``prod(end - start, axis=1).sum()``.
 
-    return pixel_locations, tri_indices
-
-
-try:
-    from .tripixel import pixels_to_check
-except ImportError:
-    print("Falling back to CPU pixel checking")
-    pixels_to_check = _pixels_to_check_python
+    Returns
+    -------
+    pixel_locations : ``(n_pixels, 2)`` `ndarray` of `int`
+    tri_indices : ``(n_pixels,)`` `ndarray` of `int`
+    """
+    size = end - start
+    counts = size[:, 0] * size[:, 1]
+    tri_indices = np.repeat(np.arange(len(start)), counts)
+    # the position of every site inside its own box: 0 .. count - 1
+    first = np.cumsum(counts) - counts
+    local = np.arange(n_pixels) - np.repeat(first, counts)
+    height = np.repeat(size[:, 1], counts)
+    # x varies slowest and y fastest within a box
+    x = np.repeat(start[:, 0], counts) + local // height
+    y = np.repeat(start[:, 1], counts) + local % height
+    return np.stack([x, y], axis=1), tri_indices
 
 
 def pixel_locations_and_tri_indices(mesh):
     vertex_trilist = mesh.points[mesh.trilist]
     start = np.floor(vertex_trilist.min(axis=1)[:, :2])
     end = np.ceil(vertex_trilist.max(axis=1)[:, :2])
-    # int64, whatever the platform's C long: this is what the Cython code takes
-    start = start.astype(np.int64)
-    end = end.astype(np.int64)
+    start = start.astype(int)
+    end = end.astype(int)
     n_sites = np.prod((end - start), axis=1).sum()
     return pixels_to_check(start, end, n_sites)
 

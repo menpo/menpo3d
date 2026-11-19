@@ -16,7 +16,7 @@ with 3D data.
 Installation
 ------------
 ```
-pip install menpo3d          # wheels for CPython 3.10-3.14
+pip install menpo3d
 conda install -c conda-forge menpo3d
 ```
 `menpo3d.correspond.solve_pnp` needs OpenCV (`pip install "menpo3d[opencv]"`).
@@ -49,6 +49,6 @@ mesh.view()
 Releasing
 ---------
 Releases are made from git tags: tag `vX.Y.Z` (a signed, annotated tag) and push it. The
-`Release` workflow builds the wheels and the sdist and publishes them to PyPI with trusted
+`Release` workflow builds the wheel and the sdist and publishes them to PyPI with trusted
 publishing after the `pypi` environment is approved; conda-forge's bot then updates the feedstock.
 A manual run of the workflow with `publish: testpypi` is a dry run on TestPyPI.
