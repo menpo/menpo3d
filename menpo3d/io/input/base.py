@@ -44,9 +44,7 @@ def same_name_texture(path, paths_callable=image_paths):
     pattern = path.with_suffix(".*")
     texture_paths = sorted(paths_callable(pattern))
     if len(texture_paths) > 1:
-        warnings.warn(
-            "More than one texture found for file, returning " "only the first."
-        )
+        warnings.warn("More than one texture found for file, returning only the first.")
     if not texture_paths:
         return None
     return texture_paths[0]

@@ -29,8 +29,9 @@ if len(NUMPY_INC_PATHS) == 0:
 
 elif len(NUMPY_INC_PATHS) > 1:
     print(
-        "Found {} numpy include dirs: "
-        "{}".format(len(NUMPY_INC_PATHS), ", ".join(NUMPY_INC_PATHS))
+        "Found {} numpy include dirs: {}".format(
+            len(NUMPY_INC_PATHS), ", ".join(NUMPY_INC_PATHS)
+        )
     )
     print("Taking first (highest precedence on path): {}".format(NUMPY_INC_PATHS[0]))
 NUMPY_INC_PATH = NUMPY_INC_PATHS[0]

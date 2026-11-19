@@ -120,8 +120,7 @@ def validate_weights(label, weights, n_points, n_iterations=None, verbose=False)
 
     if len(invalid) != 0:
         raise ValueError(
-            "Invalid {label}: expected shape ({n_points},) "
-            "got: {invalid_cases}".format(
+            "Invalid {label}: expected shape ({n_points},) got: {invalid_cases}".format(
                 label=label,
                 n_points=n_points,
                 invalid_cases="{}".format(", ".join(invalid)),
@@ -171,7 +170,6 @@ def active_non_rigid_icp(
     model_mean = model.mean()
 
     if landmark_group is not None:
-
         # user better have provided model landmarks!
         if model_mean_landmarks is None:
             raise ValueError(
@@ -258,8 +256,9 @@ def non_rigid_icp_generator(
     if landmark_group is not None:
         if verbose:
             print(
-                "'{}' landmarks will be used as "
-                "a landmark constraint.".format(landmark_group)
+                "'{}' landmarks will be used as a landmark constraint.".format(
+                    landmark_group
+                )
             )
             print("performing similarity alignment using landmarks")
         lm_align = AlignmentSimilarity(
@@ -318,19 +317,19 @@ def non_rigid_icp_generator(
         # rigidly aligned facial meshes
         stiffness_weights = [50, 20, 5, 2, 0.8, 0.5, 0.35, 0.2]
         if verbose:
-            print("using default " "stiffness_weights: {}".format(stiffness_weights))
+            print("using default stiffness_weights: {}".format(stiffness_weights))
 
     n_iterations = len(stiffness_weights)
 
     if landmark_weights is not None:
         if verbose:
-            print("using user defined " "landmark_weights: {}".format(landmark_weights))
+            print("using user defined landmark_weights: {}".format(landmark_weights))
     elif landmark_group is not None:
         # these values have been empirically found to perform well for well
         # rigidly aligned facial meshes
         landmark_weights = [5, 2, 0.5, 0, 0, 0, 0, 0]
         if verbose:
-            print("using default " "landmark_weights: {}".format(landmark_weights))
+            print("using default landmark_weights: {}".format(landmark_weights))
     else:
         # no landmark_weights provided - no landmark_group in use. We still
         # need a landmark group for the iterator
