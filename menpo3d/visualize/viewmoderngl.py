@@ -7,6 +7,7 @@ or by the standalone window, always with the same renderer.
 """
 
 import io
+import os
 import threading
 
 import numpy as np
@@ -149,11 +150,35 @@ class Figure:
         self.scene.camera.set_pose(**pose)
         self.scene._changed()
 
-    def show(self, block=True):
-        """Open the standalone viewer window (a browser window in app mode) on this figure."""
+    def show(self, block=True, window=None):
+        """Open the standalone viewer window on this figure and return when it is closed.
+
+        ``window="native"`` is a real window (needs ``pip install "menpo3d[window]"`` and a display); ``"browser"`` is a browser window
+        in app mode (works over SSH with a port forward; needs ``menpo3d[viewer]``). The default is native when moderngl-window
+        and a display are there, otherwise the browser.
+        """
+        choice = window or os.environ.get("MENPO3D_WINDOW")
+        native_error = "not requested"
+        if choice in (None, "native"):
+            try:
+                from .viewer.native import require_window, show
+
+                require_window()
+                return show(self, block=block)
+            except (ImportError, RuntimeError) as error:
+                if choice == "native":
+                    raise
+                native_error = error
+        if choice not in (None, "browser", "native"):
+            raise ValueError(f"window must be 'native' or 'browser', not {choice!r}")
         from .viewer import require_viewer
 
-        require_viewer()
+        try:
+            require_viewer()
+        except ImportError as error:
+            raise ImportError(
+                f"no native window ({native_error}); and {error}"
+            ) from None
         from .viewer.window import show
 
         return show(self, block=block)
@@ -179,9 +204,9 @@ def gcf():
     return get_figure(None, False)
 
 
-def show(block=True):
+def show(block=True, window=None):
     """Like ``mlab.show()``: open the window on the current figure."""
-    return gcf().show(block=block)
+    return gcf().show(block=block, window=window)
 
 
 class ModernGLRenderer(Renderer):

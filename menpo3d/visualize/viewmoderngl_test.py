@@ -191,6 +191,8 @@ def test_show_and_the_widget_say_which_extra_to_install(bunny, monkeypatch):
     fig = bunny.view(mesh_type="surface", new_figure=True).figure
     monkeypatch.setitem(sys.modules, "aiohttp", None)
     with pytest.raises(ImportError, match=r"menpo3d\[viewer\]"):
-        fig.show()
+        fig.show(
+            window="browser"
+        )  # (the default would open a native window and wait for it)
     with pytest.warns(UserWarning, match=r"menpo3d\[viewer\]"):
         fig._repr_mimebundle_()
