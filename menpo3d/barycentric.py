@@ -1,6 +1,5 @@
 import numpy as np
 from menpo.shape import PointCloud, TriMesh, ColouredTriMesh, TexturedTriMesh
-from .closest_point import ClosestPointLocator
 
 
 def barycentric_coordinates(point, a, b, c):
@@ -56,6 +55,8 @@ def snap_pointcloud_to_surface(self, pointcloud):
         A tuple of the snapped :map:`PointCloud` and the indices of the
         triangles involved in the snapping.
     """
+    from .closest_point import ClosestPointLocator
+
     locator = ClosestPointLocator.from_trimesh(self)
     snapped_points, indices = locator(pointcloud.points)
     return PointCloud(snapped_points, copy=False), indices
