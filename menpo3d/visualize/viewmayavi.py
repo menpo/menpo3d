@@ -57,7 +57,9 @@ def _check_colours_list(render_flag, colours_list, n_objects, error_str):
 def _set_numbering(
     figure, centers, render_numbering=True, numbers_size=None, numbers_colour="k"
 ):
-    import mayavi.mlab as mlab
+    from menpo3d.visualize._optional import import_mlab
+
+    mlab = import_mlab()
 
     numbers_colour = _parse_colour(numbers_colour)
     numbers_size = _parse_marker_size(numbers_size, centers)
@@ -91,7 +93,9 @@ class MayaviRenderer(Renderer):
 
     def __init__(self, figure_id, new_figure):
         try:
-            import mayavi.mlab as mlab
+            from menpo3d.visualize._optional import import_mlab
+
+            mlab = import_mlab()
         except ImportError:
             raise ImportError(
                 "mayavi is required for viewing 3D objects "
@@ -133,7 +137,9 @@ class MayaviRenderer(Renderer):
         figure : Mayavi figure object
             The figure we will be rendering on.
         """
-        import mayavi.mlab as mlab
+        from menpo3d.visualize._optional import import_mlab
+
+        mlab = import_mlab()
 
         if self.new_figure or self.figure_id is not None:
             self.figure = mlab.figure(self.figure_id, bgcolor=(1, 1, 1))
@@ -261,7 +267,9 @@ class MayaviRenderer(Renderer):
         r"""
         Method for clearing the current figure.
         """
-        from mayavi import mlab
+        from menpo3d.visualize._optional import import_mlab
+
+        mlab = import_mlab()
 
         mlab.clf(figure=self.figure)
         if len(self._actors) > 0:
@@ -302,7 +310,9 @@ class MayaviVectorViewer3d(MayaviRenderer):
         step=None,
         alpha=1.0,
     ):
-        from mayavi import mlab
+        from menpo3d.visualize._optional import import_mlab
+
+        mlab = import_mlab()
 
         marker_size = _parse_marker_size(marker_size, self.points)
         colour = _parse_colour(colour)
@@ -347,7 +357,9 @@ class MayaviPointGraphViewer3d(MayaviRenderer):
         numbers_colour="k",
         numbers_size=None,
     ):
-        from mayavi import mlab
+        from menpo3d.visualize._optional import import_mlab
+
+        mlab = import_mlab()
 
         # Render the lines if requested
         if render_lines:
@@ -418,7 +430,9 @@ class MayaviTriMeshViewer3d(MayaviRenderer):
         step,
         alpha,
     ):
-        import mayavi.mlab as mlab
+        from menpo3d.visualize._optional import import_mlab
+
+        mlab = import_mlab()
 
         marker_size = _parse_marker_size(marker_size, self.points)
         colour = _parse_colour(colour)
@@ -493,7 +507,9 @@ class MayaviTexturedTriMeshViewer3d(MayaviRenderer):
     def _render_mesh(
         self, mesh_type="surface", ambient_light=0.0, specular_light=0.0, alpha=1.0
     ):
-        from tvtk.api import tvtk
+        from menpo3d.visualize._optional import import_tvtk
+
+        tvtk = import_tvtk()
 
         pd = tvtk.PolyData()
         pd.points = self.points
@@ -568,7 +584,9 @@ class MayaviColouredTriMeshViewer3d(MayaviRenderer):
     def _render_mesh(
         self, mesh_type="surface", ambient_light=0.0, specular_light=0.0, alpha=1.0
     ):
-        from tvtk.api import tvtk
+        from menpo3d.visualize._optional import import_tvtk
+
+        tvtk = import_tvtk()
 
         pd = tvtk.PolyData()
         pd.points = self.points
@@ -637,7 +655,9 @@ class MayaviSurfaceViewer3d(MayaviRenderer):
         alpha=1.0,
         **kwargs,
     ):
-        from mayavi import mlab
+        from menpo3d.visualize._optional import import_mlab
+
+        mlab = import_mlab()
 
         warp_scale = kwargs.get("warp_scale", "auto")
         mlab.surf(self.values, warp_scale=warp_scale)
