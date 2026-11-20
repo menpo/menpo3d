@@ -55,7 +55,10 @@ three uses, so they cannot disagree about what a scene looks like:
     renderer.save_figure("view.png", size=(1024, 768), overwrite=True)
 
 The interactive parts need ``pip install "menpo3d[viewer]"``; offline rendering
-does not. To reach a remote machine, forward the viewer's port or call
+does not. Frames are streamed as JPEG; add ``"menpo3d[h264]"`` (PyAV) for H.264
+video, which is several times smaller on slow links. If PyAV is missing, the
+ffmpeg build lacks the encoder, or the browser has no WebCodecs (Firefox,
+Safari), the viewer falls back to JPEG by itself. To reach a remote machine, forward the viewer's port or call
 ``menpo3d.visualize.viewer.hub.configure(host="0.0.0.0", public_url=...)``
 before the first viewer is created.
 

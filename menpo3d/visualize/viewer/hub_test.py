@@ -3,13 +3,12 @@
 import asyncio
 import json
 import struct
+import sys
 
 import numpy as np
 import pytest
 
 pytest.importorskip("aiohttp")
-pytest.importorskip("av")
-pytest.importorskip("simplejpeg")
 import aiohttp  # noqa: E402
 
 import menpo3d.io as m3io  # noqa: E402
@@ -164,6 +163,7 @@ def test_a_viewer_gets_meta_then_frames_tagged_with_its_id_and_the_matrix(hub, b
 
 
 def test_h264_frames_start_with_a_keyframe(hub, bunny):
+    pytest.importorskip("av")
     scene = make_scene(hub, bunny)
 
     async def go():
@@ -378,3 +378,53 @@ def test_the_snapshot_route_renders_a_png(hub, bunny):
 
     status, body = run(go())
     assert status == 200 and body[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def jpeg_frames_for(hub, bunny, codec="h264"):
+    scene = make_scene(hub, bunny)
+
+    async def go():
+        session, ws = await connect(hub)
+        page = Page(ws, hub)
+        vid = await page.open(scene, codec=codec)
+        await page.pump(1.2)
+        await ws.close()
+        await session.close()
+        return page.of(vid)
+
+    return run(go())
+
+
+def test_without_pyav_a_viewer_that_asks_for_h264_gets_jpeg(hub, bunny, monkeypatch):
+    monkeypatch.setitem(sys.modules, "av", None)  # import av fails
+    frames = jpeg_frames_for(hub, bunny)
+    assert frames and all(f["payload"][:2] == b"\xff\xd8" for f in frames)
+    assert {f["kind"] for f in frames} <= {JPEG, STILL}
+    assert any("PyAV is not installed" in m for m in hub._noted)  # and it said so, once
+
+
+def test_an_ffmpeg_without_the_encoder_falls_back_to_jpeg_for_that_viewer(
+    hub, bunny, monkeypatch
+):
+    pytest.importorskip("av")
+    from menpo3d.visualize.viewer import codecs
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("Unknown encoder 'libx264'")
+
+    monkeypatch.setattr(codecs, "H264Encoder", broken)
+    frames = jpeg_frames_for(hub, bunny)
+    assert frames and {f["kind"] for f in frames} <= {JPEG, STILL}
+    assert any("encoder is unavailable" in m for m in hub._noted)
+
+
+def test_without_simplejpeg_pillow_makes_the_jpegs(hub, bunny, monkeypatch):
+    monkeypatch.setitem(sys.modules, "simplejpeg", None)
+    monkeypatch.setattr(hub, "_jpeg", None)  # the encoder is made on first use
+    frames = jpeg_frames_for(hub, bunny, codec="jpeg")
+    assert frames and all(f["payload"][:2] == b"\xff\xd8" for f in frames)
+    from io import BytesIO
+
+    from PIL import Image
+
+    assert Image.open(BytesIO(frames[-1]["payload"])).size == (160, 120)
