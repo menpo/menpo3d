@@ -13,7 +13,7 @@
 <script type=module>
 import {Viewer} from '/viewer.js';
 const q = new URLSearchParams(location.search);
-const v = new Viewer(host, {url: location.origin, token: q.get('token'), scene: q.get('scene'), codec: q.get('codec') || 'h264', fit: true, hud: q.get('hud') === '1'});
+const v = new Viewer(host, {url: location.origin, token: q.get('token'), scene: q.get('scene'), codec: q.get('codec') || (typeof VideoDecoder === 'undefined' ? 'jpeg' : 'h264'), fit: true, hud: q.get('hud') === '1'});
 window.viewer = v;
 const save = () => { const a = document.createElement('a'); a.href = v.still(); a.download = 'menpo3d.png'; a.click(); };
 document.getElementById('reset').onclick = () => v.reset();

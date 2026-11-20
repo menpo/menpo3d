@@ -15,7 +15,9 @@ dependencies = ["menpo>=0.12.1", "moderngl>=5.6", "numpy>=1.23", "scipy>=1.0"]
 
 [project.optional-dependencies]
 # menpo3d.visualize: the interactive viewers (notebook widget, standalone window): moderngl frames streamed to a browser
-viewer = ["aiohttp>=3.9", "av>=12", "simplejpeg>=1.7", "anywidget>=0.9"]
+viewer = ["aiohttp>=3.9", "simplejpeg>=1.7", "anywidget>=0.9"]
+# H.264 video for the viewer (smaller and smoother than the JPEG frames it falls back to); PyAV bundles ffmpeg
+h264 = ["av>=12"]
 # the previous Mayavi based viewers, selected with MENPO3D_VIEWER=mayavi (Mayavi brings VTK and Qt along)
 mayavi = ["mayavi>=4.8"]
 # menpo3d.correspond.pnp (solve_pnp)

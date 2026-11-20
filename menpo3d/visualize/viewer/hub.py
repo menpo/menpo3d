@@ -19,6 +19,7 @@ import secrets
 import struct
 import threading
 import time
+import warnings
 import weakref
 from pathlib import Path
 
@@ -228,6 +229,40 @@ class Session:
             )
 
     # ---- everything below runs on the GL thread
+    def jpeg_quality(self, quality):
+        """JPEG quality for this frame. A viewer that asked for video but gets JPEG follows the same ladder from quality 80."""
+        return (
+            quality
+            if self.codec == "jpeg" and self.quality > 30
+            else max(15, int(80 * (1 - 0.3 * self.level)))
+        )
+
+    def use_h264(self, w, h, quality):
+        """Make (or reuse) the video encoder. False means: send JPEG instead (no PyAV, or this ffmpeg lacks the encoder)."""
+        from .codecs import H264Encoder, have_h264
+
+        if not have_h264():
+            self.hub.note_fallback(
+                "PyAV is not installed (pip install av): streaming JPEG instead of H.264"
+            )
+            return False
+        backend = "h264_nvenc" if self.codec == "nvenc" else "libx264"
+        key = (backend, w, h, quality)
+        if self.encoder_key != key:
+            try:
+                self.encoder, self.encoder_key, self.need_key = (
+                    H264Encoder(w, h, backend, quality=quality),
+                    key,
+                    True,
+                )
+            except Exception as error:  # noqa: BLE001 - e.g. an ffmpeg build without libx264
+                self.hub.note_fallback(
+                    f"the {backend} encoder is unavailable ({error}): streaming JPEG instead"
+                )
+                self.codec = "jpeg"
+                return False
+        return True
+
     def drop_gpu(self, renderer):
         self.encoder, self.encoder_key = None, None
         if self.held is not None:
@@ -236,8 +271,6 @@ class Session:
         gc.collect()
 
     def frame(self, renderer, camera, w, h, still, quality):
-        from .codecs import H264Encoder
-
         t0 = time.perf_counter()
         if self.held is not self.scene:
             if self.held is not None:
@@ -248,17 +281,12 @@ class Session:
         t1 = time.perf_counter()
         if still:
             payload, kind = self.hub.jpeg().encode(rgb, quality=95)[0], STILL
-        elif self.codec == "jpeg":
-            payload, kind = self.hub.jpeg().encode(rgb, quality=quality)[0], JPEG
+        elif self.codec == "jpeg" or not self.use_h264(w, h, quality):
+            payload, kind = (
+                self.hub.jpeg().encode(rgb, quality=self.jpeg_quality(quality))[0],
+                JPEG,
+            )
         else:
-            backend = "h264_nvenc" if self.codec == "nvenc" else "libx264"
-            key = (backend, w, h, quality)
-            if self.encoder_key != key:
-                self.encoder, self.encoder_key, self.need_key = (
-                    H264Encoder(w, h, backend, quality=quality),
-                    key,
-                    True,
-                )
             payload, is_key = self.encoder.encode(rgb, keyframe=self.need_key)
             kind, self.need_key = (KEY if is_key else DELTA), False
         t2 = time.perf_counter()
@@ -410,6 +438,7 @@ class Hub:
         self._jpeg = None
         self._ready = threading.Event()
         self._error = None
+        self._noted = set()
 
     @property
     def worker(self):
@@ -423,6 +452,12 @@ class Hub:
         if self._jpeg is None:
             self._jpeg = JpegEncoder()
         return self._jpeg
+
+    def note_fallback(self, message):
+        """Say once, in Python, that a viewer is not getting the best codec (the picture still arrives)."""
+        if message not in self._noted:
+            self._noted.add(message)
+            warnings.warn(message, stacklevel=2)
 
     # ---- scenes
     def register(self, scene):

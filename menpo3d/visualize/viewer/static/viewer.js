@@ -47,7 +47,7 @@ class Connection {
 
 export class Viewer {
   constructor(el, opts = {}) {
-    this.opts = Object.assign({url: location.origin, token: '', scene: null, fit: false, codec: 'h264', quality: 0, bw: 0, rtt: 0, win: 0, adapt: true, w: 640, h: 480, hud: false, labels: true}, opts);
+    this.opts = Object.assign({url: location.origin, token: '', scene: null, fit: false, codec: typeof VideoDecoder === 'undefined' ? 'jpeg' : 'h264', quality: 0, bw: 0, rtt: 0, win: 0, adapt: true, w: 640, h: 480, hud: false, labels: true}, opts);
     const {w, h, fit} = this.opts;
     this.root = document.createElement('div');
     this.root.style.cssText = fit ? 'position:relative;width:100%;height:100%;background:#fff;line-height:0;overflow:hidden' : `position:relative;width:${w}px;height:${h}px;background:#fff;display:inline-block;line-height:0`;
