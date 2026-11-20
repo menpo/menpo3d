@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT))
 
 MODULES = [
     "barycentric",
+    "closest_point",
     "camera",
     "correspond",
     "extractimage",

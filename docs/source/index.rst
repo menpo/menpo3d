@@ -45,6 +45,7 @@ API Documentation
 
   api/barycentric
   api/camera
+  api/closest_point
   api/correspond
   api/extractimage
   api/io

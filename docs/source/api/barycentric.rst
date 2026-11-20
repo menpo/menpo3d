@@ -3,13 +3,6 @@ menpo3d.barycentric
 
 .. currentmodule:: menpo3d.barycentric
 
-VTKClosestPointLocator
-----------------------
-.. autoclass:: VTKClosestPointLocator
-  :members:
-  :inherited-members:
-  :show-inheritance:
-
 barycentric_coordinate_interpolation
 ------------------------------------
 .. autofunction:: barycentric_coordinate_interpolation
@@ -45,7 +38,3 @@ sample_texture_with_barycentric_coordinates_texture
 snap_pointcloud_to_surface
 --------------------------
 .. autofunction:: snap_pointcloud_to_surface
-
-trimesh_to_vtk
---------------
-.. autofunction:: trimesh_to_vtk
