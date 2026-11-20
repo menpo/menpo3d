@@ -44,7 +44,10 @@ three uses, so they cannot disagree about what a scene looks like:
   streamed to the browser as H.264, so it works over SSH too. A lossless still
   of the last view is stored in the notebook output.
 * **In a window**: ``figure.show()`` (or ``menpo3d.visualize.viewmoderngl.show()``)
-  opens a standalone viewer window and returns when it is closed.
+  opens a standalone viewer window and returns when it is closed. It is a real
+  window (moderngl-window on GLFW, ``pip install "menpo3d[window]"``) when there
+  is a display, and a browser app window otherwise (``window="browser"`` forces
+  that; it works over SSH with a port forward).
 
 .. code-block:: python
 
