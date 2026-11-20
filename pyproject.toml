@@ -11,11 +11,15 @@ license = "BSD-3-Clause"
 license-files = ["LICENSE.txt", "AUTHORS.txt"]
 authors = [{ name = "The Menpo Team", email = "hello@menpo.org" }]
 requires-python = ">=3.10"
-dependencies = ["menpo>=0.12.1", "mayavi>=4.8", "moderngl>=5.6", "numpy>=1.23"]
+dependencies = ["menpo>=0.12.1", "moderngl>=5.6", "numpy>=1.23", "scipy>=1.0"]
 
 [project.optional-dependencies]
+# menpo3d.visualize: the Mayavi based 3D viewers (Mayavi brings VTK and Qt along)
+mayavi = ["mayavi>=4.8"]
 # menpo3d.correspond.pnp (solve_pnp)
 opencv = ["opencv-python"]
+# menpo3d.vtkutils: conversions to and from VTK meshes
+vtk = ["vtk"]
 
 [project.urls]
 Homepage = "https://www.menpo.org"
@@ -24,12 +28,14 @@ Documentation = "https://menpo3d.readthedocs.io/en/stable/"
 
 [dependency-groups]
 dev = ["pytest>=8", "pytest-mock>=3", "ruff", "opencv-python-headless"]
+# what the VTK-free CI job leaves out: the oracle for the importers and the Mayavi viewers
+vtk-oracle = ["mayavi>=4.8", "vtk"]
 
 [tool.setuptools.packages.find]
 include = ["menpo3d*"]
 
 [tool.setuptools.package-data]
-menpo3d = ["data/*", "rasterize/shaders/per_vertex/*", "rasterize/shaders/texture/*"]
+menpo3d = ["data/*", "io/*.json", "rasterize/shaders/per_vertex/*", "rasterize/shaders/texture/*"]
 
 [tool.setuptools_scm]
 # Version comes from the vX.Y.Z git tag; the generated file replaces the old vendored miniver.

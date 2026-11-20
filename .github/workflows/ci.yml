@@ -44,6 +44,23 @@ jobs:
         if: runner.os != 'Linux'
         run: uv run pytest -q -rs
 
+  # The importers no longer use VTK, but their topology must stay what VTK produced. This job
+  # installs VTK and Mayavi (everything else runs without them) and re-derives the fingerprints.
+  vtk-oracle:
+    needs: lint
+    runs-on: ubuntu-latest
+    continue-on-error: true   # a new VTK release changing its readers should be looked at, not block merges
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: astral-sh/setup-uv@v5
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1 libglx-mesa0 libgl1-mesa-dri libegl1 libxrender1
+      - run: uv sync --group dev --group vtk-oracle
+      - run: xvfb-run -a uv run pytest -q -rs
+      - run: uv run python -m menpo3d.io.importer_variants_test --check
+
   sdist:
     runs-on: ubuntu-latest
     steps:
