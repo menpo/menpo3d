@@ -14,7 +14,9 @@ requires-python = ">=3.10"
 dependencies = ["menpo>=0.12.1", "moderngl>=5.6", "numpy>=1.23", "scipy>=1.0"]
 
 [project.optional-dependencies]
-# menpo3d.visualize: the Mayavi based 3D viewers (Mayavi brings VTK and Qt along)
+# menpo3d.visualize: the interactive viewers (notebook widget, standalone window): moderngl frames streamed to a browser
+viewer = ["aiohttp>=3.9", "av>=12", "simplejpeg>=1.7", "anywidget>=0.9"]
+# the previous Mayavi based viewers, selected with MENPO3D_VIEWER=mayavi (Mayavi brings VTK and Qt along)
 mayavi = ["mayavi>=4.8"]
 # menpo3d.correspond.pnp (solve_pnp)
 opencv = ["opencv-python"]
@@ -25,13 +27,15 @@ Source = "https://github.com/menpo/menpo3d"
 Documentation = "https://menpo3d.readthedocs.io/en/stable/"
 
 [dependency-groups]
-dev = ["pytest>=8", "pytest-mock>=3", "ruff", "opencv-python-headless"]
+dev = ["pytest>=8", "pytest-mock>=3", "ruff", "opencv-python-headless", "aiohttp>=3.9", "av>=12", "simplejpeg>=1.7", "anywidget>=0.9"]
+# the Mayavi viewers, which the pixel oracle test compares the moderngl viewers with
+mayavi-oracle = ["mayavi>=4.8", "PySide6"]
 
 [tool.setuptools.packages.find]
 include = ["menpo3d*"]
 
 [tool.setuptools.package-data]
-menpo3d = ["data/*", "io/*.json", "rasterize/shaders/per_vertex/*", "rasterize/shaders/texture/*"]
+menpo3d = ["data/*", "io/*.json", "rasterize/shaders/per_vertex/*", "rasterize/shaders/texture/*", "visualize/viewer/static/*"]
 
 [tool.setuptools_scm]
 # Version comes from the vX.Y.Z git tag; the generated file replaces the old vendored miniver.

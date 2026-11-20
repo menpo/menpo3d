@@ -31,12 +31,37 @@ Menpo3D is pure Python and supports CPython 3.10 and later.
 Visualizing 3D objects
 ----------------------
 
-Menpo3D views 3D objects with `Mayavi <https://docs.enthought.com/mayavi/mayavi/>`_,
-which is based on VTK and is an optional dependency: ``pip install "menpo3d[mayavi]"``.
-To view meshes in a Jupyter notebook through the
-`menpowidgets <https://menpowidgets.readthedocs.io/>`_ widgets, either use a
-Qt window (``%matplotlib qt``) or let Mayavi render images into the notebook
-with ``mlab.init_notebook("png")``.
+``mesh.view()``, ``landmarks.view()`` and the menpowidgets 3D widgets draw with
+one OpenGL renderer (moderngl). The same renderer, with the same camera, serves
+three uses, so they cannot disagree about what a scene looks like:
+
+* **Offline**: ``renderer.save_figure("out.png", size=(800, 600))`` renders on
+  any machine with OpenGL (a GPU, or Mesa's software renderer), without a
+  window.
+* **In a notebook**: a figure displays as an interactive widget (drag to
+  rotate, shift- or right-drag to pan, wheel to zoom, click to pick a
+  triangle). The frames are rendered on the machine running the kernel and
+  streamed to the browser as H.264, so it works over SSH too. A lossless still
+  of the last view is stored in the notebook output.
+* **In a window**: ``figure.show()`` (or ``menpo3d.visualize.viewmoderngl.show()``)
+  opens a standalone viewer window and returns when it is closed.
+
+.. code-block:: python
+
+    renderer = mesh.view(mesh_type="surface", colour="r", new_figure=True)
+    renderer.figure.show()                      # place the mesh interactively
+    pose = renderer.figure.get_pose()           # azimuth, elevation, distance, target, fov
+    renderer.figure.set_pose(**{**pose, "azimuth": 0.5})
+    renderer.save_figure("view.png", size=(1024, 768), overwrite=True)
+
+The interactive parts need ``pip install "menpo3d[viewer]"``; offline rendering
+does not. To reach a remote machine, forward the viewer's port or call
+``menpo3d.visualize.viewer.hub.configure(host="0.0.0.0", public_url=...)``
+before the first viewer is created.
+
+The viewers that used Mayavi are still available: set
+``MENPO3D_VIEWER=mayavi`` before importing ``menpo3d.visualize`` (install with
+``pip install "menpo3d[mayavi]"``).
 
 API Documentation
 -----------------

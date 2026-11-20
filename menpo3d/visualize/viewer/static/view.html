@@ -1,0 +1,23 @@
+<!doctype html><meta charset=utf-8><title>menpo3d viewer</title>
+<style>
+  html,body{margin:0;height:100%;background:#fff;font:13px sans-serif}
+  #host{position:absolute;inset:0}
+  #bar{position:fixed;top:8px;right:8px;display:flex;gap:6px;opacity:.15;transition:opacity .2s}
+  #bar:hover{opacity:1}
+  button{font:12px sans-serif;padding:3px 8px;border:1px solid #888;border-radius:4px;background:#fffc;cursor:pointer}
+  #help{position:fixed;bottom:6px;left:8px;color:#666;opacity:.7}
+</style>
+<div id=host></div>
+<div id=bar><button id=reset title="reset view (r)">Reset</button><button id=save title="save a PNG (s)">Save PNG</button></div>
+<div id=help>drag: rotate &middot; shift/right-drag: pan &middot; wheel: zoom &middot; click: pick &middot; r: reset &middot; s: save</div>
+<script type=module>
+import {Viewer} from '/viewer.js';
+const q = new URLSearchParams(location.search);
+const v = new Viewer(host, {url: location.origin, token: q.get('token'), scene: q.get('scene'), codec: q.get('codec') || 'h264', fit: true, hud: q.get('hud') === '1'});
+window.viewer = v;
+const save = () => { const a = document.createElement('a'); a.href = v.still(); a.download = 'menpo3d.png'; a.click(); };
+document.getElementById('reset').onclick = () => v.reset();
+document.getElementById('save').onclick = save;
+addEventListener('keydown', e => { if (e.key === 's') save(); if (e.key === 'r') v.reset(); });
+v.onpick = hit => { document.title = hit ? `menpo3d - triangle ${hit.tri}, vertex ${hit.vertex}` : 'menpo3d viewer'; };
+</script>
