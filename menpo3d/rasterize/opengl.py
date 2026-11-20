@@ -5,6 +5,8 @@ from functools import cached_property, wraps
 from pathlib import Path
 
 import moderngl
+
+from menpo3d._gl import create_context
 import numpy as np
 from menpo.image import MaskedImage
 from menpo.shape import ColouredTriMesh, TriMesh
@@ -320,7 +322,7 @@ class GLRasterizer:
         # Make a single OpenGL context that will be managed by the lifetime of
         # this class. We will dynamically create two default "pass through"
         # programs based on the type of the input mesh
-        self.opengl_ctx = opengl_context or moderngl.create_standalone_context()
+        self.opengl_ctx = opengl_context or create_context()
         self.width = width
         self.height = height
 
