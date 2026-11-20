@@ -60,41 +60,13 @@ def _construct_shape_type(points, trilist, tcoords, texture, colour_per_vertex):
     return obj
 
 
-def vtk_ensure_trilist(polydata):
-    try:
-        import vtk
-        from vtk.util.numpy_support import vtk_to_numpy
-
-        trilist = vtk_to_numpy(polydata.GetPolys().GetData())
-
-        # 5 is the triangle type - if we have another type we need to
-        # use a vtkTriangleFilter
-        c = vtk.vtkCellTypes()
-        polydata.GetCellTypes(c)
-
-        if c.GetNumberOfTypes() != 1 or polydata.GetCellType(0) != 5:
-            warnings.warn(
-                "Non-triangular mesh connectivity was detected - "
-                "this is currently unsupported and thus the "
-                "connectivity is being coerced into a triangular "
-                "mesh. This may have unintended consequences."
-            )
-            t_filter = vtk.vtkTriangleFilter()
-            t_filter.SetInputData(polydata)
-            t_filter.Update()
-            trilist = vtk_to_numpy(t_filter.GetOutput().GetPolys().GetData())
-
-        return trilist.reshape([-1, 4])[:, 1:]
-    except Exception as e:
-        warnings.warn(str(e))
-        return None
-
-
 def wrl_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     r"""Allows importing VRML 2.0 meshes.
 
-    Uses VTK and assumes that the first actor in the scene is the one
-    that we want.
+    Reproduces the topology ``vtkVRMLImporter`` produced and, like it, uses the first
+    ``IndexedFaceSet`` in the scene (``Transform`` nodes are ignored). If the texture
+    coordinate or normal indices differ from ``coordIndex`` every face corner becomes its
+    own point. Polygons are split into triangles the way VTK did (with a warning).
 
     Parameters
     ----------
@@ -112,33 +84,12 @@ def wrl_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     shape : :map:`PointCloud` or subclass
         The correct shape for the given inputs.
     """
-    import vtk
-    from vtk.util.numpy_support import vtk_to_numpy
+    from .triangulate import triangulate_polygons
+    from .wrl import read_wrl
 
-    vrml_importer = vtk.vtkVRMLImporter()
-    vrml_importer.SetFileName(str(filepath))
-    vrml_importer.Update()
-
-    # Get the first actor.
-    actors = vrml_importer.GetRenderer().GetActors()
-    actors.InitTraversal()
-    mapper = actors.GetNextActor().GetMapper()
-    mapper_dataset = mapper.GetInput()
-
-    if actors.GetNextActor():
-        # There was more than one actor!
-        warnings.warn(
-            "More than one actor was detected in the scene. Only "
-            "single scene actors are currently supported."
-        )
-
-    # Get the Data
-    polydata = vtk.vtkPolyData.SafeDownCast(mapper_dataset)
-
-    # We must have point data!
-    points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float64)
-
-    trilist = vtk_ensure_trilist(polydata)
+    data = read_wrl(filepath)
+    points = data.points.astype(np.float64)
+    trilist = triangulate_polygons(points, data.counts, data.connectivity)
 
     texture = None
     if texture_resolver is not None:
@@ -146,26 +97,12 @@ def wrl_importer(filepath, asset=None, texture_resolver=None, **kwargs):
         if texture_path is not None and texture_path.exists():
             texture = mio.import_image(texture_path)
 
-    # Three different outcomes - either we have a textured mesh, a coloured
-    # mesh or just a plain mesh. Let's try each in turn.
-
-    # Textured
-    tcoords = None
-    try:
-        tcoords = vtk_to_numpy(polydata.GetPointData().GetTCoords())
-    except Exception:
-        pass
-
-    if isinstance(tcoords, np.ndarray) and tcoords.size == 0:
+    tcoords = data.tcoords
+    if tcoords is not None and len(tcoords) != len(points):
         tcoords = None
 
-    # Colour-per-vertex
-    try:
-        colour_per_vertex = vtk_to_numpy(mapper.GetLookupTable().GetTable()) / 255.0
-    except Exception:
-        pass
-
-    if isinstance(colour_per_vertex, np.ndarray) and colour_per_vertex.size == 0:
+    colour_per_vertex = data.colours
+    if colour_per_vertex is not None and len(colour_per_vertex) != len(points):
         colour_per_vertex = None
 
     return _construct_shape_type(points, trilist, tcoords, texture, colour_per_vertex)
@@ -174,7 +111,12 @@ def wrl_importer(filepath, asset=None, texture_resolver=None, **kwargs):
 def obj_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     r"""Allows importing Wavefront (OBJ) files.
 
-    Uses VTK.
+    The topology is the one ``vtkOBJReader`` produced, which datasets built with
+    earlier versions of menpo3d rely on: if every ``vt``/``vn`` index equals its ``v``
+    index the points are the ``v`` list (unused vertices included), otherwise every
+    face corner becomes its own point. Polygons are split into triangles the way
+    VTK did (with a warning). Merging duplicated points is a separate step that
+    belongs after import.
 
     Parameters
     ----------
@@ -192,20 +134,12 @@ def obj_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     shape : :map:`PointCloud` or subclass
         The correct shape for the given inputs.
     """
-    import vtk
-    from vtk.util.numpy_support import vtk_to_numpy
+    from .obj import read_obj
+    from .triangulate import triangulate_polygons
 
-    obj_importer = vtk.vtkOBJReader()
-    obj_importer.SetFileName(str(filepath))
-    obj_importer.Update()
-
-    # Get the output
-    polydata = obj_importer.GetOutput()
-
-    # We must have point data!
-    points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float64)
-
-    trilist = np.require(vtk_ensure_trilist(polydata), requirements=["C"])
+    data = read_obj(filepath)
+    points = data.points
+    trilist = triangulate_polygons(points, data.counts, data.connectivity)
 
     texture = None
     if texture_resolver is not None:
@@ -213,24 +147,16 @@ def obj_importer(filepath, asset=None, texture_resolver=None, **kwargs):
         if texture_path is not None and texture_path.exists():
             texture = mio.import_image(texture_path)
 
-    tcoords = None
-    if texture is not None:
-        try:
-            tcoords = vtk_to_numpy(polydata.GetPointData().GetTCoords())
-        except Exception:
-            pass
-
-        if isinstance(tcoords, np.ndarray) and tcoords.size == 0:
-            tcoords = None
-
+    tcoords = data.tcoords if texture is not None else None
     colour_per_vertex = None
     return _construct_shape_type(points, trilist, tcoords, texture, colour_per_vertex)
 
 
 def ply_importer(filepath, asset=None, texture_resolver=None, **kwargs):
-    r"""Allows importing Wavefront (OBJ) files.
+    r"""Allows importing Polygon File Format (PLY) files.
 
-    Uses VTK.
+    Positions and texture coordinates are float32, as they were when VTK read them.
+    Polygons are split into triangles the way VTK did (with a warning).
 
     Parameters
     ----------
@@ -248,22 +174,12 @@ def ply_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     shape : :map:`PointCloud` or subclass
         The correct shape for the given inputs.
     """
-    import vtk
-    from vtk.util.numpy_support import vtk_to_numpy
+    from .ply import read_ply
+    from .triangulate import triangulate_polygons
 
-    ply_importer = vtk.vtkPLYReader()
-    ply_importer.SetFileName(str(filepath))
-
-    ply_importer.Update()
-
-    # Get the output
-    polydata = ply_importer.GetOutput()
-
-    # We must have point data!
-    points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float64)
-
-    trilist = np.require(vtk_ensure_trilist(polydata), requirements=["C"])
-    point_data = polydata.GetPointData()
+    data = read_ply(filepath)
+    points = data.points.astype(np.float64)
+    trilist = triangulate_polygons(points, data.counts, data.connectivity)
 
     texture = None
     if texture_resolver is not None:
@@ -271,22 +187,13 @@ def ply_importer(filepath, asset=None, texture_resolver=None, **kwargs):
         if texture_path is not None and texture_path.exists():
             texture = mio.import_image(texture_path)
 
-    tcoords = None
-    if texture is not None:
-        try:
-            tcoords = vtk_to_numpy(point_data.GetTCoords())
-        except Exception:
-            pass
+    tcoords = data.tcoords if texture is not None else None
 
-        if isinstance(tcoords, np.ndarray) and tcoords.size == 0:
-            tcoords = None
-
-    scalar_per_vertex = point_data.GetScalars()
+    scalar_per_vertex = data.colours
     if scalar_per_vertex is not None:
-        scalar_per_vertex = vtk_to_numpy(scalar_per_vertex)[:, :3]
-        if scalar_per_vertex.dtype == np.uint8:
-            # Convert to [0, 1] floats
-            scalar_per_vertex = scalar_per_vertex * (1 / 255.0)
+        scalar_per_vertex = scalar_per_vertex[:, :3]
+        # Convert to [0, 1] floats
+        scalar_per_vertex = scalar_per_vertex * (1 / 255.0)
 
     return _construct_shape_type(points, trilist, tcoords, texture, scalar_per_vertex)
 
@@ -294,7 +201,8 @@ def ply_importer(filepath, asset=None, texture_resolver=None, **kwargs):
 def stl_importer(filepath, asset=None, **kwargs):
     r"""Allows importing Stereolithography CAD (STL) files.
 
-    Uses VTK.
+    Identical vertices are merged (in order of first appearance) and triangles that
+    collapse are dropped, as ``vtkSTLReader`` did.
 
     Parameters
     ----------
@@ -309,24 +217,10 @@ def stl_importer(filepath, asset=None, **kwargs):
     shape : :map:`PointCloud` or subclass
         The correct shape for the given inputs.
     """
-    import vtk
-    from vtk.util.numpy_support import vtk_to_numpy
+    from .stl import read_stl
 
-    stl_importer = vtk.vtkSTLReader()
-    stl_importer.SetFileName(str(filepath))
-    stl_importer.Update()
-
-    # Get the output
-    polydata = stl_importer.GetOutput()
-
-    # We must have point data!
-    points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float64)
-    trilist = np.require(vtk_ensure_trilist(polydata), requirements=["C"])
-
-    colour_per_vertex = None
-    tcoords = None
-    texture = None
-    return _construct_shape_type(points, trilist, tcoords, texture, colour_per_vertex)
+    points, trilist = read_stl(filepath)
+    return _construct_shape_type(points.astype(np.float64), trilist, None, None, None)
 
 
 def mjson_importer(filepath, asset=None, texture_resolver=True, **kwargs):

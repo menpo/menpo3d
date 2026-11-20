@@ -20,7 +20,9 @@ Installation
 pip install menpo3d
 conda install -c conda-forge menpo3d
 ```
-`menpo3d.correspond.solve_pnp` needs OpenCV (`pip install "menpo3d[opencv]"`).
+`menpo3d.correspond.solve_pnp` needs OpenCV (`pip install "menpo3d[opencv]"`) and the
+Mayavi viewers need `pip install "menpo3d[mayavi]"`. Importing and exporting meshes, closest point
+queries and rasterization do not need VTK or Mayavi.
 
 Visualizing 3D objects
 ----------------------

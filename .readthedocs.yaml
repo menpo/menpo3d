@@ -6,7 +6,7 @@ build:
   tools:
     python: "3.13"
   apt_packages:
-    # VTK (a dependency of Mayavi) links libGL, which autodoc loads when it imports menpo3d
+    # OpenGL libraries, which autodoc loads when it imports menpo3d (moderngl)
     - libgl1
     - libglx-mesa0
     - libegl1

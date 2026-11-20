@@ -1,0 +1,121 @@
+{
+ "mixed.wrl": {
+  "n_points": 2503,
+  "n_tris": 4929,
+  "points": "3f1dec089b36d5de",
+  "trilist": "c5944a50419debfc"
+ },
+ "mixed_ascii.ply": {
+  "n_points": 2503,
+  "n_tris": 4929,
+  "points": "3f1dec089b36d5de",
+  "trilist": "c5944a50419debfc"
+ },
+ "mixed_be.ply": {
+  "n_points": 2503,
+  "n_tris": 4929,
+  "points": "3f1dec089b36d5de",
+  "trilist": "c5944a50419debfc"
+ },
+ "mixed_le.ply": {
+  "n_points": 2503,
+  "n_tris": 4929,
+  "points": "3f1dec089b36d5de",
+  "trilist": "c5944a50419debfc"
+ },
+ "mixed_polygons.obj": {
+  "n_points": 2503,
+  "n_tris": 4929,
+  "points": "e7e2d7bbda988f97",
+  "trilist": "a518f8b3581fa2d8"
+ },
+ "mixed_vt_mismatch.obj": {
+  "n_points": 11638,
+  "n_tris": 4929,
+  "points": "3f511487dd24cfa4",
+  "tcoords": "49a595e5e154f32c",
+  "trilist": "422e6f680e557fce"
+ },
+ "quads.obj": {
+  "n_points": 2503,
+  "n_tris": 4680,
+  "points": "e7e2d7bbda988f97",
+  "trilist": "41727fbd88133aa5"
+ },
+ "tri.obj": {
+  "n_points": 2503,
+  "n_tris": 4968,
+  "points": "e7e2d7bbda988f97",
+  "trilist": "2912dbfdb119e4b9"
+ },
+ "tri.wrl": {
+  "n_points": 2503,
+  "n_tris": 4968,
+  "points": "3f1dec089b36d5de",
+  "trilist": "2912dbfdb119e4b9"
+ },
+ "tri_ascii.ply": {
+  "n_points": 2503,
+  "n_tris": 4968,
+  "points": "3f1dec089b36d5de",
+  "trilist": "2912dbfdb119e4b9"
+ },
+ "tri_ascii.stl": {
+  "n_points": 2503,
+  "n_tris": 4968,
+  "points": "9a6578e56b580b87",
+  "trilist": "3d459e1bc2beba43"
+ },
+ "tri_be.ply": {
+  "n_points": 2503,
+  "n_tris": 4968,
+  "points": "3f1dec089b36d5de",
+  "trilist": "2912dbfdb119e4b9"
+ },
+ "tri_binary.stl": {
+  "n_points": 2503,
+  "n_tris": 4968,
+  "points": "9a6578e56b580b87",
+  "trilist": "3d459e1bc2beba43"
+ },
+ "tri_le.ply": {
+  "n_points": 2503,
+  "n_tris": 4968,
+  "points": "3f1dec089b36d5de",
+  "trilist": "2912dbfdb119e4b9"
+ },
+ "tri_negative.obj": {
+  "n_points": 2503,
+  "n_tris": 4968,
+  "points": "e7e2d7bbda988f97",
+  "trilist": "2912dbfdb119e4b9"
+ },
+ "tri_tex_matching.wrl": {
+  "n_points": 2503,
+  "n_tris": 4968,
+  "points": "3f1dec089b36d5de",
+  "tcoords": "818e4f8e3b8d0b80",
+  "trilist": "2912dbfdb119e4b9"
+ },
+ "tri_tex_mismatch.wrl": {
+  "n_points": 14904,
+  "n_tris": 4968,
+  "points": "ad0ac01c44b7524f",
+  "tcoords": "cd722a6f5d2c6935",
+  "trilist": "2b0a51d2fb40d81c"
+ },
+ "tri_vt_matching.obj": {
+  "n_points": 2503,
+  "n_tris": 4968,
+  "points": "e7e2d7bbda988f97",
+  "tcoords": "818e4f8e3b8d0b80",
+  "trilist": "2912dbfdb119e4b9"
+ },
+ "tri_vt_mismatch.obj": {
+  "n_points": 14904,
+  "n_tris": 4968,
+  "points": "5642b2e4e47d5f5b",
+  "tcoords": "cd722a6f5d2c6935",
+  "trilist": "2b0a51d2fb40d81c"
+ }
+}
