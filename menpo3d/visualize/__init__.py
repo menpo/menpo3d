@@ -5,4 +5,5 @@ from .base import (
     ColouredTriMeshViewer3d,
     TexturedTriMeshViewer3d,
     LandmarkViewer3d,
+    Renderer3d,
 )
