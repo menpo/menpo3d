@@ -33,23 +33,26 @@ def kinds(figure):
     return [i["kind"] for i in figure.scene.items]
 
 
-def test_the_default_backend_is_moderngl_and_mayavi_stays_selectable():
+def test_the_viewers_are_moderngl_and_the_old_mayavi_switch_only_warns():
     import menpo3d.visualize as viz
 
     assert (
         viz.TriMeshViewer3d is vm.ModernGLTriMeshViewer3d
         and viz.Renderer3d is vm.ModernGLRenderer
+        and viz.SurfaceViewer3d is vm.ModernGLSurfaceViewer3d
     )
-    code = "import menpo3d.visualize as v; print(v.TriMeshViewer3d.__name__, v.Renderer3d.__name__)"
+    code = (
+        "import warnings; warnings.simplefilter('always');"
+        "import menpo3d.visualize as v; print(v.TriMeshViewer3d.__name__)"
+    )
     out = subprocess.run(
         [sys.executable, "-c", code],
         env={**os.environ, "MENPO3D_VIEWER": "mayavi"},
         capture_output=True,
         text=True,
     )
-    assert out.stdout.split() == ["MayaviTriMeshViewer3d", "MayaviRenderer"], (
-        out.stderr[-300:]
-    )
+    assert out.stdout.split() == ["ModernGLTriMeshViewer3d"], out.stderr[-300:]
+    assert "removed in menpo3d 0.10" in out.stderr
 
 
 def test_figures_are_selected_like_mlab_figure(bunny):

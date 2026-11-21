@@ -2,9 +2,6 @@
 import os
 import sys
 
-# Mayavi must not try to open a window while autodoc imports the package
-os.environ.setdefault("ETS_TOOLKIT", "null")
-
 on_rtd = os.environ.get("READTHEDOCS", None) == "True"
 sys.path.insert(0, os.path.abspath(".."))  # xref_map and sphinxext
 if not on_rtd:

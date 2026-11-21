@@ -1,5 +1,5 @@
 # Documentation build dependencies (Read the Docs and CI). menpo3d itself is installed with its
-# dependencies (menpo, moderngl, SciPy), which autodoc imports; the Mayavi viewers import Mayavi lazily.
+# dependencies (menpo, moderngl, SciPy), which autodoc imports.
 sphinx>=7
 sphinx_rtd_theme>=2
 sphinxmapxrefrole>=0.2
