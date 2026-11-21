@@ -3,8 +3,11 @@ renderer draws in a notebook widget or a standalone window."""
 
 MESSAGE = (
     "The interactive 3D viewer needs a few extra packages. "
-    'Install them with `pip install "menpo3d[viewer]"` (offline rendering, `save_figure`, needs none of them). '
-    'Add `"menpo3d[h264]"` for H.264 video streaming; without it frames are sent as JPEG.'
+    'Install them all, H.264 video streaming included, with `pip install "menpo3d[viz]"`. '
+    "Or only what you need: "
+    '`"menpo3d[viz_notebook]"` (notebook widget and browser window, JPEG frames), '
+    '`"menpo3d[viz_h264]"` (adds H.264 video; PyAV), `"menpo3d[viz_native_window]"` (the native window). '
+    "Offline rendering and `save_figure` need none of them."
 )
 
 

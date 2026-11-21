@@ -21,7 +21,7 @@ uniform sampler2D tex; in vec2 uv; out vec4 frag;
 void main(){ frag = vec4(texture(tex, uv).rgb, 1.0); }"""
 
 BACKENDS = ("glfw", "pyglet")
-MESSAGE = 'The native window needs moderngl-window and glfw: pip install "menpo3d[window]" (or use the browser viewer: figure.show(window="browser")).'
+MESSAGE = 'The native window needs moderngl-window and glfw: pip install "menpo3d[viz_native_window]" (or use the browser viewer: figure.show(window="browser")).'
 
 
 def require_window():
