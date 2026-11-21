@@ -23,10 +23,12 @@ _current = None
 _lock = threading.Lock()
 
 
-def _parse_colour(colour):
+def _parse_colour(colour, default="r"):
+    """RGB for a matplotlib colour. menpo passes ``None`` for "no colour chosen" (``view_landmarks`` does for
+    ``marker_colour`` and ``line_colour``), which means the viewer's own default."""
     from matplotlib.colors import ColorConverter
 
-    return ColorConverter().to_rgb(colour)
+    return ColorConverter().to_rgb(default if colour is None else colour)
 
 
 def _parse_marker_size(marker_size, points):
@@ -315,7 +317,7 @@ def _numbers(scene, points, render_numbering, numbers_size, numbers_colour):
         scene.add_labels(
             points,
             [str(k) for k in range(len(points))],
-            colour=_parse_colour(numbers_colour),
+            colour=_parse_colour(numbers_colour, "k"),
             size=size,
         )
 
@@ -396,7 +398,7 @@ class ModernGLPointGraphViewer3d(ModernGLRenderer):
 def _normals(viewer, normals, step, colour, line_width, style, resolution, size, alpha):
     if normals is not None:
         ModernGLVectorViewer3d(viewer.figure_id, False, viewer.points, normals).render(
-            colour=colour,
+            colour="k" if colour is None else colour,
             line_width=line_width,
             step=step,
             marker_style=style,

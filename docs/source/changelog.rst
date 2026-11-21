@@ -5,6 +5,22 @@ Changelog
 
 For releases before 0.10.0 see the `GitHub releases <https://github.com/menpo/menpo3d/releases>`_.
 
+0.10.1 (2026/11/21)
+-------------------
+
+**Fixed.** ``mesh.view_landmarks()`` (and ``view_landmarks()`` on a point cloud) raised
+``ValueError: Invalid RGBA argument: None`` unless a ``marker_colour`` was given. menpo passes
+``None`` for a colour that was not chosen, and the 3D viewers did not accept it. ``None`` now
+means the viewer's own default: red for markers, lines and meshes, black for the point numbers
+and the normals. A colour that is given is used as before. The same code was in 0.10.0's
+predecessors (the Mayavi viewers), so older versions are probably affected too.
+
+Github Pull Requests
+....................
+- `#97`_ Draw with the default colour when menpo passes None, so that view_landmarks works (@patricksnape)
+
+.. _#97: https://github.com/menpo/menpo3d/pull/97
+
 0.10.0 (2026/11/21)
 -------------------
 

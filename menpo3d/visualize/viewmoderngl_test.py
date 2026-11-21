@@ -317,3 +317,70 @@ def test_a_bad_colour_bar_position_is_an_error():
     r = vm.ModernGLSurfaceViewer3d(None, True, _bump())
     with pytest.raises(ValueError, match="position"):
         r.add_colorbar("jet", 0, 1, position="middle")
+
+
+# ---- menpo calls the viewers with None for "no colour chosen" (view_landmarks and others)
+def _colour(item):
+    return tuple(float(c) for c in item["colour"])
+
+
+def test_a_colour_of_none_means_the_default_one():
+    assert vm._parse_colour(None) == (1.0, 0.0, 0.0)  # red, as the viewers' own default
+    assert vm._parse_colour(None, "k") == (0.0, 0.0, 0.0)
+    assert vm._parse_colour("g") == (0.0, 0.5, 0.0)  # a colour that was chosen is kept
+    assert vm._parse_colour((0.2, 0.4, 0.6)) == (0.2, 0.4, 0.6)
+
+
+def test_the_landmarks_of_a_mesh_draw_with_the_default_colour(bunny):
+    # view_landmarks passes marker_colour=None and line_colour=None: this used to raise
+    # ValueError: Invalid RGBA argument: None
+    mesh = bunny.copy()
+    mesh.landmarks["tips"] = PointCloud(bunny.points[:4])
+    fig = mesh.view_landmarks(group="tips", new_figure=True).figure
+    markers = [i for i in fig.scene.items if i["kind"] == "markers"]
+    assert len(markers) == 1 and _colour(markers[0]) == (1.0, 0.0, 0.0)
+    assert len(markers[0]["points"]) == 4
+
+
+def test_the_landmarks_of_a_mesh_still_take_a_colour_that_is_given(bunny):
+    mesh = bunny.copy()
+    mesh.landmarks["tips"] = PointCloud(bunny.points[:4])
+    fig = mesh.view_landmarks(group="tips", new_figure=True, marker_colour="g").figure
+    (markers,) = [i for i in fig.scene.items if i["kind"] == "markers"]
+    assert _colour(markers) == (0.0, 0.5, 0.0)
+
+
+def test_a_point_cloud_with_landmarks_draws_with_the_default_colour(bunny):
+    cloud = PointCloud(bunny.points[::300])
+    cloud.landmarks["some"] = PointCloud(bunny.points[:3])
+    fig = cloud.view_landmarks(group="some", new_figure=True).figure
+    # the cloud itself, then its landmarks
+    clouds, landmarks = [i for i in fig.scene.items if i["kind"] == "markers"]
+    assert len(clouds["points"]) == len(cloud.points) and len(landmarks["points"]) == 3
+    assert _colour(landmarks) == (1.0, 0.0, 0.0)
+
+
+def test_numbers_and_normals_with_no_colour_chosen_use_black(bunny):
+    pts = bunny.points[::500]
+    fig = (
+        PointCloud(pts)
+        .view(new_figure=True, render_numbering=True, numbers_colour=None)
+        .figure
+    )
+    (labels,) = [i for i in fig.scene.items if i["kind"] == "labels"]
+    assert _colour(labels) == (0.0, 0.0, 0.0)
+    fig = bunny.view(
+        mesh_type="surface",
+        new_figure=True,
+        normals=bunny.vertex_normals(),
+        normals_colour=None,
+        step=100,
+    ).figure
+    (vectors,) = [i for i in fig.scene.items if i["kind"] == "vectors"]
+    assert _colour(vectors) == (0.0, 0.0, 0.0)
+
+
+def test_a_mesh_with_no_colour_chosen_is_red(bunny):
+    fig = bunny.view(mesh_type="surface", new_figure=True, colour=None).figure
+    (mesh,) = [i for i in fig.scene.items if i["kind"] == "mesh"]
+    assert _colour(mesh) == (1.0, 0.0, 0.0)
