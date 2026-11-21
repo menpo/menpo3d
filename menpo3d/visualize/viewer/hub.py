@@ -189,7 +189,7 @@ class Session:
                 if self.still_timer:
                     self.still_timer.cancel()
                 self.dirty = self.want_still = False
-                loop.create_task(self.hub.worker.run(lambda r: self.drop_gpu(r)))
+                asyncio.ensure_future(self.hub.worker.run(lambda r: self.drop_gpu(r)))
             return
         elif t == "ack":
             self.inflight = max(0, self.inflight - 1)
@@ -224,9 +224,7 @@ class Session:
         ):
             self.paused, self.inflight = True, 0
             self.sent.clear()
-            asyncio.get_running_loop().create_task(
-                self.hub.worker.run(lambda r: self.drop_gpu(r))
-            )
+            asyncio.ensure_future(self.hub.worker.run(lambda r: self.drop_gpu(r)))
 
     # ---- everything below runs on the GL thread
     def jpeg_quality(self, quality):
