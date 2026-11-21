@@ -84,9 +84,8 @@ Safari), the viewer falls back to JPEG by itself. To reach a remote machine, for
 ``scene_streamer.configure(host="0.0.0.0", public_url=...)``
 before the first viewer is created.
 
-The viewers that used Mayavi are still available: set
-``MENPO3D_VIEWER=mayavi`` before importing ``menpo3d.visualize`` (install with
-``pip install "menpo3d[mayavi]"``).
+Mayavi is no longer used: its viewers were removed in 0.10 and the moderngl
+viewers have the same API. ``MENPO3D_VIEWER=mayavi`` is ignored with a warning.
 
 API Documentation
 -----------------

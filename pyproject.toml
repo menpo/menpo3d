@@ -22,8 +22,6 @@ viz_h264 = ["scene-streamer[h264]>=0.1"]
 viz_native_window = ["moderngl-window>=3.1", "glfw>=2.6"]
 # everything the interactive viewers can use
 viz = ["menpo3d[viz_notebook,viz_h264,viz_native_window]"]
-# the previous Mayavi based viewers, selected with MENPO3D_VIEWER=mayavi (Mayavi brings VTK and Qt along)
-mayavi = ["mayavi>=4.8"]
 # menpo3d.correspond.pnp (solve_pnp)
 opencv = ["opencv-python"]
 
@@ -34,9 +32,6 @@ Documentation = "https://menpo3d.readthedocs.io/en/stable/"
 
 [dependency-groups]
 dev = ["pytest>=8", "pytest-mock>=3", "ruff", "opencv-python-headless", "scene-streamer[notebook,h264,fast-jpeg]>=0.1", "moderngl-window>=3.1", "glfw>=2.6"]
-
-# the Mayavi viewers, which the pixel oracle test compares the moderngl viewers with
-mayavi-oracle = ["mayavi>=4.8", "PySide6"]
 
 [tool.setuptools.packages.find]
 include = ["menpo3d*"]

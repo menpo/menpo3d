@@ -20,33 +20,35 @@ Installation
 pip install menpo3d
 conda install -c conda-forge menpo3d
 ```
-`menpo3d.correspond.solve_pnp` needs OpenCV (`pip install "menpo3d[opencv]"`) and the
-Mayavi viewers need `pip install "menpo3d[mayavi]"`. Importing and exporting meshes, closest point
-queries and rasterization do not need Mayavi.
+`menpo3d.correspond.solve_pnp` needs OpenCV (`pip install "menpo3d[opencv]"`). Importing and
+exporting meshes, closest point queries, rasterization and offline rendering need nothing extra.
+The interactive viewers need one of these extras:
+
+| Extra | Gives you |
+|---|---|
+| `menpo3d[viz]` | everything below, including H.264 |
+| `menpo3d[viz_notebook]` | the notebook widget and the browser window (JPEG frames) |
+| `menpo3d[viz_h264]` | H.264 video for the streamed viewers |
+| `menpo3d[viz_native_window]` | the native window |
 
 Visualizing 3D objects
 ----------------------
-menpo3d adds support for viewing 3D objects through
-[Mayavi](http://code.enthought.com/projects/mayavi/), which is based on VTK.
-One of the main reasons menpo3d is a seperate project to the menpo core
-library is to isolate the more complex dependencies that this brings to the
-project. 3D visualization is not yet supported in the browser, so we rely on
-platform-specific viewing mechanisms like QT or WX.
-
-In order to view 3D items you will need to first use the `%matplotlib qt`
-IPython magic command to set up QT for rendering (you do this instead of
-`%matplotlib inline` which is what is needed for rendering directly
-in Jupyter/Ipython notebooks). As a complete example, to view a
-mesh in IPython you would run something like:
+menpo3d draws 3D objects with a moderngl renderer (OpenGL, no Qt or Mayavi). `mesh.view()` and the
+other `view` methods work in a Jupyter notebook as an interactive widget, in a native window, in a
+browser window (over SSH too) and offline to a PNG. In a notebook, with `menpo3d[viz_notebook]` installed, there is nothing else to set up (no `%matplotlib` magic):
 ```python
 import menpo3d
 
 mesh = menpo3d.io.import_builtin_asset("james.obj")
+mesh.view()  # drag to rotate, shift-drag to pan, wheel to zoom
 ```
 ```python
-%matplotlib qt
-mesh.view()
+renderer = mesh.view()
+renderer.save_figure("james.png")  # offline, needs no extra
+renderer.figure.show()  # a native window (or a browser window)
+pose = renderer.figure.get_pose()  # the camera as you left it with the mouse
 ```
+See the [documentation](https://menpo3d.readthedocs.io/en/stable/) for the full viewer API.
 
 
 Releasing

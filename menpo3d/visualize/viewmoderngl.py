@@ -1,7 +1,7 @@
-"""The moderngl 3D viewers: the same classes, constructor arguments and ``render`` options as the Mayavi viewers, so
-``mesh.view()``, ``landmarks.view()`` and the widgets keep working unchanged.
+"""The moderngl 3D viewers behind ``mesh.view()``, ``landmarks.view()`` and the widgets (the constructor arguments and
+``render`` options are those the Mayavi viewers had, which menpo's ``view`` methods call).
 
-A *figure* is a scene plus a camera. ``figure_id``/``new_figure`` select one the way Mayavi's ``mlab.figure`` does.
+A *figure* is a scene plus a camera. ``figure_id``/``new_figure`` select one the way ``mlab.figure`` did.
 Drawing is cheap (it adds items to the scene); pixels are made on demand: by ``save_figure``, by the notebook widget
 or by the standalone window, always with the same renderer.
 """
@@ -218,7 +218,7 @@ def show(block=True, window=None):
 
 
 class ModernGLRenderer(Renderer):
-    """Base class of the moderngl viewers (the counterpart of MayaviRenderer)."""
+    """Base class of the moderngl viewers."""
 
     def __init__(self, figure_id, new_figure):
         super().__init__(figure_id, new_figure)
