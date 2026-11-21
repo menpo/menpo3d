@@ -60,11 +60,16 @@ class OrbitCamera:
             distance=float(self.distance),
             target=[float(x) for x in self.target],
             fov=float(self.fov),
+            radius=float(self.radius),
         )
 
-    def set_pose(self, azimuth, elevation, distance, target, fov=35.0):
+    def set_pose(self, azimuth, elevation, distance, target, fov=35.0, radius=None):
         self.azimuth, self.elevation, self.distance = azimuth, elevation, distance
         self.target, self.fov = np.asarray(target, float), fov
+        if (
+            radius is not None
+        ):  # the size of what the pose frames: it sets the clipping planes
+            self.radius = radius
 
     def fit(self, lo, hi):
         """Frame the box ``lo..hi`` (what Mayavi's reset view does): same direction, new target and distance."""

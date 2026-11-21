@@ -175,6 +175,34 @@ def test_a_pose_set_from_python_is_what_gets_drawn(bunny):
     )
 
 
+def test_a_saved_pose_survives_clearing_and_showing_a_differently_sized_mesh(bunny):
+    from menpo.shape import TriMesh
+
+    big = TriMesh(bunny.points * 10 + 50, bunny.trilist)  # re-framed on its own
+    r = bunny.view(mesh_type="surface", new_figure=True)
+    fig = r.figure
+    fig.set_pose(
+        **{
+            **fig.get_pose(),
+            "azimuth": 1.0,
+            "distance": fig.get_pose()["distance"] * 0.7,
+        }
+    )
+    mine, pose = fig.render((100, 100)), fig.get_pose()
+    fig.scene.clear()
+    big.view(figure_id=fig.name, new_figure=False, mesh_type="surface")
+    fig.reset_camera()
+    assert fig.get_pose()["radius"] == pytest.approx(
+        bunny.range().max() * 10 * 0.866, rel=0.5
+    )
+    assert fig.get_pose()["distance"] > pose["distance"] * 1.5
+    fig.scene.clear()
+    bunny.view(figure_id=fig.name, new_figure=False, mesh_type="surface")
+    fig.set_pose(**pose)  # no re-framing on the next render
+    assert fig.get_pose() == pose
+    assert np.abs(mine.astype(int) - fig.render((100, 100)).astype(int)).max() <= 2
+
+
 def test_a_figure_shown_without_the_streaming_extras_falls_back_to_a_png(
     bunny, monkeypatch
 ):

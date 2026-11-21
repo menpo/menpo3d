@@ -147,7 +147,15 @@ class Figure:
         return self.scene.camera.get_pose()
 
     def set_pose(self, **pose):
+        """Put the camera at a pose from ``get_pose``. With content in the scene it is kept: the scene is not re-framed."""
         self.scene.camera.set_pose(**pose)
+        if self.scene.bounds() is not None:
+            self.scene.camera_fitted, self.scene.needs_fit = True, False
+        self.scene._changed()
+
+    def reset_camera(self):
+        """Frame the current content, like Mayavi's reset view (keeps the viewing direction)."""
+        self.scene.fit_camera()
         self.scene._changed()
 
     def show(self, block=True, window=None):
