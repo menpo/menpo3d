@@ -45,7 +45,7 @@ three uses, so they cannot disagree about what a scene looks like:
   of the last view is stored in the notebook output.
 * **In a window**: ``figure.show()`` (or ``menpo3d.visualize.viewmoderngl.show()``)
   opens a standalone viewer window and returns when it is closed. It is a real
-  window (moderngl-window on GLFW, ``pip install "menpo3d[window]"``) when there
+  window (moderngl-window on GLFW, ``pip install "menpo3d[viz_native_window]"``) when there
   is a display, and a browser app window otherwise (``window="browser"`` forces
   that; it works over SSH with a port forward).
 
@@ -70,9 +70,12 @@ drawn into every render (stream, native window and ``save_figure``)::
 ``SurfaceViewer3d(None, True, values, mask).render(colorbar=True)`` draws a 2D
 array as a height field.
 
-The interactive parts need ``pip install "menpo3d[viewer]"``; offline rendering
-does not. Frames are streamed as JPEG; add ``"menpo3d[h264]"`` (PyAV) for H.264
-video, which is several times smaller on slow links. If PyAV is missing, the
+The interactive parts need ``pip install "menpo3d[viz]"`` (everything), or just
+``"menpo3d[viz_notebook]"`` for the notebook widget and the browser window and
+``"menpo3d[viz_native_window]"`` for the native window; offline rendering needs
+none of them. Without ``"menpo3d[viz_h264]"`` (PyAV, which bundles ffmpeg with
+x264) frames are streamed as JPEG; with it they are H.264, which is several
+times smaller on slow links. If PyAV is missing, the
 ffmpeg build lacks the encoder, or the browser has no WebCodecs (Firefox,
 Safari), the viewer falls back to JPEG by itself. To reach a remote machine, forward the viewer's port or call
 ``menpo3d.visualize.viewer.hub.configure(host="0.0.0.0", public_url=...)``

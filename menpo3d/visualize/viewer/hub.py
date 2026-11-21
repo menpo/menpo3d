@@ -241,7 +241,7 @@ class Session:
 
         if not have_h264():
             self.hub.note_fallback(
-                "PyAV is not installed (pip install av): streaming JPEG instead of H.264"
+                'PyAV is not installed (pip install "menpo3d[viz_h264]"): streaming JPEG instead of H.264'
             )
             return False
         backend = "h264_nvenc" if self.codec == "nvenc" else "libx264"

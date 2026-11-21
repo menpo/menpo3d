@@ -161,8 +161,8 @@ class Figure:
     def show(self, block=True, window=None):
         """Open the standalone viewer window on this figure and return when it is closed.
 
-        ``window="native"`` is a real window (needs ``pip install "menpo3d[window]"`` and a display); ``"browser"`` is a browser window
-        in app mode (works over SSH with a port forward; needs ``menpo3d[viewer]``). The default is native when moderngl-window
+        ``window="native"`` is a real window (needs ``pip install "menpo3d[viz_native_window]"`` and a display); ``"browser"`` is a browser window
+        in app mode (works over SSH with a port forward; needs ``menpo3d[viz_notebook]``). The default is native when moderngl-window
         and a display are there, otherwise the browser.
         """
         choice = window or os.environ.get("MENPO3D_WINDOW")

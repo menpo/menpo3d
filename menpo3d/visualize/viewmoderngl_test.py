@@ -218,11 +218,11 @@ def test_a_figure_shown_without_the_streaming_extras_falls_back_to_a_png(
 def test_show_and_the_widget_say_which_extra_to_install(bunny, monkeypatch):
     fig = bunny.view(mesh_type="surface", new_figure=True).figure
     monkeypatch.setitem(sys.modules, "aiohttp", None)
-    with pytest.raises(ImportError, match=r"menpo3d\[viewer\]"):
+    with pytest.raises(ImportError, match=r"menpo3d\[viz_notebook\]"):
         fig.show(
             window="browser"
         )  # (the default would open a native window and wait for it)
-    with pytest.warns(UserWarning, match=r"menpo3d\[viewer\]"):
+    with pytest.warns(UserWarning, match=r"menpo3d\[viz_notebook\]"):
         fig._repr_mimebundle_()
 
 
