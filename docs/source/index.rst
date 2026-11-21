@@ -70,7 +70,10 @@ drawn into every render (stream, native window and ``save_figure``)::
 ``SurfaceViewer3d(None, True, values, mask).render(colorbar=True)`` draws a 2D
 array as a height field.
 
-The interactive parts need ``pip install "menpo3d[viz]"`` (everything), or just
+The streaming (notebook widget and browser window) is the separate
+`scene-streamer <https://github.com/menpo/scene-streamer>`_ package, which
+``menpo3d[viz_notebook]`` installs. The interactive parts need
+``pip install "menpo3d[viz]"`` (everything), or just
 ``"menpo3d[viz_notebook]"`` for the notebook widget and the browser window and
 ``"menpo3d[viz_native_window]"`` for the native window; offline rendering needs
 none of them. Without ``"menpo3d[viz_h264]"`` (PyAV, which bundles ffmpeg with
@@ -78,7 +81,7 @@ x264) frames are streamed as JPEG; with it they are H.264, which is several
 times smaller on slow links. If PyAV is missing, the
 ffmpeg build lacks the encoder, or the browser has no WebCodecs (Firefox,
 Safari), the viewer falls back to JPEG by itself. To reach a remote machine, forward the viewer's port or call
-``menpo3d.visualize.viewer.hub.configure(host="0.0.0.0", public_url=...)``
+``scene_streamer.configure(host="0.0.0.0", public_url=...)``
 before the first viewer is created.
 
 The viewers that used Mayavi are still available: set

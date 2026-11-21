@@ -123,7 +123,7 @@ class Figure:
             from .viewer import require_viewer
 
             require_viewer()
-            from .viewer.widget import figure_widget
+            from scene_streamer.widget import figure_widget
 
             return figure_widget(self)._repr_mimebundle_(**kwargs)
         except (
@@ -187,7 +187,7 @@ class Figure:
             raise ImportError(
                 f"no native window ({native_error}); and {error}"
             ) from None
-        from .viewer.window import show
+        from scene_streamer.window import show
 
         return show(self, block=block)
 

@@ -1,5 +1,5 @@
-"""menpo3d's moderngl viewer: a scene (NumPy data), one OpenGL renderer, and an optional streaming hub that shows what the
-renderer draws in a notebook widget or a standalone window."""
+"""menpo3d's moderngl viewer: a scene (NumPy data), one OpenGL renderer and its GL thread. The renderer's frames can be shown
+by a native window (``native.py``) or streamed to a notebook widget and a browser window by the scene-streamer package."""
 
 MESSAGE = (
     "The interactive 3D viewer needs a few extra packages. "
@@ -12,8 +12,11 @@ MESSAGE = (
 
 
 def require_viewer():
-    """Raise a helpful ImportError if the streaming extras are missing."""
+    """Raise a helpful ImportError if scene-streamer is missing, and tell it how to reach the renderer."""
     try:
-        import aiohttp  # noqa: F401
+        import scene_streamer
     except ImportError as error:
         raise ImportError(MESSAGE) from error
+    from .worker import get_worker
+
+    scene_streamer.configure(worker=get_worker)

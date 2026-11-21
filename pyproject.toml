@@ -15,9 +15,9 @@ dependencies = ["menpo>=0.12.1", "moderngl>=5.6", "numpy>=1.23", "scipy>=1.0"]
 
 [project.optional-dependencies]
 # menpo3d.visualize, interactive: moderngl frames streamed to a notebook widget or a browser window
-viz_notebook = ["aiohttp>=3.9", "simplejpeg>=1.7", "anywidget>=0.9"]
+viz_notebook = ["scene-streamer[notebook,fast-jpeg]>=0.1"]
 # H.264 video for the streamed viewer (smaller and smoother than the JPEG frames it falls back to); PyAV bundles ffmpeg
-viz_h264 = ["av>=12"]
+viz_h264 = ["scene-streamer[h264]>=0.1"]
 # menpo3d.visualize, interactive: the native viewer window (moderngl-window on GLFW)
 viz_native_window = ["moderngl-window>=3.1", "glfw>=2.6"]
 # everything the interactive viewers can use
@@ -33,7 +33,8 @@ Source = "https://github.com/menpo/menpo3d"
 Documentation = "https://menpo3d.readthedocs.io/en/stable/"
 
 [dependency-groups]
-dev = ["pytest>=8", "pytest-mock>=3", "ruff", "opencv-python-headless", "aiohttp>=3.9", "av>=12", "simplejpeg>=1.7", "anywidget>=0.9", "moderngl-window>=3.1", "glfw>=2.6"]
+dev = ["pytest>=8", "pytest-mock>=3", "ruff", "opencv-python-headless", "scene-streamer[notebook,h264,fast-jpeg]>=0.1", "moderngl-window>=3.1", "glfw>=2.6"]
+
 # the Mayavi viewers, which the pixel oracle test compares the moderngl viewers with
 mayavi-oracle = ["mayavi>=4.8", "PySide6"]
 
@@ -41,7 +42,7 @@ mayavi-oracle = ["mayavi>=4.8", "PySide6"]
 include = ["menpo3d*"]
 
 [tool.setuptools.package-data]
-menpo3d = ["data/*", "io/*.json", "rasterize/shaders/per_vertex/*", "rasterize/shaders/texture/*", "visualize/viewer/static/*"]
+menpo3d = ["data/*", "io/*.json", "rasterize/shaders/per_vertex/*", "rasterize/shaders/texture/*"]
 
 [tool.setuptools_scm]
 # Version comes from the vX.Y.Z git tag; the generated file replaces the old vendored miniver.
