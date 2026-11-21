@@ -32,6 +32,23 @@ def _index(token, count, line_number):
     return absolute
 
 
+def _logical_lines(text):
+    r"""``(line_number, text)`` with comments removed and lines ending in a backslash joined to the next, as VTK did."""
+    lines = text.lstrip(
+        "\ufeff"
+    ).splitlines()  # a byte order mark must not hide the first keyword
+    k = 0
+    while k < len(lines):
+        number, line = k + 1, lines[k].split("#", 1)[0]
+        while line.rstrip().endswith("\\") and k + 1 < len(lines):
+            k += 1
+            line = line.rstrip()[:-1] + " " + lines[k].split("#", 1)[0]
+        k += 1
+        line = line.strip()
+        if line:
+            yield number, line
+
+
 def read_obj(path):
     r"""Parse an OBJ file.
 
@@ -50,11 +67,10 @@ def read_obj(path):
 
     with open(str(path), "rb") as f:
         raw = f.read()
-    for line_number, line in enumerate(raw.decode("utf-8", "replace").splitlines(), 1):
-        line = line.split("#", 1)[0].strip()
-        if not line:
-            continue
-        key, _, rest = line.partition(" ")
+    for line_number, line in _logical_lines(raw.decode("utf-8", "replace")):
+        key, rest = (line.split(None, 1) + [""])[
+            :2
+        ]  # the keyword ends at any whitespace (tabs too)
         if key == "v":
             fields = rest.split()
             try:
