@@ -87,12 +87,15 @@ before the first viewer is created.
 Mayavi is no longer used: its viewers were removed in 0.10 and the moderngl
 viewers have the same API. ``MENPO3D_VIEWER=mayavi`` is ignored with a warning.
 
+Finally, please refer to :ref:`changelog` for a list of changes per release.
+
 API Documentation
 -----------------
 
 .. toctree::
   :maxdepth: 2
 
+  changelog
   api/barycentric
   api/camera
   api/closest_point
