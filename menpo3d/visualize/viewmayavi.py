@@ -92,15 +92,11 @@ class MayaviRenderer(Renderer):
     """
 
     def __init__(self, figure_id, new_figure):
-        try:
-            from menpo3d.visualize._optional import import_mlab
+        from menpo3d.visualize._optional import import_mlab
 
-            mlab = import_mlab()
-        except ImportError:
-            raise ImportError(
-                "mayavi is required for viewing 3D objects "
-                "(consider 'conda/pip install mayavi')"
-            )
+        mlab = (
+            import_mlab()
+        )  # raises an ImportError that says how to install Mayavi (``name="mayavi"``)
         super(MayaviRenderer, self).__init__(figure_id, new_figure)
 
         self._supported_ext = [

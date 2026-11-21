@@ -39,8 +39,7 @@ jobs:
           uv venv .venv-wheel
           uv pip install --python .venv-wheel dist/*.whl
           cd "$(mktemp -d)"
-          # no display: Mayavi must not try to open a window
-          ETS_TOOLKIT=null "$GITHUB_WORKSPACE/.venv-wheel/bin/python" -c "import menpo3d; print(menpo3d.__version__); print(menpo3d.io.import_builtin_asset.bunny_obj())"
+          "$GITHUB_WORKSPACE/.venv-wheel/bin/python" -c "import menpo3d; print(menpo3d.__version__); print(menpo3d.io.import_builtin_asset.bunny_obj())"
       - uses: actions/upload-artifact@v4
         with:
           name: dist

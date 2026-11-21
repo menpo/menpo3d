@@ -4,9 +4,6 @@ on:
   pull_request:
 
 env:
-  # there is no display: Mayavi must not try to open a window
-  ETS_TOOLKIT: "null"
-  QT_QPA_PLATFORM: offscreen
   MPLBACKEND: Agg
 
 jobs:

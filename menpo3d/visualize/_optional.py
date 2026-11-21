@@ -11,7 +11,7 @@ def import_mlab():
     try:
         import mayavi.mlab as mlab
     except ImportError as error:
-        raise ImportError(_MESSAGE) from error
+        raise ImportError(_MESSAGE, name="mayavi") from error
     return mlab
 
 
@@ -19,5 +19,5 @@ def import_tvtk():
     try:
         from tvtk.api import tvtk
     except ImportError as error:
-        raise ImportError(_MESSAGE) from error
+        raise ImportError(_MESSAGE, name="mayavi") from error
     return tvtk

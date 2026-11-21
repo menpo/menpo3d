@@ -32,7 +32,8 @@ Visualizing 3D objects
 ----------------------
 
 Menpo3D views 3D objects with `Mayavi <https://docs.enthought.com/mayavi/mayavi/>`_,
-which is based on VTK. To view meshes in a Jupyter notebook through the
+which is based on VTK and is an optional dependency: ``pip install "menpo3d[mayavi]"``.
+To view meshes in a Jupyter notebook through the
 `menpowidgets <https://menpowidgets.readthedocs.io/>`_ widgets, either use a
 Qt window (``%matplotlib qt``) or let Mayavi render images into the notebook
 with ``mlab.init_notebook("png")``.
