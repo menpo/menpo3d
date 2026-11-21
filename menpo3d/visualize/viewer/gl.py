@@ -166,6 +166,10 @@ class GLRenderer:
     def on_gpu(self):
         return {sid: e["refs"] for sid, e in self._gpu.items()}
 
+    def stats(self):
+        """For scene-streamer's ``/stats``: what is on the GPU, and how many frame buffers."""
+        return dict(gpu=self.on_gpu(), fbos=len(self._fbos))
+
     def _free(self, entry):
         for obj in entry["objects"]:
             obj.release()

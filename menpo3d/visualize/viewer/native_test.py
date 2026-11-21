@@ -165,7 +165,7 @@ def test_show_picks_the_browser_when_there_is_no_native_window(bunny, monkeypatc
     fig = bunny.view(mesh_type="surface", new_figure=True).figure
     calls = []
     import menpo3d.visualize.viewer.native as native
-    import menpo3d.visualize.viewer.window as browser
+    import scene_streamer.window as browser
 
     monkeypatch.setattr(
         native,
