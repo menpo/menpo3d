@@ -217,6 +217,8 @@ def test_hidden_viewers_stop_and_give_their_gpu_buffers_back_and_resume_with_a_k
     hub, bunny
 ):
     scene = make_scene(hub, bunny)
+    errors = []  # an exception inside a hub callback is only logged by asyncio: collect it
+    hub.loop.set_exception_handler(lambda loop, context: errors.append(context))
 
     async def go():
         session, ws = await connect(hub)
@@ -241,6 +243,8 @@ def test_hidden_viewers_stop_and_give_their_gpu_buffers_back_and_resume_with_a_k
         return live, hidden, still_hidden, after
 
     live, hidden, still_hidden, after = run(go())
+    hub.loop.set_exception_handler(None)
+    assert not errors
     assert scene.id in live and scene.id not in hidden and still_hidden
     assert after and after[0]["kind"] == KEY
 
