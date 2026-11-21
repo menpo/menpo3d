@@ -13,22 +13,47 @@ _BINARY_FACET = np.dtype(
 
 
 def _read_ascii(text):
+    r"""The vertices of an ASCII STL. Like VTK, which reads nothing from an incomplete file, every facet
+    must be complete and the solid must end with ``endsolid``."""
     vertices = []
+    seen = dict.fromkeys(("facet", "outer", "endloop", "endfacet", "endsolid"), 0)
     for line in text.splitlines():
         fields = line.split()
-        if len(fields) >= 4 and fields[0].lower() == "vertex":
+        if not fields:
+            continue
+        word = fields[0].lower()
+        if word == "vertex" and len(fields) >= 4:
             vertices.append((float(fields[1]), float(fields[2]), float(fields[3])))
-    if len(vertices) % 3:
-        raise ValueError("The STL file has a facet with fewer than three vertices")
-    return np.array(vertices, dtype=np.float64).astype(np.float32)
+        elif word in seen:
+            seen[word] += 1
+    n = seen["facet"]
+    if not (
+        seen["endsolid"] >= 1
+        and seen["outer"] == seen["endloop"] == seen["endfacet"] == n
+        and len(vertices) == 3 * n
+    ):
+        raise ValueError(
+            "The ASCII STL file is truncated or malformed: every facet needs 'outer loop', "
+            "three vertices, 'endloop' and 'endfacet', and the solid 'endsolid'"
+        )
+    return np.array(vertices, dtype=np.float64).reshape(-1, 3).astype(np.float32)
+
+
+def _binary_facet_count(raw):
+    r"""The number of facets, from the size of the file: the count in the header is ignored (many writers
+    leave it 0 or wrong) and the size must be exactly the header plus whole facets, as for VTK."""
+    if len(raw) < 84:
+        raise ValueError("Not an STL file: it is too short to hold a header")
+    n_facets, rest = divmod(len(raw) - 84, _BINARY_FACET.itemsize)
+    if rest:
+        raise ValueError(
+            "The binary STL file is truncated: its size is not 84 bytes plus whole 50 byte facets"
+        )
+    return n_facets
 
 
 def _read_binary(raw):
-    if len(raw) < 84:  # no room for a header and a facet count: an empty mesh
-        return np.empty((0, 3), dtype=np.float32)
-    n_facets = int(np.frombuffer(raw, dtype="<u4", count=1, offset=80)[0])
-    if len(raw) < 84 + n_facets * _BINARY_FACET.itemsize:
-        raise ValueError("The STL file is truncated")
+    n_facets = _binary_facet_count(raw)
     facets = np.frombuffer(raw, dtype=_BINARY_FACET, count=n_facets, offset=84)
     return facets["vertices"].reshape(-1, 3)
 
@@ -70,15 +95,18 @@ def read_stl(path):
     """
     with open(str(path), "rb") as f:
         raw = f.read()
-    vertices = None
     if raw[:5] == b"solid":
+        # ASCII, unless it is a binary file whose 80 byte header happens to start with "solid"
         try:
             vertices = _read_ascii(raw.decode("utf-8", "replace"))
-            if len(vertices) == 0:
-                vertices = None
         except ValueError:
-            vertices = None
-    if vertices is None:
+            if len(raw) >= 84 and len(raw) == 84 + 50 * int(
+                np.frombuffer(raw, dtype="<u4", count=1, offset=80)[0]
+            ):
+                vertices = _read_binary(raw)
+            else:
+                raise
+    else:
         vertices = _read_binary(raw)
     points, indices = merge_points(vertices)
     trilist = indices.reshape(-1, 3)

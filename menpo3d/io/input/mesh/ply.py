@@ -5,6 +5,9 @@ as polygons (and later split into triangles), and the colours are the vertex
 ``red/green/blue`` (or ``diffuse_*``) properties.
 """
 
+import math
+import re
+
 import numpy as np
 
 _TYPES = {
@@ -24,11 +27,18 @@ class PlyData:
         self.connectivity = connectivity
 
 
+_END_HEADER = re.compile(rb"^end_header[ \t]*\r?$", re.MULTILINE)
+
+
 def _parse_header(raw):
-    end = raw.find(b"end_header")
-    if not raw.startswith(b"ply") or end < 0:
+    # a line of its own: "end_header" inside a comment (or in the binary body) is not the end
+    found = _END_HEADER.search(raw) if raw.startswith(b"ply") else None
+    if found is None:
         raise ValueError("Not a PLY file")
+    end = found.start()
     newline = raw.find(b"\n", end)
+    if newline < 0:  # nothing after end_header: an empty body
+        newline = len(raw) - 1
     body_start = newline + 1
     fmt, elements = None, []
     for line in raw[:end].decode("ascii", "replace").splitlines():
@@ -40,6 +50,14 @@ def _parse_header(raw):
         elif fields[0] == "element":
             elements.append({"name": fields[1], "count": int(fields[2]), "props": []})
         elif fields[0] == "property":
+            if not elements:
+                raise ValueError("A PLY property is declared before any element")
+            kinds = fields[2:4] if fields[1] == "list" else fields[1:2]
+            unknown = [k for k in kinds if k not in _TYPES]
+            if unknown:
+                raise ValueError(
+                    "Unsupported PLY property type {!r}".format(unknown[0])
+                )
             if fields[1] == "list":
                 prop = (
                     fields[4],
@@ -198,6 +216,47 @@ def _take(reader, type_, n):
     return out
 
 
+class _SamePoints:
+    r"""The points that share one texture coordinate, searchable by position.
+
+    VTK scans them in insertion order for the first whose position is within ``tol`` of the
+    query in every coordinate. A grid with cells of size ``tol`` finds the same one without
+    scanning them all: candidates are in the 27 cells around the query, the earliest wins.
+    Non-finite positions never match anything (the comparison with them is always false).
+    """
+
+    def __init__(self, tol):
+        self.tol, self.size, self.cells = tol, 0, {}
+
+    def _cell(self, position):
+        if not all(map(math.isfinite, position)):
+            return None
+        return tuple(math.floor(c / self.tol) for c in position)
+
+    def add(self, index, position):
+        cell = self._cell(position)
+        if cell is not None:
+            self.cells.setdefault(cell, []).append((self.size, index, position))
+        self.size += 1
+
+    def first_within_tolerance(self, position):
+        cell = self._cell(position)
+        if cell is None:
+            return None
+        best = None
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for dz in (-1, 0, 1):
+                    for order, index, other in self.cells.get(
+                        (cell[0] + dx, cell[1] + dy, cell[2] + dz), ()
+                    ):
+                        if (best is None or order < best[0]) and all(
+                            abs(a - b) < self.tol for a, b in zip(position, other)
+                        ):
+                            best = (order, index)
+        return None if best is None else best[1]
+
+
 def _duplicate_for_face_texture(
     points, colours, counts, connectivity, tex_counts, tex_values
 ):
@@ -211,8 +270,8 @@ def _duplicate_for_face_texture(
     positions = [tuple(p) for p in points.astype(np.float64)]
     tex = [(-1.0, -1.0)] * n
     colours = None if colours is None else list(colours)
-    seen = {}  # texture coordinate -> index into point_ids
-    point_ids = []
+    seen = {}  # texture coordinate -> index into groups
+    groups = []  # the points that have that texture coordinate
     connectivity = connectivity.copy()
     start = tex_start = 0
     for count, n_tex in zip(counts, tex_counts):
@@ -228,38 +287,24 @@ def _duplicate_for_face_texture(
                 if current[0] == -1.0:
                     tex[v] = new
                     ti = seen.setdefault(new, len(seen))
-                    if ti == len(point_ids):
-                        point_ids.append([])
-                    point_ids[ti].append(v)
+                    if ti == len(groups):
+                        groups.append(_SamePoints(tol))
+                    groups[ti].add(v, positions[v])
                 elif abs(current[0] - new[0]) >= tol or abs(current[1] - new[1]) >= tol:
-                    inserted = new not in seen
                     ti = seen.setdefault(new, len(seen))
-                    if ti == len(point_ids):
-                        point_ids.append([])
-
-                    def duplicate():
+                    if ti == len(groups):
+                        groups.append(_SamePoints(tol))
+                    same = groups[ti].first_within_tolerance(positions[v])
+                    if same is not None:
+                        verts[k] = same
+                    else:
                         positions.append(positions[v])
                         tex.append(new)
                         if colours is not None:
                             colours.append(colours[v])
-                        return len(positions) - 1
-
-                    if inserted:
-                        dp = duplicate()
-                        point_ids[ti].append(dp)
+                        dp = len(positions) - 1
+                        groups[ti].add(dp, positions[dp])
                         verts[k] = dp
-                    else:
-                        for same in point_ids[ti]:
-                            if all(
-                                abs(a - b) < tol
-                                for a, b in zip(positions[v], positions[same])
-                            ):
-                                verts[k] = same
-                                break
-                        else:
-                            dp = duplicate()
-                            point_ids[ti].append(dp)
-                            verts[k] = dp
             connectivity[start : start + count] = verts
         start += count
         tex_start += n_tex

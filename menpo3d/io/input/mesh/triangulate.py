@@ -34,12 +34,18 @@ def _simple_quads(p):
     x0, x1, x2, x3 = p[:, 0], p[:, 1], p[:, 2], p[:, 3]
     d1, d2 = x2 - x0, x3 - x1
     d1_n2, d2_n2 = (d1 * d1).sum(1), (d2 * d2).sum(1)
-    mins, maxs = p.min(axis=1), p.max(axis=1)
+    mins, maxs = (
+        x0.copy(),
+        x0.copy(),
+    )  # a running comparison like VTK's bounds: NaN never replaces a bound
+    for x in (x1, x2, x3):
+        mins, maxs = np.where(x < mins, x, mins), np.where(x > maxs, x, maxs)
     tol = _TOLERANCE * np.linalg.norm(maxs - mins, axis=1)
     tol2 = tol * tol
 
     use_d1 = d1_n2 < d2_n2
-    ok = np.where(use_d1, d1_n2, d2_n2) >= tol2
+    # written as 'not smaller than' like VTK's `if (x < tol2) give up`, so that NaN does not give up
+    ok = ~(np.where(use_d1, d1_n2, d2_n2) < tol2)
 
     def fan(use_d1):
         d = np.where(use_d1[:, None], d1, d2)
@@ -49,7 +55,7 @@ def _simple_quads(p):
 
     v1, v3, n1, n2 = fan(use_d1)
     sq = lambda v: (v * v).sum(1)  # noqa: E731
-    ok &= (sq(v1) >= tol2) & (sq(v3) >= tol2) & (sq(n1) >= tol2) & (sq(n2) >= tol2)
+    ok &= ~((sq(v1) < tol2) | (sq(v3) < tol2) | (sq(n1) < tol2) | (sq(n2) < tol2))
     normal = n1 + n2
     norm = np.linalg.norm(normal, axis=1)
     ok &= norm != 0
@@ -273,6 +279,13 @@ def _earcut(points):
         measures[v] = perimeter * perimeter / area
         return measures[v]
 
+    xyz = np.array(pts, dtype=np.float64)
+    order = np.empty(count, dtype=np.int64)  # the polygon's vertices in cyclic order
+    v = head
+    for k in range(count):
+        order[k] = v
+        v = nxt[v]
+
     def can_remove(v):
         if count <= 3:
             return True
@@ -282,24 +295,19 @@ def _earcut(points):
         if den == 0.0:
             return False
         s_n = (s_n[0] / den, s_n[1] / den, s_n[2] / den)
-
-        def sign(w):
-            val = _dot(s_n, _sub(pts[w], pts[p]))
-            return 1 if val > tol else (-1 if val < -tol else 0)
-
-        current = sign(nxt[q])
-        one_negative = current < 0
-        w = nxt[nxt[q]]
-        while w != p:
-            s = sign(w)
-            if s != current:
-                if not one_negative:
-                    one_negative = s < 0
-                if _lines_intersect(pts[p], pts[q], pts[w], pts[prv[w]], tol):
-                    return False
-                current = s
-            w = nxt[w]
-        return one_negative
+        # The vertices after q up to p, in order, on either side of the line p-q. The signs are
+        # computed for all of them at once (the same operations in the same order as the scalar
+        # code, so they are bit identical); only the crossings need the exact intersection test.
+        at = int(np.flatnonzero(order == v)[0])
+        ring = order[(at + 2 + np.arange(len(order) - 3)) % len(order)]
+        d = xyz[ring] - xyz[p]
+        val = s_n[0] * d[:, 0] + s_n[1] * d[:, 1] + s_n[2] * d[:, 2]
+        signs = np.where(val > tol, 1, np.where(val < -tol, -1, 0))
+        for k in np.flatnonzero(signs[1:] != signs[:-1]) + 1:
+            w = int(ring[k])
+            if _lines_intersect(pts[p], pts[q], pts[w], pts[int(ring[k - 1])], tol):
+                return False
+        return bool((signs < 0).any())
 
     queue = _PriorityQueue()
     v = head
@@ -315,6 +323,7 @@ def _earcut(points):
             continue
         triangles.append((v, nxt[v], prv[v]))
         count -= 1
+        order = order[order != v]
         if count < 3:
             break
         if v == head:
@@ -402,7 +411,12 @@ def triangulate_polygons(points, counts, connectivity, warn=True):
             local, success = _earcut(points[ids[k]])
             if not success:
                 local = _quad_fallback(points[ids[k]])
-            first[k], second[k] = ids[k][list(local[0])], ids[k][list(local[1])]
+            # a repeated or coincident corner can leave one triangle (or none): VTK keeps what was found
+            n_found[quads[k]] = len(local)
+            if len(local) > 0:
+                first[k] = ids[k][list(local[0])]
+            if len(local) > 1:
+                second[k] = ids[k][list(local[1])]
         trilist[out_start[quads]] = first
         trilist[out_start[quads] + 1] = second
 

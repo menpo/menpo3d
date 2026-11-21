@@ -282,3 +282,61 @@ def test_texture_coordinate_mismatch_duplicates_the_points():
 def test_retriangulating_warns(written):
     with pytest.warns(UserWarning, match="Non-triangular"):
         m3io.import_mesh(written["quads.obj"])
+
+
+# --------------------------------------------------------------------------- through the public importers
+# ``read_new`` calls the readers directly; these go through ``import_mesh`` so that the glue is pinned too:
+# the mesh class, the float64 points, colours scaled to 0..1 and texture coordinates only with a texture.
+@pytest.mark.parametrize("name", _NAMES)
+def test_import_mesh_gives_the_recorded_topology(written, name):
+    expected = json.loads(FINGERPRINTS.read_text())[name]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        mesh = m3io.import_mesh(written[name])
+    assert mesh.points.dtype == np.float64
+    got = fingerprint(mesh.points, mesh.trilist)
+    assert got == {k: v for k, v in expected.items() if k != "tcoords"}
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "tri_vt_matching.obj",
+        "tri_vt_mismatch.obj",
+        "tri_tex_matching.wrl",
+        "tri_tex_mismatch.wrl",
+    ],
+)
+def test_a_texture_next_to_the_mesh_gives_a_textured_mesh_with_the_recorded_tcoords(
+    written, name, tmp_path
+):
+    import shutil
+
+    from PIL import Image
+
+    expected = json.loads(FINGERPRINTS.read_text())[name]
+    path = tmp_path / name  # a copy: the written variants are shared between tests
+    shutil.copy(written[name], path)
+    Image.fromarray(np.full((4, 4, 3), 200, np.uint8)).save(path.with_suffix(".png"))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        mesh = m3io.import_mesh(path)
+    assert type(mesh).__name__ == "TexturedTriMesh"
+    got = fingerprint(mesh.points, mesh.trilist, mesh.tcoords.points)
+    assert got == expected
+
+
+def test_without_a_texture_the_texture_coordinates_are_dropped(written):
+    mesh = m3io.import_mesh(written["tri_vt_matching.obj"])
+    assert type(mesh).__name__ == "TriMesh" and not hasattr(mesh, "tcoords")
+
+
+def test_ply_vertex_colours_are_scaled_to_zero_one(tmp_path):
+    points, trilist = _bunny()
+    colours = np.random.RandomState(1).randint(0, 256, (len(points), 3))
+    for kind in ("ascii", "le", "be"):
+        path = tmp_path / ("c_%s.ply" % kind)
+        _write_ply(path, points, [list(t) for t in trilist], kind, colours)
+        mesh = m3io.import_mesh(path)
+        assert type(mesh).__name__ == "ColouredTriMesh"
+        np.testing.assert_allclose(mesh.colours, colours / 255.0)

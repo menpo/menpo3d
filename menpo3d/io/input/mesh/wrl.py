@@ -306,34 +306,33 @@ def read_wrl(path):
     )
     nrm_counts = normal_cells[0] if normal_cells is not None else np.zeros_like(counts)
     keep = np.ones(len(counts), dtype=bool)
+
+    def same_size(other_counts):
+        # faces without a counterpart (the other list is shorter) are dropped, like faces of another size
+        n = min(len(counts), len(other_counts))
+        equal = np.zeros(len(counts), dtype=bool)
+        equal[:n] = counts[:n] == other_counts[:n]
+        return equal
+
     if tcoords is not None and len(tcoords) > 0:
-        keep &= (
-            counts == tex_counts[: len(counts)]
-            if len(tex_counts) >= len(counts)
-            else False
-        )
+        keep &= same_size(tex_counts)
     if normals is not None and len(normals) > 0:
-        keep &= (
-            counts == nrm_counts[: len(counts)]
-            if len(nrm_counts) >= len(counts)
-            else False
-        )
+        keep &= same_size(nrm_counts)
     corner_face = np.repeat(np.arange(len(counts)), counts)
     corner_kept = keep[corner_face]
     new_connectivity = connectivity[corner_kept]
     points = coord[new_connectivity]
     new_tcoords = None
-    if tcoords is not None:
-        flat = (
-            tcoord_cells[1] if tcoord_cells is not None else np.empty(0, dtype=np.int64)
+    if tcoord_cells is not None and tcoords is not None and len(tcoords) > 0:
+        # the texture corners of each kept face (its texCoordIndex face, which has the same size)
+        kept = np.flatnonzero(keep)
+        sizes = counts[kept]
+        corner_in_face = np.arange(sizes.sum()) - np.repeat(
+            np.cumsum(sizes) - sizes, sizes
         )
-        has = (
-            tex_counts[: len(counts)] > 0
-            if tcoord_cells is not None
-            else np.zeros(len(counts), bool)
-        )
-        used = corner_kept & has[corner_face]
-        new_tcoords = tcoords[flat[used]]
+        new_tcoords = tcoords[
+            tcoord_cells[1][np.repeat(tex_starts[kept], sizes) + corner_in_face]
+        ]
         if len(new_tcoords) != len(points):
             new_tcoords = None  # VTK would hand back an array of the wrong length
     return WrlData(
