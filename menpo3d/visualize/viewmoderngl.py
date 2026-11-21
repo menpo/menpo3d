@@ -292,6 +292,16 @@ class ModernGLRenderer(Renderer):
     def clear_figure(self):
         self.figure.scene.clear()
 
+    def add_colorbar(self, cmap="jet", vmin=0.0, vmax=1.0, title=None, **kwargs):
+        """A colour bar over the picture (position='right'|'left'|'top'|'bottom'); drawn into every render, saved images included."""
+        self.scene.add_colorbar(cmap, vmin, vmax, title=title, **kwargs)
+        return self
+
+    def add_text(self, text, position="top-left", **kwargs):
+        """Text over the picture, e.g. statistics: a corner name or (x, y) as image fractions."""
+        self.scene.add_text(text, position, **kwargs)
+        return self
+
     def force_draw(self):
         """Nothing to force: changing the scene already tells every attached viewer to redraw."""
 
@@ -537,6 +547,75 @@ class ModernGLTexturedTriMeshViewer3d(ModernGLRenderer):
             ambient=ambient_light,
             specular=specular_light,
         )
+        return self
+
+
+class ModernGLSurfaceViewer3d(ModernGLRenderer):
+    """A 2D array drawn as a height field (``mlab.surf``): rows and columns are x and y, the values are z and the colour."""
+
+    def __init__(self, figure_id, new_figure, values, mask=None):
+        super().__init__(figure_id, new_figure)
+        values = np.array(values, dtype=float)
+        if mask is not None:
+            values[~np.asarray(mask, dtype=bool)] = np.nan
+        self.values = values
+
+    def render(
+        self,
+        cmap="jet",
+        warp_scale="auto",
+        mesh_type="surface",
+        line_width=1.0,
+        alpha=1.0,
+        scalar_range=None,
+        colorbar=False,
+        colorbar_title=None,
+        statistics=None,
+        **kwargs,
+    ):
+        """``warp_scale='auto'`` gives the z extent 0.3 * (x span + y span), like Mayavi; a number scales the values.
+        ``colorbar`` adds a colour bar; ``statistics`` is a list of names (mean, std, min, max, median, rms) printed in a corner."""
+        from .viewer.colormap import scalars_to_colours, statistics_lines
+
+        v = self.values
+        rows, cols = v.shape
+        x, y = np.meshgrid(np.arange(rows), np.arange(cols), indexing="ij")
+        finite = np.isfinite(v)
+        lo, hi = (
+            scalar_range
+            if scalar_range is not None
+            else (np.nanmin(v), np.nanmax(v))
+            if finite.any()
+            else (0.0, 1.0)
+        )
+        if warp_scale == "auto":
+            warp_scale = 0.3 * ((rows - 1) + (cols - 1)) / (hi - lo) if hi > lo else 1.0
+        z = np.nan_to_num(v, nan=lo) * warp_scale
+        points = np.stack([x.ravel(), y.ravel(), z.ravel()], axis=1).astype(float)
+        index = np.arange(rows * cols).reshape(rows, cols)
+        a, b, c, d = index[:-1, :-1], index[1:, :-1], index[1:, 1:], index[:-1, 1:]
+        ok = (
+            finite[:-1, :-1] & finite[1:, :-1] & finite[1:, 1:] & finite[:-1, 1:]
+        ).ravel()
+        trilist = np.concatenate(
+            [
+                np.stack([a.ravel(), b.ravel(), c.ravel()], 1)[ok],
+                np.stack([a.ravel(), c.ravel(), d.ravel()], 1)[ok],
+            ]
+        )
+        colours, lo, hi = scalars_to_colours(v.ravel(), cmap, lo, hi)
+        self.scene.add_mesh(
+            points,
+            trilist,
+            mode=mesh_type,
+            alpha=alpha,
+            line_width=line_width,
+            colours=colours,
+        )
+        if colorbar:
+            self.add_colorbar(cmap, lo, hi, title=colorbar_title)
+        if statistics:
+            self.add_text("\n".join(statistics_lines(v, statistics)), "top-left")
         return self
 
 

@@ -224,3 +224,93 @@ def test_show_and_the_widget_say_which_extra_to_install(bunny, monkeypatch):
         )  # (the default would open a native window and wait for it)
     with pytest.warns(UserWarning, match=r"menpo3d\[viewer\]"):
         fig._repr_mimebundle_()
+
+
+# ---- scalar colours, colour bar, statistics text, the height-field surface
+def _bump(n=40):
+    x, y = np.meshgrid(np.linspace(-2, 2, n), np.linspace(-2, 2, n), indexing="ij")
+    return np.exp(-(x**2 + y**2))
+
+
+def test_scalars_to_colours_maps_the_range_and_greys_out_nan():
+    from menpo3d.visualize.viewer.colormap import scalars_to_colours
+
+    rgb, lo, hi = scalars_to_colours([0.0, 0.5, 1.0, np.nan], "gray")
+    assert (lo, hi) == (0.0, 1.0)
+    assert rgb[0] == pytest.approx([0, 0, 0], abs=0.01)
+    assert rgb[2] == pytest.approx([1, 1, 1], abs=0.01)
+    assert rgb[1] == pytest.approx([0.5, 0.5, 0.5], abs=0.01)
+    assert rgb[3] == pytest.approx([0.6, 0.6, 0.6])
+    rgb, lo, hi = scalars_to_colours(
+        [3.0, 3.0], "gray"
+    )  # constant: the middle, no division by zero
+    assert rgb[0] == pytest.approx([0.5, 0.5, 0.5], abs=0.01)
+    with pytest.raises(ValueError, match="unknown colormap"):
+        scalars_to_colours([0, 1], "nope")
+
+
+def test_statistics_lines_ignore_nan():
+    from menpo3d.visualize.viewer.colormap import statistics_lines
+
+    assert statistics_lines([1.0, 3.0, np.nan]) == ["mean 2", "std 1", "max 3"]
+    assert statistics_lines([np.nan]) == []
+
+
+def test_the_surface_has_mayavis_auto_warp_and_drops_masked_cells():
+    values = _bump(20)
+    mask = np.ones_like(values, bool)
+    mask[:10] = False
+    r = vm.ModernGLSurfaceViewer3d(None, True, values, mask).render()
+    (mesh,) = [i for i in r.figure.scene.items if i["kind"] == "mesh"]
+    z = mesh["points"][mesh["trilist"].ravel(), 2]
+    assert np.ptp(z) == pytest.approx(
+        0.3 * (19 + 19), rel=1e-3
+    )  # mlab.surf(warp_scale="auto")
+    assert (
+        mesh["points"][mesh["trilist"].ravel(), 0].min() >= 9
+    )  # nothing drawn in the masked rows
+    assert len(mesh["trilist"]) == 2 * 9 * 19
+    flat = vm.ModernGLSurfaceViewer3d(None, True, values).render(warp_scale=2.0)
+    (mesh,) = [i for i in flat.figure.scene.items if i["kind"] == "mesh"]
+    assert np.ptp(mesh["points"][:, 2]) == pytest.approx(2.0 * np.ptp(values), rel=1e-4)
+
+
+def test_a_colour_bar_and_statistics_are_in_every_render():
+    base = vm.ModernGLSurfaceViewer3d(None, True, _bump()).render()
+    plain = base.figure.render((400, 300))
+    barred = vm.ModernGLSurfaceViewer3d(None, True, _bump()).render(
+        colorbar=True, statistics=["mean", "max"]
+    )
+    picture = barred.figure.render((400, 300))
+    changed = np.abs(picture.astype(int) - plain.astype(int)).sum(2) > 30
+    ys, xs = np.nonzero(changed)
+    assert xs.max() > 300  # the bar sits at the right edge
+    assert (xs < 100).any() and (ys < 60).any()  # the statistics sit top left
+    # the same pixels reach the saved image
+    barred.figure.save("/tmp/_bar.png")
+    assert np.array_equal(
+        np.asarray(Image.open("/tmp/_bar.png").convert("RGB")), barred.figure.render()
+    )
+    os.remove("/tmp/_bar.png")
+
+
+@pytest.mark.parametrize("position", ["right", "left", "top", "bottom"])
+def test_a_colour_bar_ramps_through_its_colormap(position):
+    r = vm.ModernGLSurfaceViewer3d(None, True, _bump()).render()
+    r.figure.scene.clear()  # only the bar on a white background
+    r.add_colorbar("gray", 0, 1, position=position, length=0.6, thickness=0.06)
+    r.scene.add_mesh(
+        np.zeros((3, 3)), np.zeros((0, 3), int)
+    )  # keep a (degenerate) mesh so a frame renders
+    picture = r.figure.render((400, 400)).astype(int)
+    grey = (np.abs(picture[..., 0] - picture[..., 1]) < 3) & (picture[..., 0] < 250)
+    assert grey.sum() > 400
+    ys, xs = np.nonzero(grey)
+    along = ys if position in ("right", "left") else xs
+    assert np.ptp(along) > 0.4 * 400  # it spans most of the requested length
+
+
+def test_a_bad_colour_bar_position_is_an_error():
+    r = vm.ModernGLSurfaceViewer3d(None, True, _bump())
+    with pytest.raises(ValueError, match="position"):
+        r.add_colorbar("jet", 0, 1, position="middle")

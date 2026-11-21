@@ -167,6 +167,64 @@ class Scene:
             )
         )
 
+    def add_colorbar(
+        self,
+        cmap="jet",
+        vmin=0.0,
+        vmax=1.0,
+        title=None,
+        position="right",
+        colour=(0, 0, 0),
+        n_ticks=5,
+        length=0.5,
+        thickness=0.035,
+        label_size=0.032,
+    ):
+        """A colour bar in screen space (``position``: right, left, top or bottom). Sizes are fractions of the image height."""
+        from .colormap import get_cmap
+
+        if position not in ("right", "left", "top", "bottom"):
+            raise ValueError("position must be right, left, top or bottom")
+        lut = (get_cmap(cmap)(np.linspace(0, 1, 256))[:, :3] * 255).astype("u1")
+        return self._add(
+            dict(
+                kind="colorbar",
+                lut=lut,
+                vmin=float(vmin),
+                vmax=float(vmax),
+                title=title,
+                position=position,
+                colour=_rgb(colour),
+                n_ticks=max(2, int(n_ticks)),
+                length=float(length),
+                thickness=float(thickness),
+                label_size=float(label_size),
+            )
+        )
+
+    def add_text(
+        self,
+        text,
+        position="top-left",
+        colour=(0, 0, 0),
+        size=0.04,
+        background=None,
+    ):
+        """Text in screen space, e.g. statistics. ``position``: a corner ('top-left', 'bottom-right', ...) or (x, y) as image fractions;
+        ``size`` is the line height as a fraction of the image height. Several lines are one string with newlines."""
+        if not isinstance(position, str):
+            position = (float(position[0]), float(position[1]))
+        return self._add(
+            dict(
+                kind="text",
+                text=str(text),
+                position=position,
+                colour=_rgb(colour),
+                size=float(size),
+                background=None if background is None else _rgb(background),
+            )
+        )
+
     # ---- queries
     def bounds(self):
         boxes = [

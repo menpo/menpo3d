@@ -12,6 +12,7 @@ if os.environ.get("MENPO3D_VIEWER", "moderngl").lower() == "mayavi":
         MayaviTexturedTriMeshViewer3d as TexturedTriMeshViewer3d,
         MayaviLandmarkViewer3d as LandmarkViewer3d,
         MayaviVectorViewer3d as VectorViewer3d,
+        MayaviSurfaceViewer3d as SurfaceViewer3d,
         MayaviColouredTriMeshViewer3d as ColouredTriMeshViewer3d,
         MayaviRenderer as Renderer3d,
     )
@@ -22,6 +23,7 @@ else:
         ModernGLTexturedTriMeshViewer3d as TexturedTriMeshViewer3d,
         ModernGLLandmarkViewer3d as LandmarkViewer3d,
         ModernGLVectorViewer3d as VectorViewer3d,
+        ModernGLSurfaceViewer3d as SurfaceViewer3d,
         ModernGLColouredTriMeshViewer3d as ColouredTriMeshViewer3d,
         ModernGLRenderer as Renderer3d,
     )

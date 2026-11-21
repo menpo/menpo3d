@@ -57,6 +57,19 @@ three uses, so they cannot disagree about what a scene looks like:
     renderer.figure.set_pose(**{**pose, "azimuth": 0.5})
     renderer.save_figure("view.png", size=(1024, 768), overwrite=True)
 
+Scalar values can be shown with a colour bar and a statistics text, which are
+drawn into every render (stream, native window and ``save_figure``)::
+
+    from menpo3d.visualize.viewer.colormap import scalars_to_colours, statistics_lines
+
+    colours, lo, hi = scalars_to_colours(errors, "hot_r", vmin=0, vmax=2)
+    renderer = ColouredTriMeshViewer3d(None, True, mesh.points, mesh.trilist, colours).render()
+    renderer.add_colorbar("hot_r", lo, hi, title="error (mm)")
+    renderer.add_text("\n".join(statistics_lines(errors)), "top-left")
+
+``SurfaceViewer3d(None, True, values, mask).render(colorbar=True)`` draws a 2D
+array as a height field.
+
 The interactive parts need ``pip install "menpo3d[viewer]"``; offline rendering
 does not. Frames are streamed as JPEG; add ``"menpo3d[h264]"`` (PyAV) for H.264
 video, which is several times smaller on slow links. If PyAV is missing, the

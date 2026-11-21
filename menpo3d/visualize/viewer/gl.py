@@ -7,6 +7,8 @@ GPU objects are built lazily from the scene's NumPy data and freed when the last
 
 import numpy as np
 
+from .overlay import draw_overlays
+
 _MESH_VS = """#version 330
 uniform mat4 mvp; uniform mat3 nmat; uniform float psize;
 in vec3 in_pos; in vec3 in_nrm; in vec3 in_col; in vec2 in_uv;
@@ -453,7 +455,7 @@ class GLRenderer:
             ctx.copy_framebuffer(flat, msaa)
         rgb = np.frombuffer(flat.read(components=3), np.uint8).reshape(height, width, 3)
         std = proj @ view  # standard orientation, for the browser's labels and picking
-        return rgb, std
+        return draw_overlays(rgb, scene.items), std
 
     # ---- picking: ray against the scene's triangles, no extra pass
     def pick(self, scene, camera, width, height, x, y):
