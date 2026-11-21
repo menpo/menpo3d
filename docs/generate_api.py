@@ -34,7 +34,6 @@ MODULES = [
     "result",
     "unwrap",
     "visualize",
-    "vtkutils",
 ]
 
 

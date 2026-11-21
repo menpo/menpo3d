@@ -4,16 +4,13 @@ Nothing is checked in apart from the bunny that already ships with menpo3d: form
 variants of it (quads, polygons, texture coordinate indices that differ from the vertex
 indices, binary and ASCII PLY/STL, ...) are written at test time and the result of
 importing them is compared with fingerprints recorded once from the previous VTK based
-importers (``importer_fingerprints.json``). With VTK installed, check that the recorded
-fingerprints are still what VTK does (or record them again, without ``--check``)::
-
-    python -m menpo3d.io.importer_variants_test --check
+importers (``importer_fingerprints.json``). VTK is no longer used or needed: the
+fingerprints are the frozen record of what those importers produced.
 """
 
 import hashlib
 import json
 import struct
-import sys
 import warnings
 from pathlib import Path
 
@@ -249,68 +246,6 @@ def read_new(path):
     return points, trilist, tcoords
 
 
-def read_vtk(path):
-    r"""What the previous importers did with VTK (needs VTK; used to record fingerprints)."""
-    import vtk
-    from vtk.util.numpy_support import vtk_to_numpy
-
-    suffix = Path(path).suffix
-    reader = {
-        ".obj": vtk.vtkOBJReader,
-        ".ply": vtk.vtkPLYReader,
-        ".stl": vtk.vtkSTLReader,
-    }.get(suffix)
-    if reader is not None:
-        reader = reader()
-        reader.SetFileName(str(path))
-        reader.Update()
-        polydata = reader.GetOutput()
-    else:
-        importer = vtk.vtkVRMLImporter()
-        importer.SetFileName(str(path))
-        importer.Update()
-        actors = importer.GetRenderer().GetActors()
-        actors.InitTraversal()
-        polydata = actors.GetNextActor().GetMapper().GetInput()
-    points = vtk_to_numpy(polydata.GetPoints().GetData()).astype(np.float64)
-    triangles = vtk.vtkTriangleFilter()
-    triangles.SetInputData(polydata)
-    triangles.Update()
-    trilist = vtk_to_numpy(triangles.GetOutput().GetPolys().GetData()).reshape(-1, 4)[
-        :, 1:
-    ]
-    tcoords = polydata.GetPointData().GetTCoords()
-    return points, trilist, None if tcoords is None else vtk_to_numpy(tcoords)
-
-
-def regenerate(check=False):
-    import tempfile
-
-    out = {}
-    with tempfile.TemporaryDirectory() as directory:
-        for name, path in variants(directory).items():
-            out[name] = fingerprint(*read_vtk(path))
-    if check:  # does the installed VTK still do what the recorded fingerprints say?
-        recorded = json.loads(FINGERPRINTS.read_text())
-        changed = sorted(
-            k for k in set(out) | set(recorded) if out.get(k) != recorded.get(k)
-        )
-        for name in changed:
-            print("DIFFERS", name, recorded.get(name), "->", out.get(name))
-        print(
-            "VTK",
-            __import__("vtk").vtkVersion.GetVTKVersion(),
-            "-",
-            len(changed),
-            "of",
-            len(out),
-            "differ",
-        )
-        return 1 if changed else 0
-    FINGERPRINTS.write_text(json.dumps(out, indent=1, sort_keys=True) + "\n")
-    print("recorded", len(out), "fingerprints in", FINGERPRINTS)
-
-
 # --------------------------------------------------------------------------- the tests
 _NAMES = sorted(json.loads(FINGERPRINTS.read_text())) if FINGERPRINTS.exists() else []
 
@@ -347,7 +282,3 @@ def test_texture_coordinate_mismatch_duplicates_the_points():
 def test_retriangulating_warns(written):
     with pytest.warns(UserWarning, match="Non-triangular"):
         m3io.import_mesh(written["quads.obj"])
-
-
-if __name__ == "__main__":
-    sys.exit(regenerate(check="--check" in sys.argv))

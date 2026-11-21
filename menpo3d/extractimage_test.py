@@ -112,30 +112,3 @@ def test_the_bunny_visible_count_is_stable():
     visible = per_vertex_occlusion_accurate(mesh)
     assert visible.sum() == 1176 and mesh.n_points == 2503
     assert np.array_equal(visible, per_vertex_occlusion_accurate(mesh, chunk_size=777))
-
-
-def test_occlusion_agrees_with_a_correct_vtk_ray_cast_on_the_bunny():
-    """VTK is only the oracle: the previous implementation cast a ray for the first vertex only (it ``break``s), so it
-    reported nothing visible. VTK's OBBTree misses rays through some vertices (on james it misses about 60% of them), so the
-    agreement is checked on the bunny, within the few percent where it does."""
-    vtk = pytest.importorskip("vtk")
-    from menpo3d.vtkutils import trimesh_to_vtk
-
-    mesh = m3io.import_builtin_asset.bunny_obj()
-    tol = mesh.mean_edge_length() / 1000
-    lo, hi = mesh.bounds()
-    tree = vtk.vtkOBBTree()
-    tree.SetDataSet(trimesh_to_vtk(mesh))
-    tree.BuildLocator()
-    pts, ids = vtk.vtkPoints(), vtk.vtkIdList()
-    expected = np.zeros(mesh.n_points, bool)
-    for i, p in enumerate(mesh.points):
-        pts.Reset()
-        ids.Reset()
-        tree.IntersectWithLine(
-            (p[0], p[1], lo[2] - 10), (p[0], p[1], hi[2] + 10), pts, ids
-        )
-        z = [pts.GetPoint(k)[2] for k in range(pts.GetNumberOfPoints())]
-        expected[i] = bool(z) and p[2] - min(z) < tol
-    got = per_vertex_occlusion_accurate(mesh)
-    assert (got != expected).sum() <= 0.02 * mesh.n_points

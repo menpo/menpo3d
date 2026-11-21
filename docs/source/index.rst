@@ -55,4 +55,3 @@ API Documentation
   api/result
   api/unwrap
   api/visualize
-  api/vtkutils
