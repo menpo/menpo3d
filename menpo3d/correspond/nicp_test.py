@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 import menpo3d.io as m3io
 from menpo.transform import Translation
@@ -19,7 +20,6 @@ def test_non_rigid_icp_moves_a_mesh_onto_a_translated_copy():
 import os
 import sys
 
-import pytest
 import scipy.sparse as sp
 from menpo3d.correspond import nicp
 
@@ -173,3 +173,37 @@ def test_flushing_the_c_library_never_raises(monkeypatch):
         ctypes, "CDLL", lambda name: (_ for _ in ()).throw(OSError(name))
     )
     nicp._flush_all_stdout()
+
+
+# ---- the edge mask: which nearest triangles of the *target* are on its boundary
+def _grid(n, z=0.0):
+    # a flat n x n grid with its centre at the origin and a bounding box
+    # diagonal of 1, so NICP's own normalisation (centre, scale to a diagonal of
+    # 1) changes nothing and the points it sees are these ones
+    from menpo.shape import TriMesh
+
+    mesh = TriMesh.init_2d_grid((n, n))
+    xy = mesh.points - mesh.points.mean(axis=0)
+    xy = xy / np.sqrt((np.ptp(xy, axis=0) ** 2).sum())
+    return TriMesh(np.column_stack([xy, np.full(len(xy), z)]), mesh.trilist, copy=False)
+
+
+def test_the_edge_mask_is_about_the_boundary_triangles_of_the_target():
+    from menpo3d.closest_point import ClosestPointLocator
+
+    # a 7 x 7 source over a 5 x 5 target: different triangulations, so a mask
+    # taken from the source's triangles would be wrong for the target's
+    target = _grid(5)
+    source = _grid(7, z=0.05)
+    nearest_tri = ClosestPointLocator.from_trimesh(target)(source.points)[1]
+    expected_edge = target.boundary_tri_index()[nearest_tri]
+    assert expected_edge.any() and not expected_edge.all()  # a real test
+
+    _, info = next(
+        non_rigid_icp(source, target, stiffness_weights=[10], generate_instances=True)
+    )
+    np.testing.assert_array_equal(info["mask_edges"], ~expected_edge)
+    assert info["prop_omitted_edges"] == pytest.approx(expected_edge.mean())
+    # the edge constraint is not applied (it was found to be noisy): the
+    # weights are the normals' only
+    np.testing.assert_array_equal(info["mask_all"], info["mask_normals"])
