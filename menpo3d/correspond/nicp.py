@@ -5,84 +5,108 @@ from contextlib import contextmanager
 
 import numpy as np
 import scipy.sparse as sp
-from io import UnsupportedOperation
 from menpo.shape import TriMesh, PointCloud
 from menpo.transform import Translation, UniformScale, AlignmentSimilarity
 from menpo3d.morphablemodel.shapemodel import ShapeModel
 from menpo3d.closest_point import ClosestPointLocator
 
 
+def _flush_all_stdout():
+    # what was written is in the buffers of Python's streams and of the C
+    # library (what CHOLMOD / METIS print): flush them while the descriptor
+    # still points where it should, or it comes out after the redirection ended
+    for stream in (sys.stdout, sys.__stdout__):
+        try:
+            stream.flush()
+        except (AttributeError, ValueError):
+            pass
+    try:
+        import ctypes
+
+        # CDLL(None) is the C library of the process on Unix; on Windows it is
+        # the universal C runtime (CDLL(None) raises a TypeError there)
+        ctypes.CDLL("ucrtbase" if sys.platform == "win32" else None).fflush(None)
+    except (OSError, AttributeError, TypeError):
+        # no C library to flush: nothing that C code printed is buffered
+        pass
+
+
 @contextmanager
 def stdout_redirected(to=os.devnull):
     r"""
+    Sends what low-level code writes to the standard output of the process
+    (file descriptor 1, e.g. the prints of a C library) to ``to`` while the
+    block runs, and puts it back afterwards.
+
+    ``sys.stdout`` is never closed or replaced, so this also works where it is
+    not a plain file, such as a Jupyter notebook (closing it used to hang
+    there). It is the descriptor that C code writes to that is redirected,
+    which is not always the one of ``sys.stdout``.
+
     import os
 
     with stdout_redirected(to=filename):
         print("from Python")
         os.system("echo non-Python applications are also supported")
     """
+    fd = 1  # what C's stdout writes to
+    _flush_all_stdout()
+    saved = os.dup(fd)
     try:
-        fd = sys.stdout.fileno()
-    except UnsupportedOperation:
-        # It's possible this is being run in an interpreter like an IPython
-        # notebook where stdout doesn't behave the same as in a "normal" python
-        # interpreter and in this case we cannot treat stdout like a file
-        # descriptor
-        warnings.warn(
-            "Unable to duplicate stdout file descriptor, likely due "
-            "to stdout having been replaced (e.g. a notebook)"
-        )
-        yield
-    else:
-        # assert that Python and C stdio write using the same file descriptor
-        # assert libc.fileno(ctypes.c_void_p.in_dll(libc, "stdout")) == fd == 1
-
-        def redirect_stdout(to):
-            sys.stdout.close()  # + implicit flush()
-            os.dup2(to.fileno(), fd)  # fd writes to 'to' file
-            sys.stdout = os.fdopen(fd, "w")  # Python writes to fd
-
-        with os.fdopen(os.dup(fd), "w") as old_stdout:
-            with open(to, "w") as file:
-                redirect_stdout(to=file)
+        with open(to, "w") as file:
+            os.dup2(file.fileno(), fd)  # fd writes to 'to'
             try:
                 yield  # allow code to be run with the redirected stdout
             finally:
-                # restore stdout.
-                # buffering and flags such as CLOEXEC may be different
-                redirect_stdout(to=old_stdout)
+                _flush_all_stdout()
+    finally:
+        os.dup2(saved, fd)  # restore
+        os.close(saved)
 
 
 try:
     try:
         # First try the newer scikit-sparse namespace
-        from sksparse.cholmod import cholesky_AAt
+        from sksparse.cholmod import cholesky_AAt as _cholesky_AAt
     except ImportError:
         # Fall back to the older scikits.sparse namespace
-        from scikits.sparse.cholmod import cholesky_AAt
+        from scikits.sparse.cholmod import cholesky_AAt as _cholesky_AAt
+except ImportError:
+    _cholesky_AAt = None
 
-    # user has cholesky available - provide a fast solve
-    def spsolve(sparse_X, dense_b):
-        # wrap the cholesky call in a context manager that swallows the
-        # low-level std-out to stop it from swamping our stdout (these low-level
-        # prints come from METIS, but the solution behaves as normal)
+
+def spsolve(sparse_X, dense_b, damping=0.0):
+    r"""
+    Solves the least squares problem ``min |X x - b|`` through its normal
+    equations ``(X^T X + damping * I) x = X^T b``.
+
+    ``damping`` is added to the diagonal of ``X^T X``. With ``0.0`` (the
+    default) the equations are solved as they are; ``X^T X`` is not invertible
+    when X does not have a full rank (e.g. many vertices have a data weight of
+    0), and then a small positive value (``1e-6``) makes it so.
+    """
+    if _cholesky_AAt is not None:
+        # user has cholesky available - provide a fast solve. It factors
+        # A A^T + beta I, and we hand it A = X^T. The call is wrapped in a
+        # context manager that swallows the low-level std-out to stop it from
+        # swamping our stdout (these low-level prints come from METIS, but the
+        # solution behaves as normal)
         with stdout_redirected():
-            factor = cholesky_AAt(sparse_X.T)
+            factor = _cholesky_AAt(sparse_X.T, beta=damping)
         return factor(sparse_X.T.dot(dense_b)).toarray()
 
-except ImportError:
     # fallback to (much slower) scipy solve
     from scipy.sparse.linalg import spsolve as scipy_spsolve
 
-    def spsolve(sparse_X, dense_b):
-        warnings.warn(
-            "suitesparse is not installed - NICP will run "
-            "considerably (~5-10x) slower. If possible install "
-            "suitesparse."
-        )
-        return scipy_spsolve(
-            sparse_X.T.dot(sparse_X), sparse_X.T.dot(dense_b)
-        ).toarray()
+    warnings.warn(
+        "suitesparse is not installed - NICP will run "
+        "considerably (~5-10x) slower. If possible install "
+        "suitesparse."
+    )
+    normal = sparse_X.T.dot(sparse_X)
+    if damping:
+        normal = normal + damping * sp.identity(normal.shape[0], format="csc")
+    return scipy_spsolve(normal, sparse_X.T.dot(dense_b)).toarray()
 
 
 def node_arc_incidence_matrix(source):
@@ -136,9 +160,22 @@ def non_rigid_icp(
     stiffness_weights=None,
     data_weights=None,
     landmark_weights=None,
+    damping=0.0,
     generate_instances=False,
     verbose=False,
 ):
+    r"""
+    Non-rigid ICP: deforms the ``source`` trimesh to align optimally with the
+    ``target``.
+
+    ``damping`` (default ``0.0``) is added to the diagonal of the normal
+    equations that are solved at every iteration. When many vertices have a
+    weight of 0 (``data_weights``, ``landmark_weights``) the equations are
+    singular: the fast solver (scikit-sparse) then raises
+    ``CholmodNotPositiveDefiniteError`` and the scipy one gives wrong answers
+    or warns. A small value, e.g. ``1e-6``, makes them solvable at the cost of
+    pulling the transforms towards zero by that much.
+    """
     # call the generator version of NICP, always returning a generator
     generator = non_rigid_icp_generator(
         source,
@@ -149,6 +186,7 @@ def non_rigid_icp(
         landmark_group=landmark_group,
         landmark_weights=landmark_weights,
         data_weights=data_weights,
+        damping=damping,
     )
     # the handler decides whether the user get's details and each iteration
     # returned, or just the final result.
@@ -164,9 +202,22 @@ def active_non_rigid_icp(
     landmark_group=None,
     landmark_weights=None,
     model_mean_landmarks=None,
+    damping=0.0,
     generate_instances=False,
     verbose=False,
 ):
+    r"""
+    Non-rigid ICP: deforms the ``source`` trimesh to align optimally with the
+    ``target``.
+
+    ``damping`` (default ``0.0``) is added to the diagonal of the normal
+    equations that are solved at every iteration. When many vertices have a
+    weight of 0 (``data_weights``, ``landmark_weights``) the equations are
+    singular: the fast solver (scikit-sparse) then raises
+    ``CholmodNotPositiveDefiniteError`` and the scipy one gives wrong answers
+    or warns. A small value, e.g. ``1e-6``, makes them solvable at the cost of
+    pulling the transforms towards zero by that much.
+    """
     model_mean = model.mean()
 
     if landmark_group is not None:
@@ -215,6 +266,7 @@ def active_non_rigid_icp(
         landmark_weights=landmark_weights,
         landmark_group=landmark_group,
         v_i_update_func=project_onto_model,
+        damping=damping,
         verbose=verbose,
     )
     # the handler decides whether the user get's details and each iteration
@@ -246,11 +298,22 @@ def non_rigid_icp_generator(
     landmark_group=None,
     landmark_weights=None,
     v_i_update_func=None,
+    damping=0.0,
     verbose=False,
 ):
     r"""
-    Deforms the source trimesh to align with to optimally the target.
+    Deforms the source trimesh to align optimally with the target (a generator
+    that yields the result of every iteration).
+
+    ``damping`` (default ``0.0``) is added to the diagonal of the normal
+    equations that are solved at every iteration. When many vertices have a
+    weight of 0 (``data_weights``, ``landmark_weights``) the equations are
+    singular: the fast solver (scikit-sparse) then raises
+    ``CholmodNotPositiveDefiniteError`` and the scipy one gives wrong answers
+    or warns. A small value, e.g. ``1e-6``, makes them solvable at the cost of
+    pulling the transforms towards zero by that much.
     """
+
     # If landmarks are provided, we should always start with a simple
     # AlignmentSimilarity between the landmarks to initialize optimally.
     if landmark_group is not None:
@@ -491,7 +554,7 @@ def non_rigid_icp_generator(
 
             A_s = sp.vstack(to_stack_A).tocsr()
             B_s = sp.vstack(to_stack_B).tocsr()
-            X = spsolve(A_s, B_s)
+            X = spsolve(A_s, B_s, damping=damping)
 
             # deform template
             v_i_prev = v_i
