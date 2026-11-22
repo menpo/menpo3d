@@ -50,12 +50,12 @@ class ShapeModel(Transformable):
         return ShapeModel(new_model)
 
     def project(self, instance, n_components=None):
-        if n_components is not None:
-            prev_n_components = self.model.n_active_components
-            self.model.n_active_components = n_components
-        weights = np.linalg.lstsq(
-            self.model.components.T, instance.as_vector() - self.model.mean_vector
+        # a trimmed model shares the memory of this one and leaves it as it is
+        model = (
+            self.model
+            if n_components is None
+            else self.model.trim_components(n_components)
+        )
+        return np.linalg.lstsq(
+            model.components.T, instance.as_vector() - model.mean_vector
         )[0]
-        if n_components is not None:
-            self.model.n_active_components = prev_n_components
-        return weights

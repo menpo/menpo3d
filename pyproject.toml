@@ -11,7 +11,7 @@ license = "BSD-3-Clause"
 license-files = ["LICENSE.txt", "AUTHORS.txt"]
 authors = [{ name = "The Menpo Team", email = "hello@menpo.org" }]
 requires-python = ">=3.10"
-dependencies = ["menpo>=0.12.1", "moderngl>=5.6", "numpy>=1.23", "scipy>=1.0"]
+dependencies = ["menpo>=0.13", "moderngl>=5.6", "numpy>=1.23", "scipy>=1.0"]
 
 [project.optional-dependencies]
 # menpo3d.visualize, interactive: moderngl frames streamed to a notebook widget or a browser window
