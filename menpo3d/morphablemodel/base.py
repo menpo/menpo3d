@@ -114,9 +114,9 @@ class MorphableModel(Copyable):
             The coloured trimesh instance.
         """
         if shape_weights is None:
-            shape_weights = np.zeros(self.shape_model.n_active_components)
+            shape_weights = np.zeros(self.shape_model.n_components)
         if texture_weights is None:
-            texture_weights = np.zeros(self.texture_model.n_active_components)
+            texture_weights = np.zeros(self.texture_model.n_components)
 
         # Generate instance
         shape_instance = self.shape_model.instance(shape_weights)
@@ -142,9 +142,9 @@ class MorphableModel(Copyable):
             The coloured trimesh instance.
         """
         # TODO: this bit of logic should to be transferred down to PCAModel
-        shape_weights = np.random.randn(self.shape_model.n_active_components)
+        shape_weights = np.random.randn(self.shape_model.n_components)
         shape_instance = self.shape_model.instance(shape_weights)
-        texture_weights = np.random.randn(self.texture_model.n_active_components)
+        texture_weights = np.random.randn(self.texture_model.n_components)
         texture_instance = self.texture_model.instance(texture_weights)
 
         return self._instance(shape_instance, texture_instance, landmark_group)
@@ -254,7 +254,7 @@ class ColouredMorphableModel(MorphableModel):
         vertex_indices = shape_template.trilist[tri_indices]
 
         t_model = self.texture_model.components.reshape(
-            [self.texture_model.n_active_components, -1, self.n_channels]
+            [self.texture_model.n_components, -1, self.n_channels]
         )
         # n: components    s: samples    t: triangle    c: channels
         return np.einsum("nstc, st -> scn", t_model[:, vertex_indices], bcoords)

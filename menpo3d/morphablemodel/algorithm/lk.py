@@ -25,7 +25,7 @@ class LucasKanade(object):
 
         :type: `int`
         """
-        return self.model.shape_model.n_active_components
+        return self.model.shape_model.n_components
 
     @property
     def m(self):
@@ -34,7 +34,7 @@ class LucasKanade(object):
 
         :type: `int`
         """
-        return self.model.texture_model.n_active_components
+        return self.model.texture_model.n_components
 
     @property
     def n_vertices(self):
@@ -134,7 +134,7 @@ class LucasKanade(object):
 
     def _precompute(self):
         # Rescale shape and appearance components to have size:
-        # n_vertices x (n_active_components * n_dims)
+        # n_vertices x (n_components * n_dims)
         shape_pc = self.model.shape_model.components.T
         self.shape_pc = shape_pc.reshape([self.n_vertices, -1])
 

@@ -13,16 +13,43 @@ class MultilinearModel(object):
         self.models = models
 
     @property
-    def n_active_components(self):
-        return np.sum([mdl.n_active_components for mdl in self.models])
+    def n_components(self):
+        r"""
+        The number of components of all the models together.
 
-    @n_active_components.setter
-    def n_active_components(self, values):
+        :type: `int`
+        """
+        return int(np.sum([mdl.n_components for mdl in self.models]))
+
+    def trim_components(self, n_components):
+        r"""
+        Returns a new multilinear model whose models are trimmed (see
+        `menpo.model.PCAVectorModel.trim_components`: they share the memory of these
+        models, and leave them as they are).
+
+        Parameters
+        ----------
+        n_components : `int` or `float` or a sequence of those
+            A number of components for each model, or one number for the first
+            model only. The models it does not give a number for keep all their
+            components.
+
+        Returns
+        -------
+        model : :map:`MultilinearModel`
+            The trimmed model.
+        """
         try:
-            for mdl, v in zip(self.models, values):
-                mdl.n_active_components = v
+            numbers = list(n_components)
         except TypeError:
-            self.models[0].n_active_components = values
+            numbers = [n_components]
+        numbers += [None] * (len(self.models) - len(numbers))
+        return MultilinearModel(
+            *[
+                mdl.trim_components(mdl.n_components if n is None else n)
+                for mdl, n in zip(self.models, numbers)
+            ]
+        )
 
     def noise_variance(self):
         return self.models[0].noise_variance()
@@ -33,7 +60,7 @@ class MultilinearModel(object):
         return self.template_instance.from_vector(v)
 
     def instance(self, weights, normalized_weights=False):
-        n_active = np.cumsum([0] + [mdl.n_active_components for mdl in self.models])
+        n_active = np.cumsum([0] + [mdl.n_components for mdl in self.models])
         slices = (slice(*s) for s in zip(n_active, n_active[1:]))
 
         v = np.sum(
@@ -63,6 +90,6 @@ class MultilinearModel(object):
         # Warning: Hacky way to project. Only projects onto the first
         # models components and sets the rest to zero.
 
-        n_active_components = [mdl.n_active_components for mdl in self.models]
-        e = np.zeros(sum(n_active_components[1:]))
+        n_components = [mdl.n_components for mdl in self.models]
+        e = np.zeros(sum(n_components[1:]))
         return np.hstack([self.models[0].project(v), e])
