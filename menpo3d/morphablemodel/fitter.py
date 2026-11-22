@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 
 from menpo.transform import AlignmentAffine, AlignmentSimilarity, Rotation
@@ -400,10 +402,10 @@ class LucasKanadeMMFitter(MMFitter):
         # Create list of algorithms
         algorithms = []
         for i in range(n_scales):
-            mm_copy = mm.copy()
-            set_model_components(mm_copy.shape_model, n_shape[i])
-            set_model_components(mm_copy.texture_model, n_texture[i])
-            algorithms.append(lk_algorithm_cls(mm_copy, self.n_samples[i]))
+            # each scale works on its own trimmed copy (it shares the memory of
+            # the models of mm, which it leaves as they are)
+            mm_scale = trimmed_copy(mm, n_shape=n_shape[i], n_texture=n_texture[i])
+            algorithms.append(lk_algorithm_cls(mm_scale, self.n_samples[i]))
 
         # Call superclass
         super(LucasKanadeMMFitter, self).__init__(
@@ -419,8 +421,8 @@ class LucasKanadeMMFitter(MMFitter):
             scales_info.append(
                 lvl_str_tmplt.format(
                     k,
-                    self.algorithms[k].model.shape_model.n_active_components,
-                    self.algorithms[k].model.texture_model.n_active_components,
+                    self.algorithms[k].model.shape_model.n_components,
+                    self.algorithms[k].model.texture_model.n_components,
                 )
             )
         scales_info = "\n".join(scales_info)
@@ -436,24 +438,40 @@ class LucasKanadeMMFitter(MMFitter):
         return self.mm.__str__() + cls_str
 
 
-def set_model_components(model, n_components):
+def trimmed_copy(mm, n_shape=None, n_texture=None):
     r"""
-    Function that sets the number of active components to the provided model.
+    Returns a copy of a morphable model whose shape and texture models are
+    trimmed to ``n_shape`` and ``n_texture`` components: they share the
+    memory of the models of ``mm`` (see `menpo.model.PCAVectorModel.trim_components`),
+    so nothing large is copied, and ``mm`` is left as it is.
 
     Parameters
     ----------
-    model : `menpo.model.PCAVectorModel` or `menpo.model.PCAModel` or subclass
-        The PCA model.
-    n_components : `int` or `float` or ``None``
-        The number of active components to set.
+    mm : :map:`MorphableModel`
+        The morphable model.
+    n_shape, n_texture : `int` or `float` or ``None``
+        The number of components to keep (a `float` is the ratio of the
+        variance to keep). ``None`` keeps all of them.
+
+    Returns
+    -------
+    mm : `type(mm)`
+        The copy.
 
     Raises
     ------
     ValueError
         n_components can be an integer or a float or None
     """
-    if n_components is not None:
-        if type(n_components) is int or type(n_components) is float:
-            model.n_active_components = n_components
-        else:
-            raise ValueError("n_components can be an integer or a float or None")
+    new = copy.copy(mm)
+    new.shape_model = _trimmed(mm.shape_model, n_shape)
+    new.texture_model = _trimmed(mm.texture_model, n_texture)
+    return new
+
+
+def _trimmed(model, n_components):
+    if n_components is None:
+        return model.trim_components(model.n_components)
+    if type(n_components) is int or type(n_components) is float:
+        return model.trim_components(n_components)
+    raise ValueError("n_components can be an integer or a float or None")
