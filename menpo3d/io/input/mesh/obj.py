@@ -5,7 +5,7 @@ independently, VTK points carry all three together. ``vtkOBJReader`` therefore k
 ``v`` list as the points when every ``vt``/``vn`` index equals its ``v`` index, and
 otherwise gives every face corner its own point (in face order). Existing datasets are
 built against those point lists, so this reader does the same. Merging duplicate vertices
-is a separate step that belongs after import.
+is a separate step that belongs after import (``menpo3d.mesh.merge_duplicate_points``).
 """
 
 import numpy as np
@@ -14,12 +14,15 @@ import numpy as np
 class ObjData:
     r"""What an OBJ file contains, after ``vtkOBJReader``'s point duplication rules."""
 
-    def __init__(self, points, counts, connectivity, tcoords, duplicated):
+    def __init__(
+        self, points, counts, connectivity, tcoords, duplicated, n_file_vertices=None
+    ):
         self.points = points  # (n, 3) float64
         self.counts = counts  # vertices per face
         self.connectivity = connectivity  # point index of every face corner
         self.tcoords = tcoords  # (n, 2) float32 or None; -1 where a point has none
         self.duplicated = duplicated  # True if there is one point per face corner
+        self.n_file_vertices = n_file_vertices  # how many ``v`` lines the file has
 
 
 def _index(token, count, line_number):
@@ -145,10 +148,11 @@ def read_obj(path):
             np.arange(len(connectivity), dtype=np.int64),
             tcoords,
             True,
+            len(points),
         )
     tcoords = None
     if has_tcoords:
         tcoords = np.full((len(points), 2), -1.0, dtype=np.float32)
         used = corner_t >= 0
         tcoords[connectivity[used]] = vt[corner_t[used]]
-    return ObjData(points, counts, connectivity, tcoords, False)
+    return ObjData(points, counts, connectivity, tcoords, False, len(points))
