@@ -1,6 +1,7 @@
 from . import barycentric
 from . import correspond
 from . import io
+from . import mesh
 from . import rasterize
 from . import unwrap
 from . import visualize

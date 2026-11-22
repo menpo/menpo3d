@@ -103,6 +103,7 @@ API Documentation
   api/extractimage
   api/io
   api/math
+  api/mesh
   api/morphablemodel
   api/rasterize
   api/result

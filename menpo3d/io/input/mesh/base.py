@@ -116,7 +116,8 @@ def obj_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     index the points are the ``v`` list (unused vertices included), otherwise every
     face corner becomes its own point. Polygons are split into triangles the way
     VTK did (with a warning). Merging duplicated points is a separate step that
-    belongs after import.
+    belongs after import: a warning says when it is needed, and
+    :func:`menpo3d.mesh.merge_duplicate_points` does it.
 
     Parameters
     ----------
@@ -140,6 +141,17 @@ def obj_importer(filepath, asset=None, texture_resolver=None, **kwargs):
     data = read_obj(filepath)
     points = data.points
     trilist = triangulate_polygons(points, data.counts, data.connectivity)
+    if data.duplicated:
+        warnings.warn(
+            "{}: its texture coordinates or normals are indexed differently from its "
+            "vertices, so every face corner became its own point ({} points for the {} "
+            "vertices in the file; this is what vtkOBJReader gave, and datasets rely "
+            "on it). To merge the identical points use "
+            "menpo3d.mesh.merge_duplicate_points(mesh).".format(
+                filepath, len(points), data.n_file_vertices
+            ),
+            stacklevel=2,
+        )
 
     texture = None
     if texture_resolver is not None:
