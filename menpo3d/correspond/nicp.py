@@ -349,7 +349,10 @@ def non_rigid_icp_generator(
     points, trilist = source.points, source.trilist
     n = points.shape[0]  # record number of points
 
-    edge_tris = source.boundary_tri_index()
+    # the triangles of the *target* that are on its boundary (the nearest point
+    # found below is on a triangle of the target): their indices, not the
+    # boolean mask that boundary_tri_index() gives
+    edge_tris = np.flatnonzero(target.boundary_tri_index())
 
     M_s, unique_edge_pairs = node_arc_incidence_matrix(source)
 
