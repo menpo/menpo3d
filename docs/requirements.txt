@@ -4,5 +4,7 @@ sphinx>=7
 sphinx_rtd_theme>=2
 sphinxmapxrefrole>=0.2
 # menpo 0.13 is only released as a pre-release so far: naming it here lets pip take it, for menpo
-# only, before the package itself is installed. Remove this when menpo 0.13 is released.
+# only. The package is installed without its dependencies (.readthedocs.yaml), so what it needs
+# besides menpo is listed here. Remove all of this when menpo 0.13 is released.
 menpo>=0.13.0rc1
+moderngl>=5.6

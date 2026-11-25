@@ -16,6 +16,11 @@ build:
       # the version comes from git tags (setuptools-scm) but Read the Docs clones shallowly
       - git fetch --unshallow || true
       - git fetch --tags || true
+    post_install:
+      # Not `method: pip`: the package requires menpo>=0.13, which the pre-release 0.13.0rc1 in
+      # docs/requirements.txt does not satisfy, so its dependencies are listed there instead.
+      # Back to `method: pip` when menpo 0.13 is released.
+      - python -m pip install --no-deps .
 
 sphinx:
   configuration: docs/source/conf.py
@@ -23,5 +28,3 @@ sphinx:
 python:
   install:
     - requirements: docs/requirements.txt
-    - method: pip
-      path: .
