@@ -30,6 +30,12 @@ Homepage = "https://www.menpo.org"
 Source = "https://github.com/menpo/menpo3d"
 Documentation = "https://menpo3d.readthedocs.io/en/stable/"
 
+# menpo 0.13 is only released as a pre-release so far. This lets uv (uv sync, uv pip install .
+# in this directory) take it for menpo and for no other package; it is not in the metadata
+# that is published. Remove it when menpo 0.13 is released.
+[tool.uv]
+override-dependencies = ["menpo>=0.13.0rc1"]
+
 [dependency-groups]
 dev = ["pytest>=8", "pytest-mock>=3", "ruff", "opencv-python-headless", "scene-streamer[notebook,h264,fast-jpeg]>=0.1", "moderngl-window>=3.1", "glfw>=2.6"]
 
