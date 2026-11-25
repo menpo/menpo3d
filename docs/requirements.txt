@@ -3,3 +3,6 @@
 sphinx>=7
 sphinx_rtd_theme>=2
 sphinxmapxrefrole>=0.2
+# menpo 0.13 is only released as a pre-release so far: naming it here lets pip take it, for menpo
+# only, before the package itself is installed. Remove this when menpo 0.13 is released.
+menpo>=0.13.0rc1
